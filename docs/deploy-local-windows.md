@@ -49,6 +49,7 @@ powershell -ExecutionPolicy Bypass -File scripts/local/stop-all.ps1
 | 填模型 key | 编辑 `.env` → `stop-all` → `start-all`（三个进程都读 `.env`，重启生效） |
 | 调 Techin 口径 | `.env` 的 `TECHIN_*` 变量（白名单、每轮上限等，见 `scripts/techin-feeder/README.md`） |
 | 暂停某信源 | 后台「信源」页暂停；feeder 推送的 `techin-*` 信源同样在这里管理 |
+| 批量导入私有信源 | 内部信源清单不进仓库：整理成与 `industry/sources.json` 同格式的 JSON 放在仓库外，`node --env-file=.env scripts/import-sources.ts <文件>`（只补库里没有的 id，后台改过的不覆盖，可重复执行） |
 | 数据备份 | `runtime/pg/bin/pg_dump -U postgres techinhot > backup.sql` |
 | 升级框架 | 合并上游 AIHOT 后：stop → `npm ci` → `node --env-file=.env scripts/migrate.ts` → build → start |
 
