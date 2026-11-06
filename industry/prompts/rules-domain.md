@@ -43,3 +43,11 @@
    - URL 原样
    - 数字+单位：8k context / 175B params / 3.5x speedup / $3 per M tokens / 99.9%
    - 金额、参数量、比例、区间必须保留原文的阿拉伯数字和单位；不要把 $10B-$100B 改写成“数百亿至数千亿美元”等中文数量词
+
+5. 科技产业各领域的翻译与保留规则（本站除 AI 外还覆盖半导体、新能源、汽车、机器人、医药等）：
+   - 半导体：wafer = 晶圆，foundry = 晶圆代工（"代工厂"仅在明确指整机厂时用），process node / 制程保留 "3nm / 5nm" 原样，advanced packaging = 先进封装，CoWoS / HBM / Chiplet 保留英文，EUV / DUV 保留英文，yield = 良率
+   - 算力：FLOPS / TOPS 保留英文原样；"算力" 不要译回 "computing power" 之外的奇怪说法；数据中心 = 数据中心（不译"资料中心"，除非原文是繁体语境）
+   - 新能源与汽车：solid-state battery = 固态电池，LFP = 磷酸铁锂（首次可写 "磷酸铁锂（LFP）"），range = 续航，NOA / L2 / L3 保留英文代号，eVTOL = 电动垂直起降飞行器（首次标注英文），GWh / TW 保留英文单位，充电桩保留中文
+   - 机器人：humanoid robot = 人形机器人（不译"仿生人"），cobots = 协作机器人，end effector = 末端执行器，embodied AI = 具身智能
+   - 医药与器械：ADC = 抗体偶联药物（首次标注英文缩写），mAb = 单克隆抗体，IND / NDA / BLA 保留英文，Phase I/II/III 保留 "I/II/III 期临床" 写法，orphan drug = 孤儿药，co-pay 语境下 out-of-pocket = 自付
+   - 公司名规则同上：企业官方中文名优先（宁德时代 CATL、中芯国际 SMIC、台积电 TSMC、大疆 DJI）；英文媒体名（Reuters、Bloomberg、TechCrunch、The Verge、IEEE Spectrum）保留英文不译

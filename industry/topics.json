@@ -2,13 +2,13 @@
   "groups": [
     {
       "key": "company",
-      "name": "公司与模型",
-      "blurb": "按厂商追踪模型、产品与公司动态"
+      "name": "公司与机构",
+      "blurb": "按厂商追踪模型、芯片、产品与公司动态"
     },
     {
       "key": "field",
-      "name": "技术方向",
-      "blurb": "按技术领域深挖：Agent、多模态、具身智能……"
+      "name": "产业方向",
+      "blurb": "按产业与技术领域深挖：AI、芯片、新能源、机器人……"
     },
     {
       "key": "genre",
@@ -332,7 +332,167 @@
       "tags": [
         "政策/监管"
       ],
-      "definition": "AI 相关的政策法规与政府监管：立法进展、出口管制与全球治理。"
+      "definition": "科技产业相关的政策法规与政府监管：立法进展、出口管制、产业扶持与全球治理。"
+    },
+    {
+      "slug": "huawei",
+      "name": "华为",
+      "group": "company",
+      "entityId": "huawei",
+      "definition": "华为的昇腾算力、鸿蒙生态、终端与云业务，以及半导体自主化进展。"
+    },
+    {
+      "slug": "byd",
+      "name": "比亚迪",
+      "group": "company",
+      "entityId": "byd",
+      "definition": "比亚迪的车型发布、销量与出海，以及电池技术与产能布局。"
+    },
+    {
+      "slug": "catl",
+      "name": "宁德时代",
+      "group": "company",
+      "entityId": "catl",
+      "definition": "宁德时代的动力与储能电池发布、新技术路线和全球产能扩张。"
+    },
+    {
+      "slug": "tsmc",
+      "name": "台积电",
+      "group": "company",
+      "entityId": "tsmc",
+      "definition": "台积电的制程推进、先进封装、产能与业绩，以及全球建厂动向。"
+    },
+    {
+      "slug": "smic",
+      "name": "中芯国际",
+      "group": "company",
+      "entityId": "smic",
+      "definition": "中芯国际的制程与产能进展、业绩变化和国产化供应链动态。"
+    },
+    {
+      "slug": "tesla",
+      "name": "特斯拉",
+      "group": "company",
+      "entityId": "tesla",
+      "definition": "特斯拉的车型与 FSD 更新、Optimus 机器人进展、产能与全球市场动作。"
+    },
+    {
+      "slug": "xiaomi",
+      "name": "小米",
+      "group": "company",
+      "entityId": "xiaomi",
+      "definition": "小米的手机与汽车业务、端侧 AI 与生态链产品动态。"
+    },
+    {
+      "slug": "tencent",
+      "name": "腾讯",
+      "group": "company",
+      "entityId": "tencent",
+      "definition": "腾讯的混元模型、游戏与云业务，以及微信生态的产品动向。"
+    },
+    {
+      "slug": "alibaba",
+      "name": "阿里巴巴",
+      "group": "company",
+      "entityId": "alibaba",
+      "definition": "阿里巴巴的通义模型与阿里云、电商业务变化和 AI 基础设施投入。"
+    },
+    {
+      "slug": "bytedance",
+      "name": "字节跳动",
+      "group": "company",
+      "entityId": "bytedance",
+      "definition": "字节跳动的豆包模型、抖音与 TikTok 动态、火山引擎和 AI 应用布局。"
+    },
+    {
+      "slug": "baidu",
+      "name": "百度",
+      "group": "company",
+      "entityId": "baidu",
+      "definition": "百度的文心模型、智能驾驶（Apollo、萝卜快跑）与搜索业务动向。"
+    },
+    {
+      "slug": "dji",
+      "name": "大疆",
+      "group": "company",
+      "entityId": "dji",
+      "definition": "大疆的无人机与影像产品发布，以及低空经济、机器人方向的拓展。"
+    },
+    {
+      "slug": "chips",
+      "name": "芯片与算力",
+      "group": "field",
+      "tags": [
+        "芯片",
+        "算力"
+      ],
+      "definition": "半导体产业链的关键进展：制程与先进封装、GPU 与国产算力、设备材料与产能博弈。"
+    },
+    {
+      "slug": "autonomous-driving",
+      "name": "自动驾驶",
+      "group": "field",
+      "tags": [
+        "自动驾驶"
+      ],
+      "definition": "智能驾驶的技术与商业化：城市 NOA、Robotaxi、端到端大模型与监管进展。"
+    },
+    {
+      "slug": "robotics",
+      "name": "机器人",
+      "group": "field",
+      "tags": [
+        "机器人"
+      ],
+      "definition": "机器人产业落地：人形机器人、工业与协作机器人、具身智能与核心零部件。"
+    },
+    {
+      "slug": "new-energy",
+      "name": "新能源与储能",
+      "group": "field",
+      "tags": [
+        "新能源",
+        "储能",
+        "光伏"
+      ],
+      "definition": "能源转型主线：动力与储能电池、光伏风电、氢能与电网侧变化。"
+    },
+    {
+      "slug": "biomedicine",
+      "name": "生物医药",
+      "group": "field",
+      "tags": [
+        "生物医药",
+        "医疗器械"
+      ],
+      "definition": "医药与器械的创新进展：新药获批与临床数据、BD 交易、AI 制药与医疗 AI。"
+    },
+    {
+      "slug": "low-altitude",
+      "name": "低空经济",
+      "group": "field",
+      "tags": [
+        "低空经济"
+      ],
+      "definition": "低空经济与通航：eVTOL、无人机物流与场景运营、空域管理与适航审定。"
+    },
+    {
+      "slug": "aerospace",
+      "name": "商业航天",
+      "group": "field",
+      "tags": [
+        "商业航天"
+      ],
+      "definition": "商业航天与卫星产业：可回收火箭、星座组网、卫星应用与发射服务。"
+    },
+    {
+      "slug": "quantum",
+      "name": "量子计算",
+      "group": "field",
+      "tags": [
+        "量子计算"
+      ],
+      "definition": "量子计算与量子通信：比特数与纠错进展、产业化和各国战略布局。"
     }
   ]
 }

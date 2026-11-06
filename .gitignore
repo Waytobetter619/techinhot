@@ -14,3 +14,8 @@ apps/web/.react-router/
 # Font package unpacked to regenerate the report nameplates (docs/customize.md)
 package/
 fontsource-noto-sans-sc-*.tgz
+ 
+# Local Windows runtime: portable PostgreSQL binaries and the data directory 
+runtime/ 
+# Feeder state lives under .data/ already; keep local run scripts out of the repo 
+runtime-*.md
