@@ -28,8 +28,9 @@ $psql = Join-Path $pgHome "bin\psql.exe"
 & $pgCtl -D $pgData status 2>$null | Out-Null
 if ($LASTEXITCODE -ne 0) {
   New-Item -ItemType Directory -Force -Path $logs | Out-Null
-  Write-Host "启动 PostgreSQL…"
-  & $pgCtl -D $pgData -l (Join-Path $logs "pg.log") start
+  # 上次没正常停（关机、断电）时 PostgreSQL 先做崩溃恢复，可能超过 pg_ctl 默认的 60 秒，等足 10 分钟。
+  Write-Host "启动 PostgreSQL（上次异常关机时要先做恢复，可能需要几分钟）…"
+  & $pgCtl -D $pgData -l (Join-Path $logs "pg.log") -w -t 600 start
   if ($LASTEXITCODE -ne 0) { throw "pg_ctl start 失败，看 runtime/logs/pg.log" }
 }
 for ($i = 0; $i -lt 30; $i++) {
