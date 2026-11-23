@@ -176,9 +176,12 @@ async function afterFailure(articleId: string, revision: number, error: unknown)
   if (shutdownSignal.signal.aborted) throw error;
   const message = String(error instanceof Error ? error.message : error).slice(0, 500);
   const kind = failureKind(error);
-  if (kind === "busy" || kind === "budget") {
-    // Not the article's fault: the same request is in flight, or the budget window is full.
-    const seconds = error instanceof BudgetExceededError ? error.retryAfterSeconds : 60;
+  if (kind === "busy" || kind === "budget" || kind === "off") {
+    // Not the article's fault: the same request is in flight, the budget window is full, or model calls are
+    // switched off (MODEL_CALLS_ENABLED=false) or not configured yet. Nothing was sent, so the article waits
+    // without spending processing_attempts; otherwise a site that collects before its model key arrives
+    // burns every retry in about 14 hours and its backlog ends "failed" for good.
+    const seconds = error instanceof BudgetExceededError ? error.retryAfterSeconds : kind === "off" ? 3600 : 60;
     const retryAt = new Date(Date.now() + seconds * 1000);
     await sql`UPDATE articles SET processing_state = 'new', processing_error = ${message}, processing_retry_at = ${retryAt}, processing_queued_at = NULL
               WHERE id = ${articleId} AND revision = ${revision}`;
