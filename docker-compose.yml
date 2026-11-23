@@ -66,6 +66,20 @@ services:
       setup:
         condition: service_completed_successfully
 
+  # Pushes Techin's industry-news dataset into the site through the ingest API (scripts/techin-feeder).
+  # Its cursor lives on the data volume, so it survives a recreated container. Without TECHIN_TOKEN it
+  # exits with an error; the site itself runs on its own sources.
+  feeder:
+    <<: *backend
+    command: ["node", "scripts/techin-feeder/techin-feeder.ts"]
+    environment:
+      <<: *backend-env
+      FEEDER_INGEST_BASE: http://api:3001
+      FEEDER_STATE_FILE: /data/techin-feeder/state.json
+    depends_on:
+      api:
+        condition: service_started
+
   web:
     <<: *app
     command: ["node", "apps/web/server.ts"]

@@ -24,9 +24,10 @@ node --env-file=.env scripts/techin-feeder/techin-feeder.ts --once   # 只跑一
 | `FEEDER_INGEST_BASE` | `http://127.0.0.1:3001` | 本站 api 的地址 |
 | `INGEST_TOKEN` | 必填 | 与 `.env` 推送接口的 token 一致（≥16 位） |
 | `FEEDER_INTERVAL_MINUTES` | `15` | 常驻模式的轮询间隔 |
+| `FEEDER_BACKLOG_WAIT_MINUTES` | `1` | 一轮取满、水位线之后还有积压时，隔多久接着取 |
+| `FEEDER_RETRY_WAIT_MINUTES` | `5` | 一轮失败（接口报错等）后隔多久重试；失败时水位线不动，不会漏也不会重 |
 | `FEEDER_MAX_PER_RUN` | `150` | 每轮最多推送多少条（控模型调用量） |
 | `FEEDER_BACKFILL_HOURS` | `48` | 首次运行往前回看多久（Techin 数据滞后 1–2 天，48h 正好接住最近一批；再老的会被站里按 48 小时规则归档，不刷屏） |
-| `FEEDER_OVERLAP_MINUTES` | `10` | 每轮窗口往前重叠多久，靠 URL 判重兜底 |
 | `TECHIN_SOURCE_PREFIX` | `techin` | 自动建的信源 id 前缀（`techin-新浪网`） |
 | `TECHIN_SOURCE_NAME_PREFIX` | `Techin舆情·` | 信源显示名前缀 |
 | `FEEDER_FLIP_EDITORIAL` | `true` | 把新信源从 isolated 翻成 editorial（等同后台手工操作） |

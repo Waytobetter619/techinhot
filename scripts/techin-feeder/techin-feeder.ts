@@ -21,9 +21,11 @@ const DATASET_NAME = env("TECHIN_DATASET", "产业舆情资讯");
 const INGEST_BASE = env("FEEDER_INGEST_BASE", "http://127.0.0.1:3001");
 const INGEST_TOKEN = process.env.INGEST_TOKEN?.trim() ?? "";
 const INTERVAL_MINUTES = num("FEEDER_INTERVAL_MINUTES", 15);
+// 还有积压时、一轮失败后，隔多久接着跑（分钟）；比完整间隔短，积压的文章不用干等。
+const BACKLOG_WAIT_MINUTES = num("FEEDER_BACKLOG_WAIT_MINUTES", 1);
+const RETRY_WAIT_MINUTES = num("FEEDER_RETRY_WAIT_MINUTES", 5);
 const MAX_PER_RUN = num("FEEDER_MAX_PER_RUN", 150);
 const BACKFILL_HOURS = num("FEEDER_BACKFILL_HOURS", 48);
-const OVERLAP_MINUTES = num("FEEDER_OVERLAP_MINUTES", 10);
 const HIGH_VALUE_ONLY = bool("TECHIN_HIGH_VALUE_ONLY", false);
 const REQUIRE_INDUSTRY = bool("TECHIN_REQUIRE_INDUSTRY", true);
 const WHITELIST = process.env.TECHIN_INDUSTRY_WHITELIST?.split(/[,，]/).map((s) => s.trim()).filter(Boolean) ?? [];
@@ -49,8 +51,26 @@ interface Row {
   [key: string]: string | null;
 }
 interface State {
-  watermark: string | null; // 已推送条目里最新的 release_time（ISO）；窗口从这里往前留重叠
+  /**
+   * 游标：最后推过的那一篇的发布时间和原文网址。发布时间不能单独当游标——Techin 里每天有上百篇
+   * 只知道日期的文章，时间统一补成零点整；同一时刻的文章按网址排序，游标才能稳定往前走。
+   */
+  cursor: { time: string; url: string } | null;
   datasetId: string | null;
+}
+/** 旧版状态文件只存了一个时间（watermark）：没有网址时，从该时刻的网址起点开始取，重复的由站内判重。 */
+type StateFile = State | { watermark: string | null; datasetId: string | null };
+
+function cursorOf(raw: StateFile): State {
+  if ("cursor" in raw) return { cursor: raw.cursor, datasetId: raw.datasetId };
+  const time = raw.watermark ? new Date(raw.watermark).toISOString() : null;
+  return { cursor: time ? { time, url: "" } : null, datasetId: raw.datasetId };
+}
+
+/** 这一篇排在该游标之后吗（时间更晚，或时间相同而网址更靠后）。 */
+function afterCursor(time: string, url: string, cursor: { time: string; url: string } | null): boolean {
+  if (!cursor) return true;
+  return time > cursor.time || (time === cursor.time && url > cursor.url);
 }
 
 const str = (row: Row, key: string) => (typeof row[key] === "string" ? (row[key] as string).trim() : "");
@@ -106,7 +126,8 @@ async function queryPage(dataset: string, filters: Array<{ field: string; op: st
     dataset_id: dataset,
     fields: [F.aiTitle, F.title, F.titleEn, F.url, F.site, F.time, F.industries],
     filters: [...filters, { field: F.time, op: "between", value: [fromIso, toIso] }],
-    sorts: [{ field: F.time, order: "asc" }],
+    // 先按发布时间、同一时刻再按网址：顺序稳定，游标才可靠（只按时间排时，零点整的几百篇每轮顺序可能不同）。
+    sorts: [{ field: F.time, order: "asc" }, { field: F.url, order: "asc" }],
     page: { page, page_size: PAGE_SIZE },
   };
   const r = await techin("/api/v1/query/detail", undefined, body);
@@ -146,15 +167,28 @@ function toItem(row: Row): Item | null {
   };
 }
 
+/** 遇到限流最多等几轮（每轮通常 60 秒）。 */
+const MAX_RATE_LIMIT_WAITS = 20;
+
 async function ingest(sourceId: string, sourceName: string, items: Item[]): Promise<number> {
-  const res = await fetch(`${INGEST_BASE}/api/ingest/items`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${INGEST_TOKEN}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ sourceId, sourceName, items }),
-  });
-  const json = (await res.json().catch(() => null)) as { ok?: boolean; created?: number; error?: string } | null;
-  if (!res.ok || !json?.ok) throw new Error(`推送失败（HTTP ${res.status}）：${json?.error ?? "无响应体"}`);
-  return json.created ?? 0;
+  for (let waits = 0; ; waits++) {
+    const res = await fetch(`${INGEST_BASE}/api/ingest/items`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${INGEST_TOKEN}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ sourceId, sourceName, items }),
+    });
+    const json = (await res.json().catch(() => null)) as { ok?: boolean; created?: number; error?: string } | null;
+    // 推送接口按客户端限流（INGEST_RATE_LIMIT，每分钟几次）。一轮里文章分散在几十个信源上就要推几十次，
+    // 超限时接口回 429 并给出等待秒数：等够了再推这一批，不让整轮推送到一半作废、积压永远推不动。
+    if (res.status === 429 && waits < MAX_RATE_LIMIT_WAITS) {
+      const seconds = Math.max(5, Number(res.headers.get("retry-after")) || 60);
+      log(`推送接口限流，等 ${seconds} 秒后接着推`);
+      await sleep(seconds * 1000);
+      continue;
+    }
+    if (!res.ok || !json?.ok) throw new Error(`推送失败（HTTP ${res.status}）：${json?.error ?? "无响应体"}`);
+    return json.created ?? 0;
+  }
 }
 
 /** 推送接口自动建的 external 信源默认 isolated（不公开）；这里把它们翻成 editorial，等同管理员在后台的操作。
@@ -188,13 +222,13 @@ async function flipEditorial(): Promise<number> {
 }
 
 async function loadState(): Promise<State> {
-  const { readFile, mkdir, writeFile, rename } = await import("node:fs/promises");
+  const { readFile, mkdir } = await import("node:fs/promises");
   const path = await import("node:path");
   try {
-    return JSON.parse(await readFile(STATE_FILE, "utf8")) as State;
+    return cursorOf(JSON.parse(await readFile(STATE_FILE, "utf8")) as StateFile);
   } catch {
     await mkdir(path.dirname(STATE_FILE), { recursive: true });
-    return { watermark: null, datasetId: null };
+    return { cursor: null, datasetId: null };
   }
 }
 
@@ -213,11 +247,12 @@ process.on("SIGINT", () => {
   running = false;
 });
 
-async function cycle(state: State): Promise<void> {
+/** 跑一轮；返回游标之后是否还有没取完的文章。 */
+async function cycle(state: State): Promise<boolean> {
   const dataset = await datasetId(state);
   const now = Date.now();
-  // 首次运行回看 BACKFILL_HOURS；之后从水位线往前留一小段重叠，靠 URL 判重兜底。
-  const from = state.watermark ? new Date(new Date(state.watermark).getTime() - OVERLAP_MINUTES * 60_000) : new Date(now - BACKFILL_HOURS * 3_600_000);
+  // 首次运行回看 BACKFILL_HOURS；之后从游标所在的时刻开始取（接口只有闭区间，同一时刻的由游标的网址区分）。
+  const from = state.cursor ? new Date(state.cursor.time) : new Date(now - BACKFILL_HOURS * 3_600_000);
   const to = new Date(now);
   const fromIso = beijing(from);
   const toIso = beijing(to);
@@ -229,19 +264,21 @@ async function cycle(state: State): Promise<void> {
 
   const bySource = new Map<string, Item[]>();
   const seen = new Set<string>();
+  const pushed: Item[] = [];
   let fetched = 0;
   let skipped = 0;
-  let maxTime = state.watermark;
   let page = 1;
-  while (fetched < MAX_PER_RUN) {
+  // 翻页上限：正常情况几页就够；同一时刻的文章极多时要翻很多页越过游标，设上限防接口异常时无限翻页。
+  const maxPages = Math.ceil(MAX_PER_RUN / PAGE_SIZE) + 200;
+  while (pushed.length < MAX_PER_RUN && page <= maxPages) {
     const { rows, hasNext } = await queryPage(dataset, filters, fromIso, toIso, page);
     for (const row of rows) {
       const item = toItem(row);
       if (!item || seen.has(item.url)) continue;
       seen.add(item.url);
       fetched += 1;
-      // 严格大于水位线，避免同一时刻的文章在两轮之间漏掉或重复。
-      if (state.watermark && new Date(item.publishedAt).getTime() <= new Date(state.watermark).getTime()) {
+      // 游标之前（含游标本身）的是上一轮推过的：不推，也不计入名额。
+      if (!afterCursor(item.publishedAt, item.url, state.cursor)) {
         skipped += 1;
         continue;
       }
@@ -249,19 +286,22 @@ async function cycle(state: State): Promise<void> {
       const list = bySource.get(site) ?? [];
       list.push(item);
       bySource.set(site, list);
-      const time = item.publishedAt;
-      if (!maxTime || time > maxTime) maxTime = time;
-      if (fetched >= MAX_PER_RUN) break;
+      pushed.push(item);
+      if (pushed.length >= MAX_PER_RUN) break;
     }
     if (!hasNext || rows.length === 0) break;
     page += 1;
   }
+  if (page > maxPages) log(`警告：翻页达到上限 ${maxPages} 页仍未越过游标，本轮先处理已取到的 ${pushed.length} 条`);
 
-  if (fetched === 0) {
-    log(`窗口 ${fromIso} ~ ${toIso}：没有新文章`);
-    return;
+  // 取满名额说明游标之后还有没轮到的文章；下一轮从新游标接着取。
+  const backlog = pushed.length >= MAX_PER_RUN;
+  if (pushed.length === 0) {
+    log(`窗口 ${fromIso} ~ ${toIso}：没有新文章（${skipped} 条在游标之前）`);
+    return false;
   }
-  log(`窗口 ${fromIso} ~ ${toIso}：取到 ${fetched} 条（${skipped} 条不新于水位线），来自 ${bySource.size} 个信源`);
+  const last = pushed.at(-1)!;
+  log(`窗口 ${fromIso} ~ ${toIso}：取到 ${fetched} 条，待推 ${pushed.length} 条（${skipped} 条在游标之前），来自 ${bySource.size} 个信源${backlog ? "，还有积压" : ""}`);
   let created = 0;
   for (const [site, items] of bySource) {
     for (let i = 0; i < items.length; i += PAGE_SIZE) {
@@ -274,13 +314,15 @@ async function cycle(state: State): Promise<void> {
     }
   }
   await flipEditorial();
-  if (maxTime && maxTime !== state.watermark) {
-    state.watermark = maxTime;
+  // 游标记在本轮实际推出去的最后一篇上。推送中途出错会抛到外层，游标不动，下一轮从原处重推，站内按网址判重。
+  const next = { time: last.publishedAt, url: last.url };
+  const moved = JSON.stringify(next) !== JSON.stringify(state.cursor);
+  if (moved) {
+    state.cursor = next;
     await saveState(state);
-    log(`本轮完成：推送 ${created} 条，水位线推进到 ${maxTime}`);
-  } else {
-    log(`本轮完成：推送 ${created} 条，水位线不变（${state.watermark ?? "未设置"}）`);
   }
+  log(`本轮完成：推送 ${created} 条，游标${moved ? `推进到 ${last.publishedAt} ${last.url.slice(0, 60)}` : "不变"}`);
+  return backlog;
 }
 
 async function main() {
@@ -290,14 +332,17 @@ async function main() {
   const state = await loadState();
   const once = process.argv.includes("--once");
   do {
+    // 默认等一个完整间隔；失败（稍后重试）和还有积压（接着取）时只歇一小会儿，不让积压的文章干等。
+    let waitMinutes = INTERVAL_MINUTES;
     try {
-      await cycle(state);
+      if (await cycle(state)) waitMinutes = BACKLOG_WAIT_MINUTES;
     } catch (error) {
-      log(`本轮失败（水位线不动，下轮重试）：${error instanceof Error ? error.message : error}`);
+      log(`本轮失败（水位线不动，${RETRY_WAIT_MINUTES} 分钟后重试）：${error instanceof Error ? error.message : error}`);
+      waitMinutes = RETRY_WAIT_MINUTES;
       if (once) process.exitCode = 1;
     }
     if (once) break;
-    if (running) await sleep(INTERVAL_MINUTES * 60_000);
+    if (running) await sleep(waitMinutes * 60_000);
   } while (running);
   // --once 时引入的 backend 模块带着连接池，事件循环不会自己空；跑完就退，别挂住计划任务。
   if (once) process.exit(process.exitCode ?? 0);
