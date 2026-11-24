@@ -11,6 +11,7 @@ import { analyzeArticle } from "../editorial/analyze.ts";
 import { isHistorical } from "../content/materials.ts";
 import { publishArticle } from "../publication/publish.ts";
 import { BudgetExceededError, failedReceiptId, failureKind } from "../providers/receipts.ts";
+import { editorialPolicy } from "../modules.ts";
 import { readsWhole } from "../sources/uses.ts";
 import { enqueue, QUEUES, shutdownSignal, work } from "./queue.ts";
 
@@ -176,12 +177,9 @@ async function afterFailure(articleId: string, revision: number, error: unknown)
   if (shutdownSignal.signal.aborted) throw error;
   const message = String(error instanceof Error ? error.message : error).slice(0, 500);
   const kind = failureKind(error);
-  if (kind === "busy" || kind === "budget" || kind === "off") {
-    // Not the article's fault: the same request is in flight, the budget window is full, or model calls are
-    // switched off (MODEL_CALLS_ENABLED=false) or not configured yet. Nothing was sent, so the article waits
-    // without spending processing_attempts; otherwise a site that collects before its model key arrives
-    // burns every retry in about 14 hours and its backlog ends "failed" for good.
-    const seconds = error instanceof BudgetExceededError ? error.retryAfterSeconds : kind === "off" ? 3600 : 60;
+  if (kind === "busy" || kind === "budget") {
+    // Not the article's fault: the same request is in flight, or the budget window is full.
+    const seconds = error instanceof BudgetExceededError ? error.retryAfterSeconds : 60;
     const retryAt = new Date(Date.now() + seconds * 1000);
     await sql`UPDATE articles SET processing_state = 'new', processing_error = ${message}, processing_retry_at = ${retryAt}, processing_queued_at = NULL
               WHERE id = ${articleId} AND revision = ${revision}`;
@@ -271,7 +269,8 @@ const ARTICLE_STEPS = new Set(["prefilter_article", "score_article", "structure_
  * back to processing: one action, not two. Returns whether it was queued.
  */
 export async function resumeAfterRelease(receipt: { purpose: string; subject: string | null }, db: Db): Promise<boolean> {
-  const article = ARTICLE_STEPS.has(receipt.purpose) ? /^article:([^@:#]+)/.exec(receipt.subject ?? "")?.[1] : undefined;
+  const isAnalysisStep = ARTICLE_STEPS.has(receipt.purpose) || Boolean(editorialPolicy().analysisPurposes?.includes(receipt.purpose));
+  const article = isAnalysisStep ? /^article:([^@:#]+)/.exec(receipt.subject ?? "")?.[1] : undefined;
   if (!article) return false;
   const [a] = await db`UPDATE articles SET processing_state = 'new', processing_attempts = 0, processing_retry_at = NULL, processing_error = NULL
                         WHERE id = ${article} AND processing_state = 'failed' RETURNING id`;

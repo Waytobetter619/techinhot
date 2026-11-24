@@ -11,10 +11,19 @@ export interface ModulePage {
   file: string;
   id?: string;
   /**
-   * Not public yet: served at /preview/<path> to the signed-in admin alone, 404 to everyone else (its loader uses
+   * Not public yet: served at /preview/<path> to previewers (signed-in admins or people approved by a site module), 404 to everyone else (its loader uses
    * the web app's grayGet). Launching a page is deleting this, with what else skill launch-aihot-feature lists.
    */
   gray?: true;
+  /**
+   * Admin-only page at /admin/<path>, in the back office's own shell (its own sidebar, not the site's); its loader uses
+   * adminPageGet and GRAY_HEADERS. Never inside a module's layout.
+   */
+  admin?: true;
+  /** An admin page's name in the back office's sidebar. */
+  nav?: string;
+  /** Also served in English at /en/<path>: the page's reader-facing text is written in both languages (apps/web/app/lib/i18n.ts). */
+  en?: true;
 }
 
 /** Pages that share a layout route. */
@@ -36,5 +45,10 @@ export interface ModuleDeclaration {
 }
 
 export function defineModule(module: ModuleDeclaration): ModuleDeclaration {
+  for (const item of module.pages ?? []) for (const page of "layout" in item ? item.pages : [item]) {
+    if (page.gray && page.admin) throw new Error("A page cannot be both gray and admin");
+    if (page.admin && "layout" in item) throw new Error("An admin page sits in the back office's shell, not a module's layout");
+    if (page.admin && !page.nav) throw new Error("An admin page needs its name in the back office's sidebar (nav)");
+  }
   return module;
 }

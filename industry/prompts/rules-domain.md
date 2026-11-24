@@ -1,5 +1,5 @@
 
-【AI 领域翻译规则 — 本平台 100% 是 AI/ML/LLM 行业内容，严格遵守】
+【AI 领域翻译规则 — 本平台的内容是 AI/ML/LLM 行业动态，以及与 AI、芯片和关键技术相关的科技地缘政治，严格遵守】
 
 1. 歧义默认值：以下词在中文有非 AI 歧义，**一律按 AI 含义翻译**：
    - LLM = 大语言模型（绝不译"法学硕士"/"Master of Laws"）
@@ -44,10 +44,8 @@
    - 数字+单位：8k context / 175B params / 3.5x speedup / $3 per M tokens / 99.9%
    - 金额、参数量、比例、区间必须保留原文的阿拉伯数字和单位；不要把 $10B-$100B 改写成“数百亿至数千亿美元”等中文数量词
 
-5. 科技产业各领域的翻译与保留规则（本站除 AI 外还覆盖半导体、新能源、汽车、机器人、医药等）：
-   - 半导体：wafer = 晶圆，foundry = 晶圆代工（"代工厂"仅在明确指整机厂时用），process node / 制程保留 "3nm / 5nm" 原样，advanced packaging = 先进封装，CoWoS / HBM / Chiplet 保留英文，EUV / DUV 保留英文，yield = 良率
-   - 算力：FLOPS / TOPS 保留英文原样；"算力" 不要译回 "computing power" 之外的奇怪说法；数据中心 = 数据中心（不译"资料中心"，除非原文是繁体语境）
-   - 新能源与汽车：solid-state battery = 固态电池，LFP = 磷酸铁锂（首次可写 "磷酸铁锂（LFP）"），range = 续航，NOA / L2 / L3 保留英文代号，eVTOL = 电动垂直起降飞行器（首次标注英文），GWh / TW 保留英文单位，充电桩保留中文
-   - 机器人：humanoid robot = 人形机器人（不译"仿生人"），cobots = 协作机器人，end effector = 末端执行器，embodied AI = 具身智能
-   - 医药与器械：ADC = 抗体偶联药物（首次标注英文缩写），mAb = 单克隆抗体，IND / NDA / BLA 保留英文，Phase I/II/III 保留 "I/II/III 期临床" 写法，orphan drug = 孤儿药，co-pay 语境下 out-of-pocket = 自付
-   - 公司名规则同上：企业官方中文名优先（宁德时代 CATL、中芯国际 SMIC、台积电 TSMC、大疆 DJI）；英文媒体名（Reuters、Bloomberg、TechCrunch、The Verge、IEEE Spectrum）保留英文不译
+5. 科技地缘与政策类内容（出口管制、制裁、关税、立法、政府间协议）：
+   - 歧义词按政策含义翻译：Entity List = 实体清单；Export Administration Regulations（EAR）= 《出口管理条例》；BIS = 美国商务部工业与安全局（首次出现可写“BIS（美国商务部工业与安全局）”）；Foreign Direct Product Rule = 外国直接产品规则；tariff = 关税；sanction = 制裁；license requirement = 许可证要求；de minimis = 最低减让/微量规则（按上下文）。
+   - 法规、机构与文件名保留官方名称或通行中文译名，如 EU AI Act（欧盟《人工智能法案》）、CHIPS Act（《芯片与科学法案》）、Section 301（301 条款）、OFAC、CFIUS、MOFCOM（中国商务部）；不自造译名。
+   - 只陈述各方的动作、措施内容、生效时间与正式表态，不加入原文没有的立场评价或褒贬词；转述一方说法时写明是谁的说法。
+   - 措施所处阶段照原文写清：提案、征求意见、公布、生效、暂缓、撤销，不把“考虑”“据报道”写成已实施。

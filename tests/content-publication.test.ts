@@ -40,12 +40,12 @@ after(async () => { await provider.close(); await stopBoss(); await closeDb(); }
 
 async function source(suffix: string, tier: string, owner: string | null = null, role: string | null = null) {
   const id = `${key}-${suffix}`;
-  await sql`INSERT INTO sources (id,name,kind,tier,participation_mode,owner_entity_id,config,first_party,next_fetch_at)
-    VALUES (${id},${suffix},'rss',${tier},'editorial',${owner},${sql.json(role ? { publisherRole: role } : {})},${tier !== 'T1'},'2100-01-01')`;
+  await sql`INSERT INTO sources (id,name,kind,tier,participation_mode,owner_entity_id,config,next_fetch_at)
+    VALUES (${id},${suffix},'rss',${tier},'editorial',${owner},${sql.json(role ? { publisherRole: role } : {})},'2100-01-01')`;
   return id;
 }
 async function story(title = "OpenAI 发布 Dots") {
-  const [s] = await sql`INSERT INTO stories (public_id,title,first_report_at,latest_at,latest) VALUES (${randomUUID()},${title},${at(100)},${at(0)},'错误的生成进展') RETURNING id, public_id`;
+  const [s] = await sql`INSERT INTO stories (public_id,title,first_report_at,latest_at) VALUES (${randomUUID()},${title},${at(100)},${at(0)}) RETURNING id, public_id`;
   const [f] = await sql`INSERT INTO facts (public_id,story_id,title,subject,action,object,conditions)
     VALUES (${`f-${randomUUID()}`},${s!.id},${title},'OpenAI','发布','Dots','自主执行任务消耗额度') RETURNING id, public_id`;
   return { storyId: Number(s!.id), storyPublicId: s!.public_id as string, factId: Number(f!.id), factPublicId: f!.public_id as string };
@@ -102,7 +102,7 @@ test("mentions cannot choose a timeline origin, anchor, representative, or a lat
   await report(t1, g, { title: "未入选官网稿", hours: 4, selected: false, score: 30 });
   const q = { channel: "all" as const, category: null, tag: key, now };
   const timeline = await loadTimeline(q);
-  const card = timeline.cards.find(c => c.key === `f${g.factId}`)!;
+  const card = timeline.cards.find(c => c.key === `f:${g.factPublicId}`)!;
   assert.equal(card.item.id, official);
   assert.equal(card.anchorAt, at(3).toISOString());
   assert.ok(timeline.cards.some(c => c.key === `a${earlyMention}`) && timeline.cards.some(c => c.key === `a${lateMention}`), "a stale mention projection stays an independent selected article");
@@ -172,7 +172,7 @@ test("website and machine stories choose the same latest development and archive
   }
 });
 
-test("digest input excludes mentions, preserves scoped conditions, and ignores generated latest", async () => {
+test("digest input excludes mentions and preserves scoped conditions", async () => {
   const s = await source("digest", "T1");
   const g = await story();
   const main = await report(s, g, { title: "Dots 任务仍计费用量", hours: 5 });
@@ -184,8 +184,6 @@ test("digest input excludes mentions, preserves scoped conditions, and ignores g
   assert.ok(digestPrompt.includes("Tasks consume usage.") && digestPrompt.includes("自主执行任务消耗额度"));
   assert.ok(!digestPrompt.includes(mention) && !digestPrompt.includes("MENTION MUST NOT ENTER DIGEST"));
   assert.ok(!digestPrompt.includes(composite), "known composite input is excluded before its stale hard membership is cleaned");
-  const [stored] = await sql`SELECT latest FROM stories WHERE id=${g.storyId}`;
-  assert.equal(stored!.latest, "Dots 任务仍计费用量");
   const calls = provider.hits();
   assert.equal((await composeStoryDigest(g.storyId)).updated, false);
   assert.equal(provider.hits(), calls);
@@ -204,8 +202,8 @@ test("digest input excludes mentions, preserves scoped conditions, and ignores g
   const beforeClear = provider.hits();
   assert.equal((await composeStoryDigest(g.storyId)).updated, true);
   assert.equal(provider.hits(), beforeClear, "clearing an empty story does not call a model");
-  const [cleared] = await sql`SELECT digest, latest FROM stories WHERE id=${g.storyId}`;
-  assert.deepEqual({ ...cleared }, { digest: null, latest: null });
+  const [cleared] = await sql`SELECT digest FROM stories WHERE id=${g.storyId}`;
+  assert.equal(cleared!.digest, null);
 });
 
 // A prompt change reaches a story only when its reports change; the rewrite writes it again now, from the
@@ -329,6 +327,12 @@ test("a story summary is visible only while a current public report supports tho
   const s = await source("summary-evidence", "T1");
   const g = await story();
   const id = await report(s, g, { title: "当前可核实的事实摘要", hours: 2, selected: false });
+  const composed = await composeStoryDigest(g.storyId);
+  const [initialStory] = await sql<{ digest_version: number | null }[]>`SELECT digest_version FROM stories WHERE id = ${g.storyId}`;
+  assert.equal(initialStory!.digest_version, composed.version);
+  // Adding an internal admin remark in sources.name must not invalidate the published digest.
+  await sql`UPDATE sources SET name = name || '（编辑部备注）' WHERE id = ${s}`;
+  assert.ok((await storyTexts([g.storyId], now)).get(g.storyId)!.digest, "admin parenthetical note keeps digest valid");
   await sql`UPDATE stories SET summary = '当前可核实的事实摘要' WHERE id = ${g.storyId}`;
   assert.equal((await storyTexts([g.storyId], now)).get(g.storyId)!.summary, "当前可核实的事实摘要");
   await overrideFields(id, { fields: { summary: "已更正事实摘要" }, reason: "correct supporting report", version: 0 }, "test");
@@ -420,11 +424,11 @@ test("an in-flight digest cannot overwrite an editor revision or a merge, and it
     await entered.promise;
     const user = digestPrompt;
     try {
-      await sql`UPDATE stories SET version=version+2,origin='manual',title='人工修正后的事件',digest='人工修正后的综述内容',latest='人工确认进展',merged_into=${target?.storyId ?? null} WHERE id=${g.storyId}`;
+      await sql`UPDATE stories SET version=version+2,origin='manual',title='人工修正后的事件',digest='人工修正后的综述内容',merged_into=${target?.storyId ?? null} WHERE id=${g.storyId}`;
     } finally { release.open(); }
     assert.deepEqual(await pending,{updated:false});
-    const [stored] = await sql`SELECT version,title,digest,latest,merged_into FROM stories WHERE id=${g.storyId}`;
-    assert.deepEqual({...stored},{version:3,title:'人工修正后的事件',digest:'人工修正后的综述内容',latest:'人工确认进展',merged_into:target?.storyId ?? null});
+    const [stored] = await sql`SELECT version,title,digest,merged_into FROM stories WHERE id=${g.storyId}`;
+    assert.deepEqual({...stored},{version:3,title:'人工修正后的事件',digest:'人工修正后的综述内容',merged_into:target?.storyId ?? null});
     assert.equal((await sql`SELECT 1 FROM story_digests WHERE story_id=${g.storyId}`).length,0,'obsolete input cannot create digest history');
     const calls = provider.hits();
     const reused = await chatJson({model:'deepseek-flash',purpose:'story_digest',subject:`story:${g.storyId}@1`,promptVersion:DIGEST_PROMPT_VERSION,

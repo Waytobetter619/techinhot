@@ -3,11 +3,10 @@ import type { PublicApiCategoryKey } from "@aihot/contracts/taxonomy";
 import { sql, type Db } from "../db.ts";
 import { decodeCursor, encodeCursor, InvalidCursorError, queryBinding } from "../lib/cursor.ts";
 import { newShortId } from "../lib/ids.ts";
-import { publicCategoryCondition, API_ITEM_COLUMNS, API_ITEM_FROM, type ApiItemRow } from "./items.ts";
+import { publicCategoryCondition, API_ITEM_COLUMNS, API_ITEM_FROM, rowToV1, type V1ItemPayload, type ApiItemRow } from "./items.ts";
 import { browsedCondition, listedCondition, seatedCondition } from "./scope.ts";
 import { publicMatchCondition, searchTerms, withSearchCapacity } from "./pool.ts";
 import { sharedSearch } from "../lib/cache.ts";
-import { v1Payload, type V1ItemPayload } from "./publish.ts";
 
 export interface V1ItemsQuery {
   mode: "selected" | "all";
@@ -24,14 +23,6 @@ export interface V1ItemsResult {
   query: { mode: string; category: string | null; window: string; q: string | null; by: string; ordering: string };
   items: V1ItemPayload[];
   page: { count: number; hasMore: boolean; nextCursor: string | null };
-}
-
-export function rowToV1(row: ApiItemRow): V1ItemPayload {
-  return v1Payload({
-    articleId: row.id, title: row.title, originalTitle: row.original_title, summary: row.summary, sourceName: row.source_name,
-    url: row.url, publishedAt: row.published_at, discoveredAt: row.discovered_at, category: row.category,
-    score: row.score === null ? null : Number(row.score), selected: row.selected, reason: row.reason,
-  });
 }
 
 /** Search callers across HTTP and tools share one read. */
@@ -168,12 +159,26 @@ export async function selectedSnapshot(q: SnapshotQuery, now = new Date()) {
   // the client pages through the snapshot). Its remove still follows in changes, which the client
   // applies as a no-op.
   const rows = await sql<{ article_id: string; payload: V1ItemPayload }[]>`
-    SELECT latest.article_id, ${ledgerPayload(fields === "minimal", sql`latest.payload`)} AS payload FROM (
-      SELECT DISTINCT ON (article_id) article_id, op, payload FROM selected_ledger
+    SELECT latest.article_id,
+      ${ledgerPayload(
+        fields === "minimal",
+        sql`CASE
+          WHEN latest.seq = st.last_seq OR p.suppress_original
+            OR EXISTS (SELECT 1 FROM selected_ledger sl WHERE sl.article_id = latest.article_id AND sl.seq > latest.seq AND sl.op = 'remove')
+            OR EXISTS (SELECT 1 FROM analyses an WHERE an.article_id = latest.article_id AND an.output @> '{"suppressOriginal":true}'::jsonb)
+            OR EXISTS (SELECT 1 FROM audit_log al WHERE al.subject = 'content:' || latest.article_id AND al.after @> '{"suppressOriginal":true}'::jsonb)
+          THEN cur.payload
+          ELSE latest.payload
+        END`,
+      )} AS payload
+    FROM (
+      SELECT DISTINCT ON (article_id) article_id, seq, op, payload FROM selected_ledger
       WHERE seq <= ${w} AND article_id > ${afterId}
       ORDER BY article_id, seq DESC
     ) latest
     JOIN selected_state st ON st.article_id = latest.article_id AND st.in_set
+    JOIN publications p ON p.article_id = latest.article_id AND ${seatedCondition(now)}
+    JOIN selected_ledger cur ON cur.seq = st.last_seq AND cur.op = 'upsert'
     WHERE latest.op = 'upsert'
     ORDER BY latest.article_id
     LIMIT ${q.limit + 1}`;
@@ -205,12 +210,19 @@ export async function selectedChanges(q: { cursor: string; limit: number }, now 
   }
   const w = await ledgerWatermark();
   if (c.w > w) throw new SnapshotRequiredError("watermark is ahead of this ledger");
-  // An offline client's old watermark must not redistribute content withdrawn since the upsert.
-  // Keep every sequence (as a removal) so even a one-entry page advances without exposing it.
+  // An offline client's old watermark must not redistribute content withdrawn, unseated, or redacted since the upsert
+  // (including an item suppressed and later restored after a clean update). Always project the current seated payload.
   const rows = await sql<{ seq: number; article_id: string; op: "upsert" | "remove"; changed_at: Date; payload: V1ItemPayload | null }[]>`
-    SELECT l.seq, l.article_id, CASE WHEN p.article_id IS NULL THEN 'remove' ELSE l.op END AS op, l.changed_at,
-      CASE WHEN p.article_id IS NOT NULL THEN ${ledgerPayload(c.f === "minimal", sql`l.payload`)} END AS payload
-    FROM selected_ledger l LEFT JOIN publications p ON p.article_id = l.article_id AND ${listedCondition(now)}
+    SELECT l.seq, l.article_id,
+      CASE WHEN p.article_id IS NULL OR cur.seq IS NULL THEN 'remove' ELSE l.op END AS op,
+      l.changed_at,
+      CASE WHEN p.article_id IS NOT NULL AND cur.seq IS NOT NULL AND l.op = 'upsert'
+        THEN ${ledgerPayload(c.f === "minimal", sql`cur.payload`)}
+      END AS payload
+    FROM selected_ledger l
+    LEFT JOIN publications p ON p.article_id = l.article_id AND ${seatedCondition(now)}
+    LEFT JOIN selected_state st ON st.article_id = p.article_id AND st.in_set
+    LEFT JOIN selected_ledger cur ON cur.seq = st.last_seq AND cur.op = 'upsert'
     WHERE l.seq > ${c.w} AND l.seq <= ${w}
     ORDER BY l.seq LIMIT ${q.limit + 1}`;
   const page = rows.slice(0, q.limit);

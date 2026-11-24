@@ -4,7 +4,8 @@
 // - unreleased selections or non-editorial sources leak into search discovery;
 // - more than 10,000 changes at one timestamp are skipped or permanently starve later URLs;
 // - dry runs, HTTP failures or module read failures acknowledge URLs that were never submitted;
-// - the sitemap's display limits are mistaken for a removal from the full discovery inventory.
+// - the sitemap's display limits are mistaken for a removal from the full discovery inventory;
+// - a single-source story, noindex everywhere since 2026-11-20, still spends engines' fetches and Baidu's few daily pushes.
 import './setup.ts';
 import assert from 'node:assert/strict';
 import { after, afterEach, test } from 'node:test';
@@ -65,10 +66,12 @@ test('discovery dates follow page content and publication scope', async () => {
   assert.ok(!entries.some(e => e.loc === '/items/dates-signal'));
 });
 
-test('the sitemap lists stories of several reports; notifications keep every story', async () => {
+test('stories spanning multiple sources are listed and notified; single-source stories are neither', async () => {
   await material('story-one');
+  await material('story-same-a');
+  await material('story-same-b');
   await material('story-two-a');
-  await material('story-two-b');
+  await material('story-two-b', { source: 'discovery-editorial-b' });
   const add = async (ids: string[]) => {
     const publicId = randomUUID();
     const [story] = await sql<{ id: number }[]>`INSERT INTO stories (public_id,title,latest_at,digest,digest_updated_at,created_at,updated_at)
@@ -78,24 +81,29 @@ test('the sitemap lists stories of several reports; notifications keep every sto
     return publicId;
   };
   const single = await add(['story-one']);
+  const sameSource = await add(['story-same-a', 'story-same-b']);
   const several = await add(['story-two-a', 'story-two-b']);
   const at = new Date('2026-10-09');
   const all = await loadDiscoveryEntries(at);
-  assert.ok(all.some(e => e.loc === `/story/${single}`), 'notifications read the whole inventory');
+  assert.ok(!all.some(e => e.loc === `/story/${single}`), 'its page is noindex: no engine is asked to fetch it');
+  assert.ok(!all.some(e => e.loc === `/story/${sameSource}`), 'single-source clusters are noindex: no engine is asked to fetch them');
+  assert.ok(all.some(e => e.loc === `/story/${several}`));
   const listed = await loadDiscoveryEntries(at, { urls: 100 });
   const [report] = await sql<{ at: Date }[]>`SELECT discovered_at AS at FROM publications WHERE article_id = 'story-two-a'`;
   assert.equal(listed.find(e => e.loc === `/story/${several}`)?.lastmod?.toISOString(), report!.at.toISOString(),
     'dated by what the page shows: neither a hot signal on latest_at nor a digest that lost its evidence');
   assert.ok(!listed.some(e => e.loc === `/story/${single}`));
+  assert.ok(!listed.some(e => e.loc === `/story/${sameSource}`));
   assert.ok(listed.some(e => e.loc === `/story/${several}`));
 });
 
 test('dry runs leave changes pending, corrections and disappeared URLs are submitted again', async () => {
   await material('changed-story-item');
+  await material('changed-story-other', { source: 'discovery-editorial-b' });
   const publicId = randomUUID();
   const [story] = await sql<{ id: number }[]>`INSERT INTO stories (public_id,title,created_at,updated_at) VALUES (${publicId},'事件','2026-10-01','2026-10-01') RETURNING id`;
   const [fact] = await sql<{ id: number }[]>`INSERT INTO facts (public_id,story_id,title) VALUES (${randomUUID()},${story!.id},'事实') RETURNING id`;
-  await sql`INSERT INTO fact_articles (fact_id,article_id,role) VALUES (${fact!.id},'changed-story-item','primary')`;
+  for (const id of ['changed-story-item', 'changed-story-other']) await sql`INSERT INTO fact_articles (fact_id,article_id,role) VALUES (${fact!.id},${id},'primary')`;
   config.indexNowSubmitEnabled = false;
   globalThis.fetch = async () => { throw new Error('dry run made a network request'); };
   assert.equal((await submitIndexNow()).status, 'disabled');

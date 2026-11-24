@@ -12,20 +12,21 @@ import type { AnyNode, Element } from "domhandler";
 import { z } from "zod";
 import { sql } from "../db.ts";
 import { sanitizeBody, textToHtml } from "../content/sanitize.ts";
-import { rebaseTranslation } from "../content/presentation.ts";
+import { htmlAltText, rebaseTranslation } from "../content/presentation.ts";
 import { chatJson } from "../providers/llm.ts";
-import { completeReceipt, failureKind, ProviderRejectedError, rejectReceivedResponse } from "../providers/receipts.ts";
-import { collapseWhitespace, isChineseText } from "../lib/text.ts";
-import { isEmptyOrLinkOnly } from "../content/posts.ts";
+import { completeReceipt, failureKind, providerContentRefused, ProviderRejectedError, rejectReceivedResponse } from "../providers/receipts.ts";
+import { collapseWhitespace, htmlBlockText, isChineseText, mergeDistinctText } from "../lib/text.ts";
+import { isEmptyOrLinkOnly, xArticleBody } from "../content/posts.ts";
 import { sha256 } from "../lib/ids.ts";
 import { modelFor } from "./models.ts";
 import { shutdownSignal } from "../jobs/queue.ts";
 import { promptText, promptVersion } from "./prompts.ts";
-import { emit } from "../modules.ts";
+import { editorialPolicy, emit } from "../modules.ts";
+import { republishTx } from "../publication/publish.ts";
 
 export const TRANSLATE_PROMPT_VERSION = promptVersion("translate-body", "translate-body-retry", "translate-post");
 const BATCH_CHARS = 3500;
-/** Longer bodies get their first part translated and are marked incomplete. */
+/** Longer bodies (as sent to the model) get their first part translated and are marked incomplete. */
 const MAX_CHARS = 60_000;
 /** X posts shorter than this carry their meaning in the Chinese title and summary. */
 const X_MIN_CHARS = 60;
@@ -175,60 +176,131 @@ export function unshield(translated: string, s: Shielded): string | null {
   return $.html().replace(/⟦(\d+)⟧/g, (_m, n: string) => s.tokens[Number(n)]!);
 }
 
-export async function translateArticle(articleId: string): Promise<TranslateResult> {
-  const [row] = await sql<{ revision: number; channel: string; language: string | null; body_html: string | null; body_text: string | null; x_post: { text?: string } | null; x_article: { text?: string } | null; title: string; selected: boolean; body_mode: string; visibility: string }[]>`
+async function suppressFromTranslation(articleId: string, revision: number, receiptIds: number[], reason: string): Promise<boolean> {
+  return sql.begin(async (tx) => {
+    const [current] = await tx<{ revision: number }[]>`SELECT revision FROM articles WHERE id = ${articleId} FOR UPDATE`;
+    let suppressed = false;
+    if (current && current.revision === revision) {
+      const updated = await tx<{ id: number }[]>`
+        UPDATE analyses SET output = coalesce(output, '{}'::jsonb) || jsonb_build_object('suppressOriginal', true, 'translationReview', ${reason}::text)
+        WHERE id = (SELECT id FROM analyses WHERE article_id = ${articleId} AND input_revision = ${revision} ORDER BY id DESC LIMIT 1)
+        RETURNING id`;
+      if (updated.length > 0) {
+        await republishTx(tx, articleId);
+        suppressed = true;
+      }
+    }
+    for (const id of new Set(receiptIds)) await completeReceipt(tx, id);
+    return suppressed;
+  });
+}
+
+export async function translateArticle(articleId: string, expectedRevision?: number): Promise<TranslateResult> {
+  const [row] = await sql<{ revision: number; channel: string; language: string | null; body_html: string | null; body_text: string | null; x_post: { text?: string } | null; x_article: { title?: string; text?: string; html?: string } | null; title: string; selected: boolean; body_mode: string; visibility: string }[]>`
     SELECT a.revision, p.channel, a.language, a.body_html, a.body_text, a.x_post, a.x_article, p.title, p.selected, p.body_mode, p.visibility
-    FROM publications p JOIN articles a ON a.id = p.article_id WHERE p.article_id = ${articleId}`;
-  if (!row) return { articleId, status: "skipped", reason: "not published" };
+    FROM publications p JOIN articles a ON a.id = p.article_id WHERE p.article_id = ${articleId}
+      AND (${expectedRevision ?? null}::int IS NULL OR a.revision = ${expectedRevision ?? null})`;
+  if (!row) return { articleId, revision: expectedRevision, status: "skipped", reason: "not published at the requested revision" };
   const result = (r: Omit<TranslateResult, "articleId" | "revision">): TranslateResult => ({ articleId, revision: row.revision, ...r });
   // No answer could be used: each is rejected, so the next attempt pays for fresh ones instead of reusing them.
   const unusable = async (receiptIds: number[], reason: string) => {
     for (const id of new Set(receiptIds)) await rejectReceivedResponse(id, `unusable translation: ${reason}`);
     return result({ status: "failed", reason });
   };
-  if (!row.selected || row.visibility !== "public" || row.body_mode !== "full") return result({ status: "skipped", reason: "not a selected full-text item" });
+  if (!row.selected || row.visibility !== "public" || row.body_mode !== "full") {
+    return result({ status: "skipped", reason: "not a selected full-text item" });
+  }
+  const reviewer = editorialPolicy().reviewTranslation;
 
-  if (row.channel === "x") {
-    // Pages keep the complete long article in its original language; a post-only translation is unused.
-    if (row.x_article?.text) return result({ status: "skipped", reason: "saved long article shown in original" });
+  // A post with a saved long article reads as an article (publication/detail.ts), so it is translated as an
+  // article's body is: the post's own words and the article as laid out (xArticleBody), never the post's
+  // introduction alone, which would stand in for the whole article.
+  const article = row.channel === "x" && (row.x_article?.text || row.x_article?.html) ? row.x_article : null;
+  if (article && !article.html) return result({ status: "skipped", reason: "saved long article without its layout" });
+  if (row.channel === "x" && !article) {
     const text = String(row.x_post?.text ?? row.body_text ?? "").trim();
     if (isEmptyOrLinkOnly(text)) return result({ status: "skipped", reason: "no text to translate" });
     const meaningful = collapseWhitespace(text.replace(/https?:\/\/\S+/g, ""));
     if (isChineseText(text, row.language)) return result({ status: "skipped", reason: "already Chinese" });
     if (meaningful.length < X_MIN_CHARS) return result({ status: "skipped", reason: "short post" });
-    const translated = await translateAll(articleId, row.revision, [text], SYSTEM_POST);
+    let translated;
+    try {
+      translated = await translateAll(articleId, row.revision, [text], SYSTEM_POST);
+    } catch (error) {
+      if (reviewer && providerContentRefused(error)) {
+        const verdict = await reviewer({ subject: `article:${articleId}@${row.revision}`, title: row.title, sourceText: text, translatedText: "", contentRefused: true });
+        if (!verdict.allow) {
+          const suppressed = await suppressFromTranslation(articleId, row.revision, verdict.receiptIds ?? [], verdict.reason ?? "translation refused");
+          return result({ status: "skipped", reason: suppressed ? (verdict.reason ?? "original suppressed") : "stale revision" });
+        }
+      }
+      throw error;
+    }
     const [t] = translated.translations;
     if (!t) return unusable(translated.receiptIds, "translation did not line up");
+    if (reviewer) {
+      const verdict = await reviewer({ subject: `article:${articleId}@${row.revision}`, title: row.title, sourceText: text, translatedText: t });
+      const allReceipts = [...translated.receiptIds, ...(verdict.receiptIds ?? [])];
+      if (!verdict.allow) {
+        const suppressed = await suppressFromTranslation(articleId, row.revision, allReceipts, verdict.reason ?? "original suppressed");
+        return result({ status: "skipped", reason: suppressed ? (verdict.reason ?? "original suppressed") : "stale revision" });
+      }
+      await store(articleId, row.revision, row.title, textToHtml(t), t, true, allReceipts);
+      return result({ status: "translated", segments: 1 });
+    }
     await store(articleId, row.revision, row.title, textToHtml(t), t, true, translated.receiptIds);
     return result({ status: "translated", segments: 1 });
   }
 
-  if (!row.body_html || isChineseText(row.body_text ?? "", row.language)) return result({ status: "skipped", reason: "no foreign-language body" });
-  const $ = cheerio.load(row.body_html, null, false);
+  const source = article ? xArticleBody(String(row.x_post?.text ?? ""), article.html!) : row.body_html;
+  if (!source) return result({ status: "skipped", reason: "no foreign-language body" });
+  const renderedText = mergeDistinctText(htmlBlockText(source), htmlAltText(source));
+  const sourceText = article
+    ? mergeDistinctText(row.x_post?.text, article.title, article.text, renderedText)
+    : mergeDistinctText(row.body_text, renderedText);
+  const languageBasis = (article ? article.text : row.body_text) || sourceText;
+  if (isChineseText(languageBasis, row.language)) return result({ status: "skipped", reason: "no foreign-language body" });
+  const $ = cheerio.load(source, null, false);
   const blocks = segmentsOf($);
   if (!blocks.length) return result({ status: "skipped", reason: "no translatable text" });
-  // Beyond the cap, only the leading blocks are translated; the rest keep the original text.
+  // Beyond the cap, only the leading blocks are translated; the rest keep the original text. The cap
+  // counts what the model is sent: link addresses and media stay behind their placeholders.
   let budget = MAX_CHARS;
   const chosen: Element[] = [];
+  const shielded: Shielded[] = [];
   for (const el of blocks) {
-    const html = $(el).html() ?? "";
-    if (html.length > budget) break;
-    budget -= html.length;
+    const block = shield($(el).html() ?? "");
+    if (block.html.length > budget) break;
+    budget -= block.html.length;
     chosen.push(el);
+    shielded.push(block);
   }
   // No model request was made when even the first block exceeds the text cap.
   if (!chosen.length) return result({ status: "skipped", reason: "no batch translated" });
-  const shielded = chosen.map((el) => shield($(el).html() ?? ""));
   const restore = (answers: Array<string | null>) => answers.map((t, i) => (t === null ? null : unshield(t, shielded[i]!)));
-  const first = await translateAll(articleId, row.revision, shielded.map((b) => b.html), SYSTEM_BODY);
-  const receiptIds = [...first.receiptIds];
-  const translations = restore(first.translations);
-  // Blocks whose answer dropped a link or an image are asked once more, on their own receipt, with the retry prompt.
-  const missing = translations.flatMap((t, i) => (t === null ? [i] : []));
-  if (missing.length) {
-    const again = await translateAll(articleId, row.revision, missing.map((i) => shielded[i]!.html), SYSTEM_RETRY, "retry");
-    receiptIds.push(...again.receiptIds);
-    missing.forEach((i, k) => (translations[i] = again.translations[k] ? unshield(again.translations[k]!, shielded[i]!) : null));
+  const receiptIds: number[] = [];
+  let translations: Array<string | null>;
+  try {
+    const first = await translateAll(articleId, row.revision, shielded.map((b) => b.html), SYSTEM_BODY);
+    receiptIds.push(...first.receiptIds);
+    translations = restore(first.translations);
+    // Blocks whose answer dropped a link or an image are asked once more, on their own receipt, with the retry prompt.
+    const missing = translations.flatMap((t, i) => (t === null ? [i] : []));
+    if (missing.length) {
+      const again = await translateAll(articleId, row.revision, missing.map((i) => shielded[i]!.html), SYSTEM_RETRY, "retry");
+      receiptIds.push(...again.receiptIds);
+      missing.forEach((i, k) => (translations[i] = again.translations[k] ? unshield(again.translations[k]!, shielded[i]!) : null));
+    }
+  } catch (error) {
+    if (reviewer && providerContentRefused(error)) {
+      const verdict = await reviewer({ subject: `article:${articleId}@${row.revision}`, title: row.title, sourceText, translatedText: "", contentRefused: true });
+      receiptIds.push(...(verdict.receiptIds ?? []));
+      if (!verdict.allow) {
+        const suppressed = await suppressFromTranslation(articleId, row.revision, receiptIds, verdict.reason ?? "translation refused");
+        return result({ status: "skipped", reason: suppressed ? (verdict.reason ?? "original suppressed") : "stale revision" });
+      }
+    }
+    throw error;
   }
   let done = 0;
   chosen.forEach((el, i) => {
@@ -241,19 +313,32 @@ export async function translateArticle(articleId: string): Promise<TranslateResu
   if (!done) return unusable(receiptIds, "no batch translated");
   const complete = done === blocks.length;
   const html = sanitizeBody($.html());
-  await store(articleId, row.revision, row.title, html, cheerio.load(html, null, false).root().text().trim(), complete, receiptIds, row.body_html);
+  const translatedText = cheerio.load(html, null, false).root().text().trim();
+  if (reviewer) {
+    const reviewTranslatedText = mergeDistinctText(htmlBlockText(html), translatedText);
+    const verdict = await reviewer({ subject: `article:${articleId}@${row.revision}`, title: row.title, sourceText, translatedText: reviewTranslatedText });
+    receiptIds.push(...(verdict.receiptIds ?? []));
+    if (!verdict.allow) {
+      const suppressed = await suppressFromTranslation(articleId, row.revision, receiptIds, verdict.reason ?? "original suppressed");
+      return result({ status: "skipped", reason: suppressed ? (verdict.reason ?? "original suppressed") : "stale revision" });
+    }
+  }
+  await store(articleId, row.revision, row.title, html, translatedText, complete, receiptIds,
+    { html: source, xArticle: !!article });
   return result({ status: complete ? "translated" : "partial", segments: done });
 }
 
-async function store(articleId: string, revision: number, title: string, html: string, text: string, complete: boolean, receiptIds: number[], sourceHtml?: string, exactSource = false) {
+async function store(articleId: string, revision: number, title: string, html: string, text: string, complete: boolean, receiptIds: number[], source?: { html: string; xArticle?: boolean; exact?: boolean }) {
   // Never over a translation of a later revision (a slow run finishing after a newer one).
   await sql.begin(async (tx) => {
     // A layout refresh can finish while the model is answering the same semantic revision.
     // Serialize with material writes and attach the answer to the current presentation.
-    const [current] = await tx<{ revision: number; body_html: string | null }[]>`SELECT revision,body_html FROM articles WHERE id=${articleId} FOR UPDATE`;
-    if (exactSource && (!current || current.revision !== revision || current.body_html !== sourceHtml)) throw new Error("Translation source changed; import rejected");
-    if (sourceHtml !== undefined && current?.revision === revision && current.body_html !== sourceHtml) {
-      html = rebaseTranslation(sourceHtml, current.body_html ?? "", html);
+    const [current] = await tx<{ revision: number; body_html: string | null; x_html: string | null; x_text: string | null }[]>`
+      SELECT revision,body_html,x_article->>'html' AS x_html,x_post->>'text' AS x_text FROM articles WHERE id=${articleId} FOR UPDATE`;
+    const currentHtml = source?.xArticle && current?.x_html ? xArticleBody(current.x_text ?? "", current.x_html) : current?.body_html ?? "";
+    if (source?.exact && (current?.revision !== revision || currentHtml !== source.html)) throw new Error("Translation source changed; import rejected");
+    if (source && current?.revision === revision && currentHtml !== source.html) {
+      html = rebaseTranslation(source.html, currentHtml, html);
     }
     const changed = await tx`
       INSERT INTO translations (article_id, lang, revision, title, body_html, body_text, complete, origin)
@@ -279,7 +364,19 @@ export async function importBodyTranslation(input: { articleId: string; sourceHt
   const clean = sanitizeBody(input.html);
   const text = cheerio.load(clean, null, false).root().text().trim();
   if (!clean || !text) throw new Error("Empty translation");
-  await store(input.articleId, row.revision, input.title, clean, text, input.complete, [], input.sourceHtml, true);
+  const reviewer = editorialPolicy().reviewTranslation;
+  let receiptIds: number[] = [];
+  if (reviewer) {
+    const sourceText = mergeDistinctText(htmlBlockText(input.sourceHtml), htmlAltText(input.sourceHtml));
+    const reviewTranslatedText = mergeDistinctText(htmlBlockText(clean), htmlAltText(clean), text);
+    const verdict = await reviewer({ subject: `article:${input.articleId}@${row.revision}`, title: input.title, sourceText, translatedText: reviewTranslatedText });
+    receiptIds = verdict.receiptIds ?? [];
+    if (!verdict.allow) {
+      await suppressFromTranslation(input.articleId, row.revision, receiptIds, verdict.reason ?? "imported translation suppressed");
+      throw new Error(`Imported translation rejected by compliance: ${verdict.reason ?? "original suppressed"}`);
+    }
+  }
+  await store(input.articleId, row.revision, input.title, clean, text, input.complete, receiptIds, { html: input.sourceHtml, exact: true });
 }
 
 /** A quoted post worth translating: at least a few letters beyond its links, and not already Chinese. */
@@ -298,14 +395,28 @@ export async function translateQuotes(opts: { days?: number; limit?: number; bud
   const rows = await sql<{ tweet_id: string; text: string; text_hash: string | null; own_zh: string | null }[]>`
     SELECT DISTINCT ON (q.tweet_id) q.tweet_id, a.x_post->'quoted'->>'text' AS text, qt.text_hash,
       (SELECT tr.body_text FROM articles o JOIN translations tr ON tr.article_id = o.id AND tr.lang = 'zh' AND tr.revision >= o.revision
-       WHERE o.identity_key = 'x:' || q.tweet_id AND tr.complete AND coalesce(tr.body_text, '') <> '') AS own_zh
+       WHERE o.identity_key = 'x:' || q.tweet_id AND tr.complete AND coalesce(tr.body_text, '') <> ''
+         -- A post with a saved long article is translated as that article: its translation is not the post's words.
+         AND coalesce(o.x_article->>'text', '') = '') AS own_zh
     FROM publications p JOIN articles a ON a.id = p.article_id
-    CROSS JOIN LATERAL (SELECT substring(a.x_post->'quoted'->>'url' from '/status/([0-9]+)') AS tweet_id) q
+    CROSS JOIN LATERAL (SELECT coalesce(a.x_post->'quoted'->>'tweetId', substring(a.x_post->'quoted'->>'url' from '/status/([0-9]+)')) AS tweet_id) q
     LEFT JOIN quote_translations qt ON qt.tweet_id = q.tweet_id
     WHERE p.channel = 'x' AND p.selected AND p.visibility = 'public' AND p.body_mode = 'full'
       AND p.discovered_at > now() - make_interval(days => ${opts.days ?? 3})
       AND q.tweet_id IS NOT NULL AND coalesce(a.x_post->'quoted'->>'text', '') <> ''
     ORDER BY q.tweet_id, p.discovered_at DESC`;
+  const reviewer = editorialPolicy().reviewTranslation;
+  const suppressCiting = async (tweetId: string, receiptIds: number[], reason: string) => {
+    const cited = await sql<{ id: string; revision: number }[]>`
+      SELECT a.id, a.revision FROM articles a JOIN publications p ON p.article_id = a.id
+      WHERE coalesce(a.x_post->'quoted'->>'tweetId', substring(a.x_post->'quoted'->>'url' from '/status/([0-9]+)')) = ${tweetId} AND NOT p.suppress_original`;
+    for (const { id, revision } of cited) await suppressFromTranslation(id, revision, [], reason);
+    if (receiptIds.length) {
+      await sql.begin(async (tx) => {
+        for (const id of new Set(receiptIds)) await completeReceipt(tx, id);
+      });
+    }
+  };
   let stored = 0;
   for (const r of rows) {
     if (stored >= (opts.limit ?? 30) || Date.now() - started > (opts.budgetMs ?? 2 * 60_000) || shutdownSignal.signal.aborted) break;
@@ -325,6 +436,13 @@ export async function translateQuotes(opts: { days?: number; limit?: number; bud
         receiptId = res.receiptId;
         zh = res.data.t.length === 1 ? res.data.t[0]!.trim() : null;
       } catch (error) {
+        if (reviewer && providerContentRefused(error)) {
+          const verdict = await reviewer({ subject: `quote:${r.tweet_id}`, title: "", sourceText: r.text, translatedText: "", contentRefused: true });
+          if (!verdict.allow) {
+            await suppressCiting(r.tweet_id, verdict.receiptIds ?? [], verdict.reason ?? "quoted translation refused");
+            continue;
+          }
+        }
         // What ends the run ends it; any other failure skips its post (an answer received is reused
         // next time, so a retry costs nothing).
         if (endsRun(error)) throw error;
@@ -332,6 +450,15 @@ export async function translateQuotes(opts: { days?: number; limit?: number; bud
       }
     }
     if (!zh) continue;
+    const allReceipts = receiptId !== null ? [receiptId] : [];
+    if (reviewer) {
+      const verdict = await reviewer({ subject: `quote:${r.tweet_id}`, title: "", sourceText: r.text, translatedText: zh });
+      allReceipts.push(...(verdict.receiptIds ?? []));
+      if (!verdict.allow) {
+        await suppressCiting(r.tweet_id, allReceipts, verdict.reason ?? "quoted original suppressed");
+        continue;
+      }
+    }
     const changed = await sql.begin(async (tx) => {
       const saved = await tx`
         INSERT INTO quote_translations (tweet_id, text_hash, text_zh, origin) VALUES (${r.tweet_id}, ${hash}, ${zh}, ${origin})
@@ -342,10 +469,10 @@ export async function translateQuotes(opts: { days?: number; limit?: number; bud
       if (saved.length) {
         const cited = await tx<{ id: string }[]>`
           SELECT a.id FROM articles a JOIN publications p ON p.article_id = a.id
-          WHERE substring(a.x_post->'quoted'->>'url' from '/status/([0-9]+)') = ${r.tweet_id}`;
+          WHERE coalesce(a.x_post->'quoted'->>'tweetId', substring(a.x_post->'quoted'->>'url' from '/status/([0-9]+)')) = ${r.tweet_id}`;
         for (const { id } of cited) await emit("articleChanged", { id, kind: "body", reason: "quoted post translation" }, tx);
       }
-      if (receiptId !== null) await completeReceipt(tx, receiptId);
+      for (const id of new Set(allReceipts)) await completeReceipt(tx, id);
       return saved.length > 0;
     });
     if (changed) stored += 1;
@@ -361,14 +488,13 @@ export async function translateQuotes(opts: { days?: number; limit?: number; bud
  */
 export async function translatePending(opts: { limit?: number; budgetMs?: number } = {}): Promise<{ done: TranslateResult[]; quotes: number }> {
   const started = Date.now();
-  const pending = await sql<{ article_id: string; language: string | null; text: string | null }[]>`
-    SELECT p.article_id,a.language,
-      CASE WHEN p.channel='x' THEN coalesce(a.x_post->>'text',a.body_text) ELSE a.body_text END AS text
+  const pending = await sql<{ article_id: string; revision: number; language: string | null; text: string | null }[]>`
+    SELECT p.article_id,a.revision,a.language,
+      CASE WHEN p.channel='x' THEN coalesce(nullif(a.x_article->>'text',''),a.x_post->>'text',a.body_text) ELSE a.body_text END AS text
     FROM publications p JOIN articles a ON a.id = p.article_id
     LEFT JOIN translations tr ON tr.article_id = p.article_id AND tr.lang = 'zh'
     WHERE p.selected AND p.visibility = 'public' AND p.body_mode = 'full'
       AND (p.channel='x' OR a.body_html IS NOT NULL)
-      AND (p.channel <> 'x' OR coalesce(a.x_article->>'text', '') = '')
       AND (p.discovered_at > now() - interval '3 days'
            OR EXISTS (SELECT 1 FROM article_revisions r WHERE r.article_id = a.id AND r.revision = a.revision AND r.revision > 1
                       AND r.created_at > now() - interval '3 days'))
@@ -385,15 +511,14 @@ export async function translatePending(opts: { limit?: number; budgetMs?: number
     if (Date.now() - started > (opts.budgetMs ?? 4 * 60_000) || shutdownSignal.signal.aborted) break;
     let outcome: "translated" | "partial" | "skipped" | "failed";
     let reason: string | null = null;
-    // The attempt is recorded against the revision actually read: when the text was revised while the
-    // model was answering, the new revision still has no attempt and is translated on the next run.
-    let revision: number | null = null;
+    // Bind the read as well as success and failure to this revision. A rejected old request must not
+    // consume a corrected body's retry budget, or overwrite a newer run's attempt.
+    const revision = r.revision;
     try {
-      const result = await translateArticle(r.article_id);
+      const result = await translateArticle(r.article_id, revision);
       done.push(result);
       outcome = result.status;
       reason = result.reason ?? null;
-      revision = result.revision ?? null;
     } catch (error) {
       // A deploy stops between paid fragments, never aborts a sent request. Received answers stay
       // in receipts and are reused next run; do not mark an interrupted article terminal/partial.
@@ -409,10 +534,11 @@ export async function translatePending(opts: { limit?: number; budgetMs?: number
     }
     await sql`
       INSERT INTO translation_attempts (article_id, revision, attempts, outcome, reason)
-      SELECT ${r.article_id}, coalesce(${revision}::int, a.revision), 1, ${outcome}, ${reason} FROM articles a WHERE a.id = ${r.article_id}
+      SELECT ${r.article_id}, ${revision}, 1, ${outcome}, ${reason} FROM articles a WHERE a.id = ${r.article_id}
       ON CONFLICT (article_id) DO UPDATE SET
         attempts = CASE WHEN translation_attempts.revision = EXCLUDED.revision THEN translation_attempts.attempts + 1 ELSE 1 END,
-        revision = EXCLUDED.revision, outcome = EXCLUDED.outcome, reason = EXCLUDED.reason, updated_at = now()`;
+        revision = EXCLUDED.revision, outcome = EXCLUDED.outcome, reason = EXCLUDED.reason, updated_at = now()
+      WHERE translation_attempts.revision <= EXCLUDED.revision`;
   }
   const budgetMs = opts.budgetMs ?? 4 * 60_000;
   let quotes = 0;

@@ -39,7 +39,7 @@ powershell -ExecutionPolicy Bypass -File scripts/local/stop-all.ps1
 
 1. 初始化库表和示范信源（`start-all.ps1` 自动执行 migrate + seed，只在库空时跑）；
 2. `npm run build -w @aihot/web` 构建网页产物（脚本会检测缺失时自动构建）；
-3. 打开后台「信源」页确认 18 个信源抓取正常；Techin 舆情等 feeder 第一轮推送后出现。
+3. 打开后台「信源」页确认信源抓取正常（X 账号信源要先配 `SOCIALDATA_API_KEY`）；Techin 舆情 feeder 默认不启动，`.env` 里设 `FEEDER_ENABLED=true` 才会启动。
 
 ## 日常运维
 

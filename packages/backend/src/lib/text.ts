@@ -4,12 +4,20 @@ export function collapseWhitespace(s: string): string {
   return s.replace(/\s+/g, " ").trim();
 }
 
-/** A declared language wins; otherwise Han text is Chinese only without Japanese or Korean script. */
+/** A declared language wins. Otherwise Han text is Chinese only without Japanese or Korean script, and
+ * a long text needs a real share of Han (a tenth of its letters), not a single character: an English
+ * body that merely links to 「简体中文」 carries a handful of Han characters in thousands of letters
+ * (issue #478), while Chinese news full of product names and links still runs to about a quarter Han.
+ * Short strings (titles, posts, quotes) keep the presence test. Translation and every reading exit
+ * share this rule, so a body that is translated is also shown translated.
+ */
 export function isChineseText(text: string, language?: string | null): boolean {
   const declared = language?.toLowerCase().split(/[-_]/)[0];
   if (declared === "zh") return true;
   if (declared && !["und", "unknown", "other", "zxx"].includes(declared)) return false;
-  return /\p{Script=Han}/u.test(text) && !/[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(text);
+  if (!/\p{Script=Han}/u.test(text) || /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(text)) return false;
+  const letters = (text.match(/\p{L}/gu) ?? []).length;
+  return letters < 200 || (text.match(/\p{Script=Han}/gu) ?? []).length / letters >= 0.1;
 }
 
 export function truncate(s: string, max: number, ellipsis = "…"): string {
@@ -99,6 +107,43 @@ export function decodeEntities(s: string): string {
 /** The text of HTML: without scripts and styles, every tag a word boundary, references decoded, whitespace collapsed. */
 export function stripTags(html: string): string {
   return collapseWhitespace(decodeEntities(stripTagMarkup(html.replace(/<(script|style|noscript)[\s\S]*?<\/\1>/gi, " "))));
+}
+
+/** HTML rendered into newline-separated blocks, every tag a word boundary and entities decoded. */
+export function htmlBlockText(html: string | null | undefined): string {
+  if (!html) return "";
+  const withBreaks = html
+    .replace(/<(script|style|noscript)[\s\S]*?<\/\1>/gi, " ")
+    .replace(/<\/?(?:p|div|li|h[1-6]|blockquote|figcaption|tr|dt|dd|caption|pre|section|article|aside|header|footer|br)\b[^>]*>/gi, "\n");
+  return decodeEntities(stripTagMarkup(withBreaks, " "))
+    .split(/\n+/)
+    .map((line) => collapseWhitespace(line))
+    .filter(Boolean)
+    .join("\n");
+}
+
+/**
+ * Combines text representations of the same document (such as plain body_text and rendered body_html)
+ * without duplicating shared paragraphs or dropping blocks unique to a shorter representation.
+ */
+export function mergeDistinctText(...parts: Array<string | null | undefined>): string {
+  const out: string[] = [];
+  const seenWhole = new Set<string>();
+  const seenBlocks = new Set<string>();
+  for (const part of parts) {
+    if (!part) continue;
+    const whole = collapseWhitespace(part);
+    if (!whole || seenWhole.has(whole)) continue;
+    seenWhole.add(whole);
+    for (const rawBlock of part.split(/\n+/)) {
+      const clean = collapseWhitespace(rawBlock);
+      if (!clean) continue;
+      if (clean.length >= 40 && seenBlocks.has(clean)) continue;
+      if (clean.length >= 40) seenBlocks.add(clean);
+      out.push(clean);
+    }
+  }
+  return out.join("\n\n");
 }
 
 export function escapeXml(s: string): string {

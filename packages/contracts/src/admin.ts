@@ -1,10 +1,9 @@
 // Admin API (/api/admin/*): what each back-office endpoint returns, shared by the api's admin
 // functions and the admin pages. Only administrators reach it; it changes with the admin UI and is
 // never a public contract. Rows mirror their SQL columns (snake_case); timestamps are ISO strings.
-import { ADMIN } from "@aihot/site";
 
-/** Where signing in leads when the visitor was not headed anywhere: the admin pages, on a site that has them. */
-export const SIGN_IN_HOME = ADMIN ? "/admin" : "/";
+/** Where signing in leads when the visitor was not headed anywhere. Only a site with admin pages has a sign-in. */
+export const SIGN_IN_HOME = "/admin";
 
 /**
  * A path on this site to go to after signing in; anything else (other hosts, protocol-relative, schemes) is
@@ -92,7 +91,7 @@ export const REPLACEABLE_SOURCE_KINDS = ["rss", "web_list", "json_list"] as cons
 export type ReplaceableSourceKind = typeof REPLACEABLE_SOURCE_KINDS[number];
 
 export interface AdminSourceUpdate {
-  patch: Partial<Pick<AdminSource, "name" | "enabled" | "interval_minutes" | "tier" | "selection_class" | "participation_mode" | "signal_group_id" | "first_party" | "owner_entity_id" | "site_fulltext" | "syndicate_fulltext" | "tags" | "uses">> & (
+  patch: Partial<Pick<AdminSource, "name" | "enabled" | "interval_minutes" | "tier" | "selection_class" | "participation_mode" | "signal_group_id" | "owner_entity_id" | "site_fulltext" | "syndicate_fulltext" | "tags" | "uses">> & (
     { kind?: never; config?: Record<string, unknown> } | { kind: ReplaceableSourceKind; config: Record<string, unknown> }
   );
   version: string;
@@ -134,7 +133,6 @@ export interface AdminSource {
   kind: string;
   config: Record<string, unknown>;
   tags: string[];
-  first_party: boolean;
   owner_entity_id: string | null;
   tier: string;
   /** A class of the industry pack's selection rules (industry/selection.ts): raises the tier's threshold. */
@@ -231,6 +229,7 @@ export interface AdminPublication {
   selected_ready_at: Timestamp | null;
   visible_after: Timestamp | null;
   body_mode: string;
+  suppress_original: boolean;
   syndicate: boolean;
   indexable: boolean;
   seo_indexed_at: Timestamp | null;
@@ -257,7 +256,7 @@ export interface AdminContentChain {
   }>;
   publication: AdminPublication | null;
   override: { fields: Record<string, unknown>; visibility: string | null; reason: string | null; version: number; updated_by: string; updated_at: Timestamp } | null;
-  ledger: Array<{ seq: number; op: string; visible_at: Timestamp; changed_at: Timestamp }>;
+  ledger: Array<{ seq: number; op: string; changed_at: Timestamp }>;
   membership: Array<{ fact_id: number; role: string; manual: boolean; fact_public_id: string; fact_title: string; story_id: number | null; story_public_id: string | null; story_title: string | null }>;
   decisions: Array<{ verdict: string; fact_id: number | null; story_id: number | null; receipt_id: number | null; candidates: unknown; created_at: Timestamp }>;
   deliveries: Array<{ target_key: string; dedupe_key: string; status: string; attempts: number; response: string | null; created_at: Timestamp; sent_at: Timestamp | null }>;
@@ -386,6 +385,7 @@ export interface AdminSettings {
 
 export interface AdminModelUsage {
   purpose: string;
+  service: string;
   model: string | null;
   promptVersion: string | null;
   calls: number;
@@ -405,7 +405,7 @@ export interface AdminModels {
   days: number;
   capabilities: Array<{ key: string; label: string; env: string; defaultModel: string; vision: boolean; current: { model: string; source: "admin" | "env" | "default"; invalid?: string }; fallback: { model: string; primaryPaused: boolean; backupPaused: boolean; nextProbeAt: string | null } | null; usage: AdminModelUsage[] }>;
   choices: Array<{ key: string; service: string; vision: boolean }>;
-  history: Array<{ at: Timestamp; actor: string; subject: string; reason: string | null; before: { model: string; source: string } | null; after: { model: string; source: string } | null }>;
+  history: Array<{ id: number; at: Timestamp; actor: string; subject: string; reason: string | null; before: { model: string; source: string } | null; after: { model: string; source: string } | null }>;
   benches: Array<{ id: string; label: string; sample_size: number; prompt_version: string | null; models: string[]; created_at: Timestamp }>;
 }
 

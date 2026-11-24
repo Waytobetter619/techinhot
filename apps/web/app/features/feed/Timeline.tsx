@@ -9,10 +9,12 @@ import { ToggleChip } from "../../components/ui/Controls";
 import type { TimelineCard, TimelineFilters, TimelineResponse } from "@aihot/contracts/site";
 import { FeedItem } from "./FeedItem";
 import { IconChevronDown } from "../../components/icons";
+import { SITE } from "@aihot/site";
 import { RingMark } from "@aihot/site/brand/Logo.tsx";
 import { EmptyState } from "../../components/ui/Page";
-import { beijingDate, beijingTime, beijingWeekday, monthDay } from "@aihot/contracts/time";
-import { byBeijingDay, weekdayShort } from "../../lib/format";
+import { beijingDate, beijingTime, monthDay, monthDayEn } from "@aihot/contracts/time";
+import { byBeijingDay, weekdayLong, weekdayShort } from "../../lib/format";
+import { useLocale, useT } from "../../lib/i18n";
 import { isHydrated } from "../../lib/hydration";
 import { markRead, setUnreadOnly, useReadSet, useUnreadOnly } from "../../lib/local-state";
 import { filterParams, listPath } from "../../lib/seo";
@@ -39,21 +41,21 @@ function fromResponse(r: TimelineResponse): ListState {
  * whole bar is the fold button).
  */
 export function DayHeader({ day, today, count, collapsed, onToggle, aside, asideOnPhone = true }: { day: string; today: string; count: number | null; collapsed?: boolean; onToggle?: () => void; aside?: React.ReactNode; asideOnPhone?: boolean }) {
-  const date = monthDay(day, today);
-  const weekday = beijingWeekday(day);
-  const short = weekdayShort(day);
+  const t = useT();
+  const locale = useLocale();
+  const date = t(monthDay(day, today), monthDayEn(day, today));
+  const weekday = weekdayLong(day, locale);
+  const short = weekdayShort(day, locale);
+  const items = (n: number) => t(<><span className="num">{n}</span> 条</>, <><span className="num">{n.toLocaleString("en-US")}</span> {n === 1 ? "item" : "items"}</>);
+  const fold = collapsed ? t(`展开${date}`, `Expand ${date}`) : t(`收起${date}`, `Collapse ${date}`);
   const phoneRow = (
     <>
-      <span className="text-[14px] font-bold text-ink">{day === today ? "今天" : date}</span>
-      {day === today && <span className="text-[12.5px] text-ink-4">{date}</span>}
-      <span className="text-[12.5px] text-ink-4">{short}</span>
-      <span className="ml-auto flex items-center gap-1 text-[12.5px] text-ink-4">
+      <span className="text-ui-body-sm font-bold text-ink">{day === today ? t("今天", "Today") : date}</span>
+      {day === today && <span className="text-ui-caption-lg text-ink-4">{date}</span>}
+      <span className="text-ui-caption-lg text-ink-4">{short}</span>
+      <span className="ml-auto flex items-center gap-1 text-ui-caption-lg text-ink-4">
         {asideOnPhone && aside}
-        {count !== null && (
-          <span>
-            <span className="num">{count}</span> 条
-          </span>
-        )}
+        {count !== null && <span>{items(count)}</span>}
         {onToggle && <IconChevronDown size={15} className={`transition-transform duration-200 ${collapsed ? "-rotate-90" : ""}`} />}
       </span>
     </>
@@ -62,7 +64,7 @@ export function DayHeader({ day, today, count, collapsed, onToggle, aside, aside
     <div className="bleed sticky top-[var(--bar-h)] z-20 bg-daybar lg:mx-0 lg:bg-bg lg:px-0">
       {/* Phones: a full-width day bar; on the timeline the whole bar folds the day. */}
       {onToggle ? (
-        <button type="button" onClick={onToggle} aria-expanded={!collapsed} aria-label={`${collapsed ? "展开" : "收起"}${date}`} className="flex h-11 w-full items-center gap-2 text-left lg:hidden">
+        <button type="button" onClick={onToggle} aria-expanded={!collapsed} aria-label={fold} className="flex h-11 w-full items-center gap-2 text-left lg:hidden">
           {phoneRow}
         </button>
       ) : (
@@ -71,33 +73,33 @@ export function DayHeader({ day, today, count, collapsed, onToggle, aside, aside
       {/* Desktop: date text shares the page's left edge, regardless of how many digits it has. */}
       <div className="hidden h-11 items-center gap-3 lg:flex">
         {onToggle ? (
-          <button type="button" onClick={onToggle} aria-expanded={!collapsed} className="whitespace-nowrap text-left text-[18px] font-semibold leading-6 text-ink">
+          <button type="button" onClick={onToggle} aria-expanded={!collapsed} className="whitespace-nowrap text-left text-ui-heading-sm font-semibold leading-6 text-ink">
             {date}
           </button>
         ) : (
-          <time dateTime={day} className="whitespace-nowrap text-[18px] font-semibold leading-6 text-ink">{date}</time>
+          <time dateTime={day} className="whitespace-nowrap text-ui-heading-sm font-semibold leading-6 text-ink">{date}</time>
         )}
         {onToggle ? (
           <button
             type="button"
             onClick={onToggle}
             aria-expanded={!collapsed}
-            aria-label={collapsed ? `展开${date}` : `收起${date}`}
+            aria-label={fold}
             className="grid size-6 place-items-center justify-self-center rounded-full text-ink-4 transition-colors hover:bg-bg-sunk hover:text-ink"
           >
             <IconChevronDown size={14} className={`transition-transform duration-200 ${collapsed ? "-rotate-90" : ""}`} />
           </button>
         ) : null}
-        <span className="text-[13px] text-ink-4">
+        <span className="text-ui-label text-ink-4">
           {weekday}
           {count !== null && (
             <>
               {" · "}
-              <span className="num">{count}</span> 条
+              {items(count)}
             </>
           )}
         </span>
-        {aside && <span className="ml-auto text-[12px] text-ink-4">{aside}</span>}
+        {aside && <span className="ml-auto text-ui-caption text-ink-4">{aside}</span>}
       </div>
     </div>
   );
@@ -116,7 +118,7 @@ export function TimelineSlot({ at, children, fresh = false, delay = 0, dataKey }
     >
       {/* Phones: the row without the rail (the item shows its time); a hairline between rows. */}
       <div className="grid grid-cols-[minmax(0,1fr)] border-b border-line-soft py-3.5 group-last/slot:border-b-0 lg:grid-cols-[64px_22px_minmax(0,1fr)] lg:border-b-0 lg:py-0 lg:pb-3 lg:group-last/slot:pb-0">
-        <time dateTime={at} className="mono hidden text-ink-3 lg:block lg:pt-[17px] lg:text-[12.5px] lg:font-semibold lg:leading-6">
+        <time dateTime={at} className="mono hidden text-ink-3 lg:block lg:pt-[17px] lg:text-ui-caption-lg lg:font-semibold lg:leading-6">
           {beijingTime(at)}
         </time>
         <span aria-hidden="true" className="relative hidden lg:block">
@@ -130,6 +132,7 @@ export function TimelineSlot({ at, children, fresh = false, delay = 0, dataKey }
 }
 
 export function Timeline({ initial, filters }: { initial: TimelineResponse; filters: TimelineFilters }) {
+  const t = useT();
   const location = useLocation();
   const navigation = useNavigation();
   const readSet = useReadSet();
@@ -298,7 +301,7 @@ export function Timeline({ initial, filters }: { initial: TimelineResponse; filt
   let order = 0;
   const unreadToggle = (
     <ToggleChip on={unreadOnly} onToggle={() => setUnreadOnly(!unreadOnly)}>
-      只看未读
+      {t("只看未读", "Unread only")}
     </ToggleChip>
   );
   return (
@@ -310,12 +313,16 @@ export function Timeline({ initial, filters }: { initial: TimelineResponse; filt
         <div className="lg:card">
           {unreadOnly ? (
             state.nextCursor ? (
-              <EmptyState title="这批精选都读过了">点下方的按钮，继续找更早的未读精选。</EmptyState>
+              <EmptyState title={t("这批精选都读过了", "You've read all of these")}>
+                {loadError
+                  ? t("加载更早内容失败，点下方重试按钮继续查看。", "Couldn't load older picks. Try again below.")
+                  : t("点下方“加载更多”，继续看更早的未读精选。", "Use “Load more” below for older unread picks.")}
+              </EmptyState>
             ) : (
-              <EmptyState title="没有未读的精选内容">关掉「只看未读」可以看到全部内容。</EmptyState>
+              <EmptyState title={t("没有未读的精选内容", "No unread top picks")}>{t("关掉「只看未读」可以看到全部内容。", "Turn off “Unread only” to see everything.")}</EmptyState>
             )
           ) : (
-            <EmptyState title="这个筛选下还没有精选内容">换个类别看看，或者去全部动态里找找。</EmptyState>
+            <EmptyState title={t("这个筛选下还没有精选内容", "No top picks match this filter yet")}>{t("换个类别看看，或者去全部动态里找找。", `Try another category, or browse All ${SITE.subject} News.`)}</EmptyState>
           )}
         </div>
       )}
@@ -352,24 +359,25 @@ export function Timeline({ initial, filters }: { initial: TimelineResponse; filt
 
 /** The foot of a paged list: loading, retry, "加载更多" after a few automatic pages, or the end. */
 function FeedEnd({ loading, error, hasMore, manual, empty, onMore }: { loading: boolean; error: boolean; hasMore: boolean; manual: boolean; empty: boolean; onMore: () => void }) {
+  const t = useT();
   return (
     <div className="flex justify-center py-6">
       {loading ? (
-        <span className="inline-flex items-center gap-2 text-[12.5px] text-ink-4">
-          <RingMark className="size-4 text-accent" spinning /> 正在加载
+        <span className="inline-flex items-center gap-2 text-ui-caption-lg text-ink-4">
+          <RingMark className="size-4 text-accent" spinning /> {t("正在加载", "Loading")}
         </span>
       ) : error ? (
-        <button type="button" onClick={onMore} className="h-9 rounded-full border border-hot/30 px-4 text-[13px] text-hot hover:bg-hot-soft">
-          加载失败，点此重试
+        <button type="button" onClick={onMore} className="h-9 rounded-full border border-hot/30 px-4 text-ui-label text-hot hover:bg-hot-soft">
+          {t("加载失败，点此重试", "Couldn't load. Try again")}
         </button>
       ) : hasMore ? (
         manual && (
-          <button type="button" onClick={onMore} className="h-9 rounded-full border border-line-strong bg-surface px-5 text-[13px] font-medium text-ink-2 transition-colors hover:border-ink-4 hover:text-ink">
-            加载更多
+          <button type="button" onClick={onMore} className="h-9 rounded-full border border-line-strong bg-surface px-5 text-ui-label font-medium text-ink-2 transition-colors hover:border-ink-4 hover:text-ink">
+            {t("加载更多", "Load more")}
           </button>
         )
       ) : (
-        !empty && <span className="text-[12px] text-ink-4">已经到底了</span>
+        !empty && <span className="text-ui-caption text-ink-4">{t("已经到底了", "That's everything")}</span>
       )}
     </div>
   );

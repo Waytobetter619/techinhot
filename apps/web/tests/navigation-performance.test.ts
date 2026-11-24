@@ -23,7 +23,7 @@ const readerBody=Array.from({length:30},(_,i)=>`<p>阅读段落 ${i}：先阅读
   +`<pre><code>${codeSource}</code></pre><pre><code>x = 1</code></pre>`
   +Array.from({length:12},(_,i)=>`<img src="/reader-image/${i}.svg" alt="正文配图 ${i}" width="640" height="360" loading="lazy">`).join('')
   +'<img src="/reader-image/tiny.svg" alt="小图标" width="16" height="16" loading="lazy"><a href="https://example.org"><img src="/reader-image/linked.svg" alt="链接图片" width="640" height="360" loading="lazy"></a>';
-const report = (kind:'daily'|'weekly'|'monthly'): ReportDetail => ({kind,key:kind==='daily'?'2026-10-04':kind==='weekly'?'2026-W40':'2026-10',issueNumber:1,title:'Fixture '+kind,generatedAt:at,lead:{title:'Fixture '+kind,leadParagraph:'Fixture report'},leadItemId:null,overview:null,highlights:[],sections:[],flashes:[],cover:null,metrics:{},readingMinutes:1,prev:null,next:null});
+const report = (kind:'daily'|'weekly'|'monthly'): ReportDetail => ({kind,key:kind==='daily'?'2026-10-04':kind==='weekly'?'2026-W40':'2026-10',issueNumber:1,title:'Fixture '+kind,generatedAt:at,lead:{title:'Fixture '+kind,leadParagraph:'Fixture report'},leadItemId:null,overview:null,highlights:[],sections:[],flashes:[],cover:null,metrics:{},readingMinutes:1,prev:null,next:null,mentions:[]});
 const hits: string[] = [];
 let suggestionsVersion=1;
 let failing='';
@@ -113,7 +113,8 @@ test('hover downloads nothing, a press fetches article data once for its click, 
     const start=hits.length;
     // In one task, as a scroll moves within the hold that makes a still touch a press; two calls can be further apart.
     await link.evaluate(a=>{for(const type of ['touchstart','touchmove'])a.dispatchEvent(new TouchEvent(type,{bubbles:true,cancelable:true,composed:true}));});
-    await link.hover();await page.waitForTimeout(300);
+    await page.clock.install();
+    await link.hover();await page.clock.runFor(300);
     await page.getByRole('heading',{name:'精选',exact:true}).click();
     assert.equal(hits.slice(start).filter(x=>x.startsWith('/api/site/items/')).length,0);
     await link.click();await expect(page.getByText('固定正文',{exact:true})).toBeVisible();
@@ -148,6 +149,7 @@ test('SSR all-pages and report kinds return offline with their own content',asyn
 // Disable HTTP reuse here: otherwise the browser cache can hide a lost document-level result.
 test('a press on a selected link preserves visited data and the next revisit starts no data request',async()=>{
   const context=await chrome.newContext();const page=await context.newPage();
+  await page.clock.install();
   const requests:string[]=[];
   await context.route('**/*.data*',route=>route.continue());
   page.on('request',request=>{if(request.url().includes('.data'))requests.push(request.url());});
@@ -156,11 +158,11 @@ test('a press on a selected link preserves visited data and the next revisit sta
     await page.getByRole('link',{name:'模型',exact:true}).click();
     await expect(page.getByRole('link',{name:'分类 ai-models',exact:true})).toBeVisible();
     await page.getByRole('link',{name:'模型',exact:true}).dispatchEvent('pointerdown',{button:0,pointerType:'mouse',isPrimary:true});
-    await page.waitForTimeout(150);
+    await page.clock.runFor(150);
     await page.getByRole('link',{name:'产品',exact:true}).click();
     await expect(page.getByRole('link',{name:'分类 ai-products',exact:true})).toBeVisible();
     await page.getByRole('link',{name:'产品',exact:true}).dispatchEvent('pointerdown',{button:0,pointerType:'mouse',isPrimary:true});
-    await page.waitForTimeout(150);
+    await page.clock.runFor(150);
     const before=requests.length;
     await page.getByRole('link',{name:'模型',exact:true}).click();
     await expect(page.getByRole('link',{name:'分类 ai-models',exact:true})).toBeVisible();
@@ -256,7 +258,11 @@ test('reader enhancements wait for visible code and update only the picture that
     const source=page.locator('.prose pre code').first();
     assert.equal(await source.textContent(),codeSource);
     await source.scrollIntoViewIfNeeded();
-    await expect(source).toHaveClass(/hljs/);
+    await expect.poll(() => source.evaluate(code => {
+      const plain = getComputedStyle(code).color;
+      return [...code.querySelectorAll("*")].some(token =>
+        token.textContent?.trim() && getComputedStyle(token).color !== plain);
+    }), { message: "visible code should show syntax in a different colour" }).toBe(true);
     assert.equal(await source.textContent(),codeSource,'colouring preserves the copyable text');
     assert.equal(scripts.length,1);
     await page.locator('.code-block-copy').first().click();
@@ -285,15 +291,17 @@ test('deep reading returns to its anchor, including folded dates',async()=>{
     await page.getByRole('button',{name:'收起10月4日',exact:true}).click();
     await expect(page.locator('[data-card-key]')).toHaveCount(120);
     await page.getByRole('link',{name:'长列表文章 160',exact:true}).scrollIntoViewIfNeeded();
-    const before=await page.evaluate(()=>{
-      const first=[...document.querySelectorAll<HTMLElement>('[data-card-key]')].find(e=>e.getBoundingClientRect().bottom>72)!;
-      return {key:first.dataset.cardKey!,top:first.getBoundingClientRect().top};
+    const readingCard = () => page.evaluate(() => {
+      const card = document.elementFromPoint(innerWidth / 2, innerHeight / 2)?.closest<HTMLElement>('[data-card-key]');
+      return card?.dataset.cardKey;
     });
+    const before = await readingCard();
+    assert.ok(before, 'a card is visible at the reading position before opening the article');
     await page.getByRole('link',{name:'长列表文章 160',exact:true}).click();
     await expect(page.getByText('固定正文',{exact:true})).toBeVisible();
     await page.goBack();
     await expect(page.locator('[data-card-key]')).toHaveCount(120);
-    await expect.poll(()=>page.locator(`[data-card-key="${before.key}"]`).evaluate((e,top)=>Math.abs(e.getBoundingClientRect().top-top),before.top)).toBeLessThan(2);
+    await expect.poll(readingCard).toBe(before);
     await expect(page.getByRole('button',{name:'展开10月4日',exact:true})).toBeVisible();
   }finally{await context.close();}
 });

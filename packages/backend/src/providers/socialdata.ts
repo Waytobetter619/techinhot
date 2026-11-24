@@ -4,6 +4,7 @@ import { guardedFetch } from "../lib/http-fetch.ts";
 import { assertAccepted, paidRequest, ProviderRejectedError, type CallOutcome, type ReceiptRequest, type ReceiptResult } from "./receipts.ts";
 
 export interface SdUser {
+  id_str?: string;
   name: string;
   screen_name: string;
   profile_image_url_https?: string;
@@ -70,7 +71,9 @@ async function get<T>(path: string, request: Omit<ReceiptRequest, "service">,
       headers: { authorization: `Bearer ${key}`, accept: "application/json" },
       timeoutMs: read.timeoutMs,
       maxBytes: read.maxBytes,
-      route: "direct",
+      // Direct search worked while the proxy returned timeouts and upstream errors; the proxy
+      // remains useful when the direct connection itself times out before a request is sent.
+      route: "direct-first",
     });
     if (res.status === 404 && read.missing) return { response: null, usage: read.missing, cost: objectsCost(0) };
     const text = res.text();
@@ -116,7 +119,8 @@ export function tweetText(t: SdTweet): string {
   let text = decodeTweetEntities(t.full_text ?? t.text ?? "");
   // Expand t.co links and drop trailing media links.
   for (const u of t.entities?.urls ?? []) text = text.replaceAll(u.url, u.expanded_url);
-  for (const m of t.extended_entities?.media ?? t.entities?.media ?? []) text = text.replace(/\s*https:\/\/t\.co\/\w+\s*$/, "");
+  const mediaCount = (t.extended_entities?.media ?? t.entities?.media)?.length ?? 0;
+  for (let i = 0; i < mediaCount; i++) text = text.replace(/\s*https:\/\/t\.co\/\w+\s*$/, "");
   return text.trim();
 }
 
@@ -130,10 +134,35 @@ export function tweetMedia(t: SdTweet) {
   }));
 }
 
-/** An X Article: its title and body as DraftJS blocks (header-two, blockquote, list items, atomic media…). */
+/** A picture or a video's preview in an X Article. */
+export interface SdArticleImage {
+  original_img_url?: string;
+  original_img_width?: number;
+  original_img_height?: number;
+}
+
+/**
+ * An X Article: its title, cover and body as DraftJS blocks (header-two, blockquote, list items, atomic
+ * media…). Style and entity ranges count characters (code points), not UTF-16 units. Entities: MEDIA
+ * (pictures by media id), LINK, TWEET (an embedded post), DIVIDER and MARKDOWN (tables and code).
+ */
 export interface SdArticle {
   title?: string;
-  content_state?: { blocks?: Array<{ type?: string; text?: string }> };
+  cover_url?: string;
+  media_entities?: Array<{ media_id?: string; media_info?: SdArticleImage & {
+    __typename?: string;
+    preview_image?: SdArticleImage;
+    variants?: Array<{ url?: string; content_type?: string; bit_rate?: number }>;
+  } }>;
+  content_state?: {
+    blocks?: Array<{
+      type?: string;
+      text?: string;
+      inlineStyleRanges?: Array<{ style?: string; offset: number; length: number }>;
+      entityRanges?: Array<{ key: number | string; offset: number; length: number }>;
+    }>;
+    entityMap?: Array<{ key: string; value: { type?: string; data?: unknown } }> | Record<string, { type?: string; data?: unknown }>;
+  };
 }
 
 /**

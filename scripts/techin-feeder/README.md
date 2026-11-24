@@ -35,7 +35,7 @@ node --env-file=.env scripts/techin-feeder/techin-feeder.ts --once   # 只跑一
 
 ## 工作方式
 
-1. 按 `release_time` 升序拉新文章（默认只收高价值站点 + 带产业标签的）；
+1. 按 `release_time` 升序拉新文章（默认只收带产业标签的；高价值站点过滤默认关）；
 2. 标题优先用 Techin 的 AI 中文标题（外文文章的译文），其次原标题；
 3. 按「信源」（新浪网、爱集微……）分组推送——每个网站是站里的一个独立信源，热度按独立来源计数才准；
 4. 自动建的 `external` 信源默认不公开（框架的安全默认），脚本直接把它翻成 `editorial`；

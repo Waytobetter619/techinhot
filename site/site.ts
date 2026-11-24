@@ -4,6 +4,9 @@
 
 import type { Founder } from "@aihot/contracts/site-config";
 
+/** 英文版（/en/…）上本站自己写的文案；不做英文版就保持 null，网站只有中文版。 */
+export const ENGLISH = null;
+
 /**
  * 日报、周报、月报什么时候出（北京时间，HH:mm）：日报收这个时间之前的 24 小时，周报在每个自然周之后的周一出，
  * 月报在每月 1 日出。排程、成刊时间窗口、缺期告警和所有提到时间的文案都读它（public/ 里的文件写占位
@@ -25,11 +28,11 @@ export const SITE = {
    * 行业词：拼进默认说法里，比如“AI 日报”“AI 动态”。
    * 改成“法律”“HR”“黄金”之类，页面上就会变成“法律日报”“法律动态”。
    */
-  subject: "产业",
+  subject: "AI",
   /** 首页的完整标题（浏览器标签、搜索结果）。 */
-  homeTitle: "TechinHOT — 科技产业动态 · 每日精选与日报",
+  homeTitle: "TechinHOT — AI 与科技地缘动态 · 每日精选与日报",
   /** 主题目录页（/topics）的标题。 */
-  topicsTitle: "科技产业主题：公司与机构、产业方向、内容类型的最新动态",
+  topicsTitle: "AI 主题：公司与模型、技术方向、科技地缘、内容形态的最新动态",
   /** 反馈表单输入框里的示例。 */
   feedbackExample: "例如：我在搜索某个关键词时遇到……我原本想……",
   /** 反馈页标题下面的一句话。 */
@@ -37,15 +40,20 @@ export const SITE = {
   /** 反馈表单邮箱框里的提示。 */
   feedbackEmailHint: "留下邮箱，我们可以回信联系你",
   /** 一句话介绍：搜索引擎、分享卡片、RSS、llms.txt 会用。 */
-  description: `从海外官方信源和 Techin 产业舆情库里挑出值得看的科技产业动态，把同一件事的多篇报道归到一起，${EDITION_WHEN.daily} 出一份日报。`,
+  description: `从国内外 AI 信源、重点人物与科技政策信源里挑出值得看的动态，把同一件事的多篇报道归到一起，${EDITION_WHEN.daily} 出一份日报。`,
   /** llms.txt 里一句话介绍下面的一段详细介绍（选填）。 */
   llmsIntro: null as string | null,
   /** 一行小字：分享图、海报下方。 */
-  tagline: "值得关注的科技产业动态",
+  tagline: "值得关注的 AI 与科技地缘动态",
   /** 搜索引擎读到的关键词（首页结构化数据）。 */
-  keywords: ["科技产业资讯", "产业动态", "AI 新闻", "产业日报", "TechinHOT"] as string[],
+  keywords: ["AI 资讯", "AI 新闻", "AI 日报", "科技地缘", "出口管制", "TechinHOT"] as string[],
+  /**
+   * 搜索引擎站长平台的网站验证（选填）：meta 名 → 平台给的验证码，放在首页的 head 里。
+   * 比如 "baidu-site-verification": "codeva-…"、"msvalidate.01": "…"。验证通过后也要留着，平台会定期复查。
+   */
+  siteVerification: {} as Record<string, string>,
   /** 网站开始收录的年份（结构化数据的时间范围，选填）。 */
-  since: "2026",
+  since: "2026" as string | null,
   /** 界面语言（HTML lang、og:locale）。 */
   locale: "zh-CN",
   /** 默认域名，只在没设置 SITE_URL 时使用。 */
@@ -71,7 +79,9 @@ export const SITE = {
   /** 中国大陆网站的公安备案信息（选填），填了显示在侧栏底部和“我的”页底部。 */
   psb: null as string | null,
   /** 源码的 GitHub 仓库地址（选填），填了就在侧栏底部和“我的”页底部显示“GitHub 开源”。 */
-  github: "https://github.com/Waytobetter619/techinhot",
+  github: "https://github.com/Waytobetter619/techinhot" as string | null,
+  /** 页脚的“由 X 驱动”（选填）：填了就在侧栏底部和“我的”页底部显示，链到它的网址。默认链回上游 AIHOT，不想要就写 null。 */
+  poweredBy: { name: "AIHOT", url: "https://aihot.news" } as { name: string; url: string } | null,
   /** 结构化数据里的网站运营者（搜索引擎用）。 */
   organization: {
     name: "TechinHOT",
@@ -147,15 +157,15 @@ export const ABOUT = {
   /** 页面描述（搜索结果、分享卡片）。 */
   description: `关于 ${SITE.name}：${SITE.description}`,
   /** 大标题：第一行正常颜色，第二行强调色。 */
-  headline: ["产业圈每天都有新动静，", "值得看的，只有几条。"] as [string, string],
+  headline: ["AI 圈每天都有新动静，", "值得看的，只有几条。"] as [string, string],
   /** 标题下面的一段话。{sources} 会换成实时的信源数（两边自动加空格，所以 {sources} 两边不写空格）；统计没取到时换成 sourcesFallback。 */
   lead: `${SITE.name} 替你盯着{sources}个信源：抓取、归并、打分、精选，${EDITION_WHEN.daily} 出一份日报。免费，不用注册。`,
   sourcesFallback: "几十",
   /** 信源河动画下面的四个环节。 */
   steps: {
-    collect: "海外官方博客、科技媒体和 Techin 产业舆情库都在看；更新越勤的源看得越勤，最快 15 分钟看一次。",
+    collect: "官方博客、媒体、重点人物的 X 账号和政策信源都在看；更新越勤的源看得越勤，最快 15 分钟看一次。",
     store: "抓到的都存下来，同一件事的报道归到一起，热点榜就是从这里算出来的。",
-    select: `模型先看是不是科技产业的事、有没有实际信息，再写中文标题、摘要和${ITEM_COPY.reasonLabel}；营销稿和重复转发进不来。`,
+    select: `模型先看是不是这个行业的事、有没有实际信息，再写中文标题、摘要和${ITEM_COPY.reasonLabel}；营销稿和重复转发进不来。`,
     publish: `${EDITION_WHEN.daily} 出日报，${EDITION_WHEN.weekly} 出周报，${EDITION_WHEN.monthly} 出月报。`,
   },
   /**
@@ -329,3 +339,24 @@ function spokenTime(time: string): string {
   const [hour, minute] = time.split(":").map(Number) as [number, number];
   return `${hour} 点${minute ? ` ${minute} 分` : ""}`;
 }
+
+/**
+ * 入口页在搜索结果里的标题：读者会搜的词放前面，页面自动在最后接上“ · 站名”（首页用 SITE.homeTitle）。
+ * 日期一律是这一期、这一页内容的日期，不是今天的日期。换行业时把里面的说法一起换掉。
+ */
+export const SEO_TITLES = {
+  /** 热点榜（/hot）。 */
+  hot: `${withSubject("热点榜")}：今日热门事件排行`,
+  /** 全部动态（/all），不含搜索和筛选结果。 */
+  all: `${subjectAfter("最新", "动态")}：实时更新`,
+  /** Agent 接入页（/agent）。 */
+  agent: `${withSubject("资讯")} API、MCP 与 RSS：接进你的 Agent`,
+  /** 关于页（/about）的完整标题，已含站名。 */
+  about: `关于 ${SITE.name}：${SITE.tagline}`,
+  /** 日报、周报、月报的最新一期（/daily、/weekly、/monthly）；date 是这一期的日期：“11月7日”“10月26日—11月1日”“2026年10月”。 */
+  latestReport: (kind: "daily" | "weekly" | "monthly", date: string): string =>
+    ({ daily: `${withSubject("日报")}：${subjectAfter("每日", "新闻")}（${date}）`, weekly: `${withSubject("周报")}：一周大事回顾（${date}）`, monthly: `${withSubject("月报")}：${date} 大事回顾` })[kind],
+  /** 主题页第一页：公司搜“最新消息”，方向和内容类型搜“最新进展”；updated 是最新一篇精选的日期（“11月7日”），没有时为 null。 */
+  topic: (name: string, group: "company" | "field" | "genre", updated: string | null): string =>
+    `${name} ${group === "company" ? "最新消息与动态" : "最新动态与进展"}${updated ? `（${updated}更新）` : ""}`,
+};

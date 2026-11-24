@@ -9,7 +9,6 @@ export interface SourceRow {
   participation_mode: "editorial" | "hot_signal" | "isolated";
   /** Uses besides the news pipeline, each declared by an installed module (sources/uses.ts). */
   uses: string[];
-  first_party: boolean;
   interval_minutes: number;
   enabled: boolean;
   cursor: Record<string, any> | null;
@@ -23,6 +22,8 @@ export interface SourceRow {
  */
 export type Candidate = Omit<MaterialInput, "sourceId" | "via"> & {
   categories?: string[];
+  /** This listing dates the post itself, rather than the submission of an external link. */
+  listingDatesOriginal?: boolean;
 };
 
 export class FetchError extends Error {}

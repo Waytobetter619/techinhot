@@ -1,48 +1,60 @@
 import { useLoaderData } from "react-router";
 import type { Route } from "./+types/report-latest";
-import { REPORT_NAMES, reportDateLabel, type ReportLatestPage } from "@aihot/contracts/site";
-import { REPORTS, subjectAfter, withSubject } from "@aihot/site";
-import { cachedPage, loadOr404 } from "../lib/api.server";
+import { REPORT_NAMES, REPORT_NAMES_EN, reportDateLabel, reportDateLabelEn, type ReportLatestPage } from "@aihot/contracts/site";
+import { REPORTS, SEO_TITLES, SITE, subjectAfter, withSubject } from "@aihot/site";
+import { ENGLISH } from "@aihot/contracts/english";
+import { cachedPage, loadOr404, pagePathname } from "../lib/api.server";
 import { pageReuse } from "../lib/page-reuse";
-import { pageMeta, reportLd } from "../lib/seo";
+import { breadcrumbLd, pageMeta, reportDescription, reportLd } from "../lib/seo";
 import { beijingDate } from "@aihot/contracts/time";
 import { EmptyState } from "../components/ui/Page";
 import { ReportLayout } from "../features/report/ReportLayout";
 import { ReportPaper, reportOutline } from "../features/report/ReportPaper";
-import { feedLink, kindFromPath } from "../features/report/format";
+import { KIND_PATH, feedLink, kindFromPath } from "../features/report/format";
 import type { Screen } from "../components/shell/screens";
+import { L, localeOf, translator, useLocale, useT } from "../lib/i18n";
 
-export const handle: Screen = { tab: "daily", name: "日报" };
+export const handle: Screen = { tab: "daily", name: L("日报", "Daily") };
 export { pageHeaders as headers } from "../lib/api.server";
 export const { clientLoader, shouldRevalidate } = pageReuse<typeof loader>();
 
 export async function loader({ request }: Route.LoaderArgs) {
-  const kind = kindFromPath(new URL(request.url).pathname);
+  const kind = kindFromPath(pagePathname(request));
   const { index, report } = await loadOr404<ReportLatestPage>(`/api/site/reports/${kind}/latest-page`, { signal: request.signal });
   return cachedPage(600, { kind, report, index, today: beijingDate(Date.now()) });
 }
 
 export function meta({ loaderData, location }: Route.MetaArgs) {
+  const locale = localeOf(location.pathname);
+  const t = translator(locale);
   const kind = loaderData?.kind ?? "daily";
   const report = loaderData?.report;
   // What this issue says, so a search result shows today's date and news rather than what the page is.
-  const lead = report?.lead?.leadParagraph ?? report?.overview?.slice(0, 150);
-  const description = report && lead ? `${reportDateLabel(kind, report.key)} ${withSubject("资讯")}：${lead}` : `${REPORTS.descriptions[kind]}。`;
+  const description = (report && reportDescription(report, locale)) ?? t(`${REPORTS.descriptions[kind]}。`, `${ENGLISH?.reports.descriptions[kind] ?? REPORTS.descriptions[kind]}.`);
+  // One address however it was written (/daily/, a different case): the router matches them all.
+  const path = KIND_PATH[kind];
+  const name = t(withSubject(REPORT_NAMES[kind]), withSubject(REPORT_NAMES_EN[kind]));
   return [...pageMeta({
-    title: withSubject(REPORT_NAMES[kind]),
+    locale,
+    title: report ? t(SEO_TITLES.latestReport(kind, reportDateLabel(kind, report.key)), (ENGLISH?.seoTitles ?? SEO_TITLES).latestReport(kind, reportDateLabelEn(kind, report.key))) : name,
     description,
-    path: location.pathname,
+    path,
     image: `/og/pages/${kind}.png`,
     // The latest issue, described at this page's own address (its canonical).
-    jsonLd: report ? reportLd(report, location.pathname, lead ?? description) : undefined,
-  }), feedLink(kind)];
+    jsonLd: [
+      ...(report ? [reportLd(report, path, description, locale)] : []),
+      breadcrumbLd([{ name: SITE.name, path: "/" }, { name, path }], locale),
+    ],
+  }), feedLink(kind, locale)];
 }
 
 export default function ReportLatestPage() {
   const { kind, report, index, today } = useLoaderData<typeof loader>();
+  const locale = useLocale();
+  const t = useT();
   return (
-    <ReportLayout kind={kind} index={index} current={report?.key ?? null} today={today} outline={report ? reportOutline(report) : []}>
-      {report ? <ReportPaper report={report} index={index} /> : <EmptyState title={subjectAfter("还没有发布", REPORT_NAMES[kind])}>第一期发布后会出现在这里。</EmptyState>}
+    <ReportLayout kind={kind} index={index} current={report?.key ?? null} today={today} outline={report ? reportOutline(report, locale) : []}>
+      {report ? <ReportPaper report={report} index={index} /> : <EmptyState title={t(subjectAfter("还没有发布", REPORT_NAMES[kind]), `No ${withSubject(REPORT_NAMES_EN[kind])} issues yet`)}>{t("第一期发布后会出现在这里。", "The first issue will appear here once it's out.")}</EmptyState>}
     </ReportLayout>
   );
 }

@@ -1,3 +1,4 @@
+import { pollFor } from "./poll.ts";
 // Backups restore: a real database dump and file archive (uploads and feedback screenshots) are
 // unpacked and read back; the object store is a stand-in inside this process. A missing uploads directory
 // needs no file archive, an unreadable one is not; a file archive that fails still ships the database and
@@ -125,6 +126,23 @@ async function save(relative: string, data = PNG) {
   await mkdir(path.dirname(file), { recursive: true });
   await writeFile(file, data);
 }
+
+test("raw analytics events stay out of the dump, every other table's rows go in", async () => {
+  // The privacy notice keeps raw analytics events 30 days; a backup lives up to 100.
+  await runBackup(NOW);
+  const dump = objects.get(`monthly/${stem}-202611010400.dump`);
+  assert.ok(dump, "backup must supply the real database dump");
+  const dumpPath = path.join(config.dataDir, "listed.dump");
+  await writeFile(dumpPath, dump);
+  const { stdout } = await run("pg_restore", ["--list", dumpPath], { maxBuffer: 64 * 1024 * 1024 });
+  // Both analytics tables come from this edition's own migrations; an edition without them has neither to check.
+  const [{ events, visitors }] = await sql<{ events: string | null; visitors: string | null }[]>`
+    SELECT to_regclass('public.analytics_events')::text AS events, to_regclass('public.visitor_states')::text AS visitors`;
+  if (events) assert.match(stdout, / TABLE public analytics_events /);
+  assert.doesNotMatch(stdout, / TABLE DATA public analytics_events /);
+  assert.match(stdout, / TABLE DATA public feedback /);
+  if (visitors) assert.match(stdout, / TABLE DATA public visitor_states /);
+});
 
 test("both attachment roots restore nested paths and bytes, without caches or previous backups", async () => {
   const upload = Buffer.from("fictional uploaded file");
@@ -323,11 +341,10 @@ for (const phase of ["pg_dump", "tar"] as const) {
     child.on("message", message => messages.push(message as typeof messages[number]));
     const exited = once(child, "exit");
     const wait = async (condition: () => boolean | Promise<boolean>) => {
-      const deadline = Date.now() + 15_000;
-      while (!await condition()) {
-        assert.ok(child.exitCode === null && child.signalCode === null && Date.now() < deadline, `backup phase not reached: ${stderr} ${JSON.stringify(messages)}`);
-        await new Promise(resolve => setTimeout(resolve, 20));
-      }
+      await pollFor(async () => {
+        assert.ok(child.exitCode === null && child.signalCode === null, `backup phase not reached: ${stderr} ${JSON.stringify(messages)}`);
+        return condition();
+      }, "backup phase", 15_000);
     };
     let held: number | undefined;
     try {

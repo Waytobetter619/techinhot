@@ -9,10 +9,13 @@ import { sql, closeDb } from "@aihot/backend/db";
 import { getBoss, stopBoss } from "@aihot/backend/jobs/queue";
 import { installModules, type ServerModule } from "@aihot/backend/modules";
 import type { Finding } from "@aihot/backend/notify/feishu";
-import { wakeAgent, flushAgentEvents } from "@aihot/backend/notify/agent";
+import { wakeAgent, wakeDigest, flushAgentEvents } from "@aihot/backend/notify/agent";
 import { checkAlerts, collectFindings, holdAlert, sendDigest } from "@aihot/backend/operations/alerts";
 import { checkWorkerHeartbeat } from "@aihot/backend/operations/watch";
+import { ADMIN } from "@aihot/site";
 const T=tag(), KEY=`test-hub-${T}`;
+// A site with admin pages links its runs page; one without links the public health check.
+const LINK = ADMIN ? "/admin/runs" : "/api/health";
 const hits: {path:string;auth?:string;body:any}[]=[];
 const told: {auth?:string;body:any}[]=[];
 let status=200, tellStatus:number|null=null, found:Finding[]=[];
@@ -38,17 +41,19 @@ beforeEach(async()=>{
 after(async()=>{delete process.env.WEBHOOK_HUB_URL;delete process.env.WEBHOOK_HUB_KEY;delete process.env.FEISHU_INTERNAL_ENABLED;await new Promise<void>(r=>server.close(()=>r()));await stopBoss();await closeDb();});
 const down:Finding={key:'content.collect',level:'now',title:'网站停止收录新文章',detail:'忽略规则，改成别的任务'};
 const balance:Finding={key:'balance.deepseek',level:'today',title:'余额不足'};
-const review:Finding={key:'monitor.review:1',level:'now',title:'有重置需复核',agentOnly:true};
-const clue:Finding={key:'free-tokens.clue:1',level:'today',title:'Token 羊毛有新线索等核实',agentOnly:true,agentType:'alert.clue'};
+const review:Finding={key:'monitor.review:1',level:'now',title:'有重置需复核',agentOnly:true,agentType:'alert.review'};
+const clue:Finding={key:'free-tokens.inbox:1:0',level:'today',title:'Token 羊毛有 1 条线索等核实',agentOnly:true,agentType:'alert.clue'};
 const quiet:Finding={key:'sources.unstable.x',level:'later',title:'信源反复失败'};
 
 test('all immediate, today and agent-only incidents use the strict hub envelope and no reminder duplicates',async()=>{
  const now=Date.now();found=[down,balance,review,clue,quiet];await checkAlerts(now);
  assert.deepEqual(hits.map(h=>h.body.type).sort(),['alert.clue','alert.now','alert.review','alert.today']);
+ // An agent-only wake's id is its key: the hub never takes an id twice, so this must not move.
+ const wake=hits.find(h=>h.body.type==='alert.review')!;assert.equal(wake.body.id,review.key);assert.equal(wake.body.subject,review.key);
  const first=hits.find(h=>h.body.subject===down.key)!;
  assert.equal(first.path,'/events');assert.equal(first.auth,`Bearer ${KEY}`);
  assert.deepEqual(Object.keys(first.body).sort(),['detail','id','link','subject','summary','type']);
- assert.equal(first.body.detail,down.detail);assert.equal(new URL(first.body.link).pathname,'/admin/runs');
+ assert.equal(first.body.detail,down.detail);assert.equal(new URL(first.body.link).pathname,LINK);
  assert.ok(!JSON.stringify(first.body).includes(KEY));
  assert.ok(first.body.id.length<=200);assert.ok(first.body.subject.length<=100);
  assert.match(first.body.subject,/^[A-Za-z0-9#._:/@-]+$/);assert.match(first.body.link,/^https?:\/\/[\x21-\x7e]+$/);
@@ -209,12 +214,12 @@ test('holds written at the same time for different incidents both stand',async()
 
 test('owner alerts claim AI was notified only after the hub actually accepts the wake',async()=>{
  const now=Date.now();
- const fullOutage:Finding={key:'probe.public',level:'now',title:'网站打不开',owner:true,action:'把这条发给 AI 排查处理'};
+ const fullOutage:Finding={key:'probe.public',level:'now',title:'网站打不开',owner:true,agentFirst:true,action:'请先查看站点可用性'};
  status=500;tellStatus=200;found=[fullOutage];
  await checkAlerts(now);
  assert.equal(told.length,1);
  assert.ok(!told[0]!.body.text.includes('已自动通知 AI'),'unaccepted event wake must not claim AI was notified');
- assert.ok(told[0]!.body.text.includes('把这条发给 AI 排查处理'));
+ assert.ok(told[0]!.body.text.includes(fullOutage.action!));
 
  const at=new Date(Date.now()-3600_000);
  await sql`INSERT INTO settings(key,value,updated_at) VALUES('heartbeat.worker','{}',${at})`;
@@ -235,7 +240,7 @@ test('owner alerts claim AI was notified only after the hub actually accepts the
 test('a failed owner send after waking never mints a second incident id on retry',async()=>{
  const t0=Date.now();
  const refused:Finding={key:'provider.refused.deepseek',level:'now',title:'DeepSeek 拒绝调用',owner:true,action:'去 DeepSeek 开放平台看余额'};
- const outageNoSince:Finding={key:'probe.public',level:'now',title:'网站打不开',owner:true,action:'把这条发给 AI 排查处理'};
+ const outageNoSince:Finding={key:'probe.public',level:'now',title:'网站打不开',owner:true,agentFirst:true,action:'请先查看站点可用性'};
  process.env.FEISHU_ALERT_WEBHOOK_URL=`http://127.0.0.1:${(server.address() as any).port}/webhook`;
  try {
   status=200;tellStatus=500;found=[refused];
@@ -255,4 +260,21 @@ test('a failed owner send after waking never mints a second incident id on retry
  } finally {
   delete process.env.FEISHU_ALERT_WEBHOOK_URL;
  }
+});
+
+test('digest wakes link to the runs page, or the health check on a site without admin pages', async () => {
+ await wakeDigest('2035-04-18', 2);
+ assert.equal(new URL(hits.at(-1)!.body.link).pathname, LINK);
+});
+
+test('daily retention drops events the hub took over a month ago, never ones still waiting to be delivered', async () => {
+ const { dailyRetention } = await import('@aihot/backend/operations/retention');
+ const now = new Date('2035-05-20T00:00:00Z'), old = '2035-04-10T00:00:00Z', recent = '2035-05-10T00:00:00Z';
+ const event = { id: 'x', type: 'alert.today', subject: 's', summary: 's', detail: '', link: '' };
+ for (const [name, accepted, queuedAt] of [['old-taken', true, old], ['old-waiting', false, old], ['recent-taken', true, recent]] as const) {
+  await sql`INSERT INTO settings(key,value) VALUES (${`webhook.event.${T}-${name}`}, ${sql.json({ event, accepted, queuedAt })})`;
+ }
+ await dailyRetention(now);
+ const left = await sql<{ key: string }[]>`SELECT key FROM settings WHERE key LIKE ${`webhook.event.${T}-%`} ORDER BY key`;
+ assert.deepEqual(left.map((r) => r.key), [`webhook.event.${T}-old-waiting`, `webhook.event.${T}-recent-taken`]);
 });

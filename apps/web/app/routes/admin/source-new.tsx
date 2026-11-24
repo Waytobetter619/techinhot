@@ -1,12 +1,12 @@
 import { SITE, SOURCE_DEFAULTS } from "@aihot/site";
 import { useState } from "react";
-import { Link, useNavigate } from "react-router";
 import type { Route } from "./+types/source-new";
 import type { AdminSourceCreated, AdminSourcePreview } from "@aihot/contracts/admin";
 import { useAdminAction } from "../../features/admin/action";
 import { bj } from "../../features/admin/format";
 import { KIND_LABEL, MODE_LABEL, SELECTION_CLASS_LABEL, TIER_LABEL } from "../../features/admin/labels";
 import { AdminPage, Button, Card, Empty, Field, Input, Select, Textarea } from "../../features/admin/ui";
+import { Link, useNavigate } from "../../lib/link";
 
 export const meta: Route.MetaFunction = () => [{ title: `新建信源 · ${SITE.name} 后台` }];
 
@@ -23,7 +23,7 @@ const TEMPLATES: Record<string, Record<string, unknown>> = {
 export default function NewSource() {
   const navigate = useNavigate();
   const { run, pending } = useAdminAction();
-  const [form, setForm] = useState({ id: "", name: "", kind: "rss", tier: "T2", selection_class: "", participation_mode: "editorial", interval_minutes: 30, first_party: false, site_fulltext: SOURCE_DEFAULTS.siteFulltext, syndicate_fulltext: false, tags: "" });
+  const [form, setForm] = useState({ id: "", name: "", kind: "rss", tier: "T2", selection_class: "", participation_mode: "editorial", interval_minutes: 30, site_fulltext: SOURCE_DEFAULTS.siteFulltext, syndicate_fulltext: false, tags: "" });
   const [config, setConfig] = useState(JSON.stringify(TEMPLATES.rss, null, 2));
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<AdminSourcePreview | null>(null);
@@ -84,7 +84,7 @@ export default function NewSource() {
             <Field label="标签（逗号分隔）">
               <Input value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} />
             </Field>
-            <div className="flex flex-col justify-end gap-2 text-[13px] text-ink-2">
+            <div className="flex flex-col justify-end gap-2 text-ui-label text-ink-2">
               {([
                 ["site_fulltext", "站内可展示全文"],
                 ["syndicate_fulltext", "对外接口可带全文"],
@@ -98,12 +98,12 @@ export default function NewSource() {
           </div>
           <div className="mt-4">
             <Field label="采集配置（JSON）">
-              <Textarea className="font-mono !text-[12px]" rows={10} value={config} onChange={(e) => setConfig(e.target.value)} spellCheck={false} />
+              <Textarea className="font-mono !text-ui-caption" rows={10} value={config} onChange={(e) => setConfig(e.target.value)} spellCheck={false} />
             </Field>
-            {error && <div className="mt-1 text-[12.5px] text-hot">{error}</div>}
+            {error && <div className="mt-1 text-ui-caption-lg text-hot">{error}</div>}
           </div>
           {duplicate && (
-            <div className="mt-4 rounded-card bg-amber/10 px-4 py-3 text-[13px] text-ink-2 ring-1 ring-amber/25">
+            <div className="mt-4 rounded-card bg-amber/10 px-4 py-3 text-ui-label text-ink-2 ring-1 ring-amber/25">
               这个地址已经在监控：<Link className="font-medium text-accent" to={`/admin/sources/${encodeURIComponent(duplicate.id)}`}>{duplicate.name}</Link>（{duplicate.id}）。没有新建。
             </div>
           )}
@@ -147,10 +147,10 @@ export default function NewSource() {
           ) : preview.items.length ? (
             <ul className="space-y-3">
               {preview.items.map((i) => (
-                <li key={i.url} className="text-[13px]">
+                <li key={i.url} className="text-ui-label">
                   <a href={i.url} target="_blank" rel="noreferrer" className="font-medium text-ink hover:text-accent">{i.title}</a>
-                  <div className="text-[12px] text-ink-4">{i.publishedAt ? bj(i.publishedAt, true) : "无发布时间"}</div>
-                  {i.excerpt && <div className="mt-0.5 line-clamp-2 text-[12.5px] text-ink-3">{i.excerpt}</div>}
+                  <div className="text-ui-caption text-ink-4">{i.publishedAt ? bj(i.publishedAt, true) : "无发布时间"}</div>
+                  {i.excerpt && <div className="mt-0.5 line-clamp-2 text-ui-caption-lg text-ink-3">{i.excerpt}</div>}
                 </li>
               ))}
             </ul>

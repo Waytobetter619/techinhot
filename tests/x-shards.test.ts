@@ -5,8 +5,8 @@ import { Reply, stub, tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { config } from "@aihot/backend/config";
-import { closeDb, sql } from "@aihot/backend/db";
-import { stopBoss } from "@aihot/backend/jobs/queue";
+import { closeDb, sql, type Tx } from "@aihot/backend/db";
+import { shutdownSignal, stopBoss } from "@aihot/backend/jobs/queue";
 import { upsertMaterial } from "@aihot/backend/content/materials";
 import { collectSource, collectXShard, scheduleDueSources } from "@aihot/backend/sources/collect";
 import { refreshSourceIcons } from "@aihot/backend/sources/icons";
@@ -116,7 +116,11 @@ test("a page failing after the first keeps what was read and goes on from there 
   assert.equal((await cursorOf(IDS[0]!)).lastTweetId, String(BASE + 104n), "the watermark moves to the account's newest post read");
   const cursor = (await sql<{ cursor: { lastTweetId: string; xBacklog?: unknown[] } }[]>`SELECT cursor FROM sources WHERE id = ${IDS[2]!}`)[0]!.cursor;
   assert.equal(cursor.lastTweetId, String(WATERMARK - 1n), "a quiet account keeps its own");
-  assert.equal(cursor.xBacklog?.length, 1, "the rest is kept to read");
+  assert.equal(cursor.xBacklog, undefined, "the stretch is not copied onto every account");
+  const holders = await sql<{ id: string; cursor: { xBacklog?: unknown[] } }[]>`
+    SELECT id, cursor FROM sources WHERE id IN ${sql(IDS)} AND cursor ? 'xBacklog'`;
+  assert.deepEqual(holders.map((h) => h.id), [IDS[0]], "one account of the shard keeps the rest to read");
+  assert.equal(holders[0]!.cursor.xBacklog?.length, 1);
   const partial = await sql`SELECT status FROM receipts WHERE subject = ${`x-shard:editorial:test-${T}`}
     AND request->>'query' LIKE ${`%since_id:${WATERMARK - 1n}`} ORDER BY id`;
   assert.deepEqual(partial.map((r) => r.status), ["completed", "failed"], "only received pages complete; a failed page remains retryable");
@@ -124,6 +128,18 @@ test("a page failing after the first keeps what was read and goes on from there 
   assert.equal(second.found, 2, "the next run reads the rest");
   const stored = await sql<{ n: number }[]>`SELECT count(*)::int AS n FROM articles WHERE source_id IN ${sql(IDS)}`;
   assert.equal(stored[0]!.n, 4, "no post between the old watermark and the newest is lost");
+});
+
+test("posts of an account regrouped elsewhere since a stretch was left over still reach it", async () => {
+  await sql`DELETE FROM articles WHERE source_id IN ${sql(IDS)}`;
+  const stretch = { query: `${shardQuery([HANDLES[0]!, HANDLES[1]!])} since_id:${WATERMARK - 2n}`, next: "0", at: new Date().toISOString() };
+  await sql`UPDATE sources SET cursor = (cursor - 'lastOkAt') || ${sql.json({ lastTweetId: String(BASE + 104n), xBacklog: [stretch] })} WHERE id = ${IDS[0]!}`;
+  await sql`UPDATE sources SET cursor = (cursor - 'lastOkAt' - 'xBacklog') || ${sql.json({ lastTweetId: String(BASE + 104n) })} WHERE id = ${IDS[1]!}`;
+  assert.equal((await collectXShard(`editorial:regrouped-${T}`, [IDS[0]!])).status, "ok");
+  const [moved] = await sql<{ n: number }[]>`SELECT count(*)::int AS n FROM articles WHERE source_id = ${IDS[1]!}`;
+  assert.equal(moved!.n, 1, "the post goes to its account, which holds no copy of the stretch");
+  await sql`UPDATE sources SET cursor = (cursor - 'xBacklog') || ${sql.json({ lastTweetId: String(WATERMARK) })} WHERE id IN ${sql(IDS)}`;
+  await sql`DELETE FROM articles WHERE source_id IN ${sql(IDS)}`;
 });
 
 test("a quiet account's old newest post does not drag the shard's search back: its last check does", async () => {
@@ -246,6 +262,58 @@ test("paid search receipts and coverage commit together for single sources and s
     assert.equal(socialdata.hits(), hits, `${kind} reuses the saved pages after a database failure`);
     const completed = await sql`SELECT status, completed_at FROM receipts WHERE subject = ${subject} AND request->>'query' LIKE ${`%since_id:${watermark}`}`;
     assert.ok(completed.every((r) => r.status === "completed" && r.completed_at !== null));
+  }
+});
+
+test("a failure's run and source health either both commit or neither does", async () => {
+  for (const [i, kind] of ["single", "shard"].entries()) {
+    const ids = kind === "single" ? [IDS[0]!] : IDS;
+    await sql`UPDATE sources SET cursor = (cursor - 'lastOkAt' - 'xBacklog') || ${sql.json({ lastTweetId: String(WATERMARK - 70n - BigInt(i)) })} WHERE id IN ${sql(ids)}`;
+    const before = await sql`SELECT id,health,fail_count,last_error,next_fetch_at FROM sources WHERE id IN ${sql(ids)} ORDER BY id`;
+    const [last] = await sql`SELECT coalesce(max(id),0) AS id FROM fetch_runs`;
+    await sql.unsafe(`CREATE FUNCTION fail_source_health() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
+      IF NEW.last_error IS NOT NULL THEN RAISE EXCEPTION 'injected source health failure'; END IF;
+      RETURN NEW; END $$`);
+    await sql`CREATE TRIGGER fail_source_health BEFORE UPDATE ON sources FOR EACH ROW EXECUTE FUNCTION fail_source_health()`;
+    failNext = true;
+    try {
+      await assert.rejects(kind === "single" ? collectSource(IDS[0]!, { force: true }) : collectXShard(`editorial:health-${T}`, IDS), /injected source health failure/);
+    } finally { await sql`DROP TRIGGER fail_source_health ON sources`; await sql`DROP FUNCTION fail_source_health()`; }
+    const runs = await sql`SELECT status FROM fetch_runs WHERE id > ${last!.id} AND source_id IN ${sql(ids)}`;
+    assert.equal(runs.length, ids.length);
+    assert.ok(runs.every(run => run.status === "running"), `${kind} rolls back its terminal state when source health could not commit`);
+    assert.deepEqual(await sql`SELECT id,health,fail_count,last_error,next_fetch_at FROM sources WHERE id IN ${sql(ids)} ORDER BY id`, before);
+  }
+});
+
+test("a lost commit answer never rolls a completed collection or source back", async (t) => {
+  for (const [i, kind] of ["single", "shard", "single", "shard"].entries()) {
+    const ids = kind === "single" ? [IDS[0]!] : IDS;
+    const watermark = String(WATERMARK - 60n - BigInt(i));
+    await sql`UPDATE sources SET cursor = (cursor - 'lastOkAt' - 'xBacklog') || ${sql.json({ lastTweetId: watermark })} WHERE id IN ${sql(ids)}`;
+    const [last] = await sql`SELECT coalesce(max(id),0) AS id FROM fetch_runs`;
+    const begin = sql.begin;
+    let stopped = false;
+    const signal = t.mock.getter(shutdownSignal.signal, "aborted", () => stopped && i < 2);
+    const commit = t.mock.method(sql, "begin", async (fn: (tx: Tx) => Promise<unknown>) => {
+      const result = await begin(fn);
+      const completed = await sql`SELECT id FROM fetch_runs WHERE id > ${last!.id} AND source_id IN ${sql(ids)} AND status = 'ok'`;
+      if (!stopped && completed.length === ids.length) {
+        stopped = true;
+        throw new Error("injected lost commit answer");
+      }
+      return result;
+    });
+    try {
+      const pending = kind === "single" ? collectSource(IDS[0]!, { force: true }) : collectXShard(`editorial:lost-${T}`, IDS);
+      if (i < 2) await assert.rejects(pending, /lost commit answer/);
+      else assert.equal((await pending).status, "failed", "the caller still sees its lost database answer");
+    } finally { commit.mock.restore(); signal.mock.restore(); }
+    const runs = await sql`SELECT status,error FROM fetch_runs WHERE id > ${last!.id} AND source_id IN ${sql(ids)}`;
+    assert.equal(runs.length, ids.length);
+    assert.ok(runs.every(run => run.status === "ok" && run.error === null), `${kind} preserves the committed terminal state`);
+    const sources = await sql`SELECT health,fail_count FROM sources WHERE id IN ${sql(ids)}`;
+    assert.ok(sources.every(source => source.health === "ok" && source.fail_count === 0), `${kind} preserves committed source health`);
   }
 });
 

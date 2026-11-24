@@ -5,7 +5,7 @@
 import { sql, type Tx } from "../db.ts";
 import { audit } from "../audit.ts";
 import { enqueue, QUEUES } from "../jobs/queue.ts";
-import { publishArticle, republishTx } from "../publication/publish.ts";
+import { republishTx } from "../publication/publish.ts";
 
 /** The moves of a story merge, in the caller's transaction. Null when missing/already merged, or when grouping would change an editor-confirmed identity. */
 async function mergeStoryTx(tx: Tx, fromId: number, intoId: number, actor: string): Promise<true | null> {
@@ -20,26 +20,36 @@ async function mergeStoryTx(tx: Tx, fromId: number, intoId: number, actor: strin
            ON CONFLICT (story_id, article_id) DO NOTHING`;
   await tx`DELETE FROM story_signals WHERE story_id = ${fromId}`;
   await tx`UPDATE stories SET merged_into = ${intoId}, version = version + 1, updated_at = now() WHERE id = ${fromId}`;
+  // Flatten any earlier stories that pointed to fromId so redirect chains stay single-hop.
+  await tx`UPDATE stories SET merged_into = ${intoId}, updated_at = now() WHERE merged_into = ${fromId}`;
   await tx`UPDATE stories SET version = version + 1, updated_at = now(),
              latest_at = greatest(latest_at, (SELECT latest_at FROM stories WHERE id = ${fromId})),
              first_report_at = least(first_report_at, (SELECT first_report_at FROM stories WHERE id = ${fromId}))
            WHERE id = ${intoId}`;
-  await tx`INSERT INTO story_aliases (public_id, story_id) VALUES (${from.public_id}, ${intoId}) ON CONFLICT DO NOTHING`;
+  await tx`UPDATE story_aliases SET story_id = ${intoId} WHERE story_id = ${fromId}`;
+  await tx`INSERT INTO story_aliases (public_id, story_id) VALUES (${from.public_id}, ${intoId})
+           ON CONFLICT (public_id) DO UPDATE SET story_id = EXCLUDED.story_id`;
   return true;
 }
 
 /** Null when missing/already merged, or when grouping would change an editor-confirmed identity. */
 export async function mergeStoryInto(fromId: number, intoId: number, reason: string, actor: string): Promise<{ moved: number } | null> {
   if (fromId === intoId) throw new Error("cannot merge a story into itself");
-  const articles = await sql.begin(async (tx) => {
+  return sql.begin(async (tx) => {
+    // Locks in mergeFactInto's order, facts, then their reports, then the stories: corrections and
+    // grouping take an article's row lock before its story's, a single publication before its fact's
+    // seat, and each republication below holds its seat until commit. NO KEY UPDATE leaves the key
+    // share a new membership takes on its fact free.
+    await tx`SELECT 1 FROM facts WHERE story_id IN (${fromId}, ${intoId}) ORDER BY id FOR NO KEY UPDATE`;
+    const ids = (await tx<{ article_id: string }[]>`SELECT DISTINCT fa.article_id FROM fact_articles fa JOIN facts f ON f.id = fa.fact_id WHERE f.story_id IN (${fromId}, ${intoId})`).map((r) => r.article_id);
+    await tx`SELECT 1 FROM articles WHERE id = ANY(${ids}) ORDER BY id FOR UPDATE`;
     if (!(await mergeStoryTx(tx, fromId, intoId, actor))) return null;
-    return tx<{ article_id: string }[]>`SELECT DISTINCT fa.article_id FROM fact_articles fa JOIN facts f ON f.id = fa.fact_id WHERE f.story_id = ${intoId}`;
+    const articles = await tx<{ article_id: string }[]>`SELECT DISTINCT fa.article_id FROM fact_articles fa JOIN facts f ON f.id = fa.fact_id WHERE f.story_id = ${intoId}`;
+    for (const a of articles) await republishTx(tx, a.article_id);
+    await enqueue(QUEUES.digest, { storyId: intoId }, { singletonKey: `story:${intoId}` }, tx);
+    await audit(actor, "story.merge", `story:${fromId}`, reason, null, { into: intoId }, { db: tx });
+    return { moved: articles.length };
   });
-  if (!articles) return null;
-  for (const a of articles) await publishArticle(a.article_id);
-  await enqueue(QUEUES.digest, { storyId: intoId }, { singletonKey: `story:${intoId}` });
-  await audit(actor, "story.merge", `story:${fromId}`, reason, null, { into: intoId });
-  return { moved: articles.length };
 }
 
 /**
@@ -70,6 +80,18 @@ export async function mergeFactInto(fromId: number, intoId: number, reason: stri
         ON CONFLICT (fact_id, article_id) DO UPDATE SET role = EXCLUDED.role, evidence = coalesce(fact_articles.evidence, EXCLUDED.evidence)
         WHERE fact_articles.role = 'mention' AND EXCLUDED.role <> 'mention')
       SELECT article_id, role FROM gone`;
+    // Editorial grouping decisions for the moved reports also move to the surviving fact so
+    // related-story evidence stays anchored to the live fact_articles row.
+    if (moved.length) {
+      await tx`
+        WITH latest AS (
+          SELECT DISTINCT ON (d.article_id) d.id, d.fact_id FROM grouping_decisions d
+          WHERE d.article_id = ANY(${moved.map((m) => m.article_id)}::text[]) AND d.verdict <> 'kept'
+          ORDER BY d.article_id, d.id DESC
+        )
+        UPDATE grouping_decisions d SET fact_id = ${intoId}, story_id = ${intoStory}
+        FROM latest WHERE d.id = latest.id AND latest.fact_id = ${fromId}`;
+    }
     // Recall finds an attached post's fact through its latest attaching decision; a post regrouped or placed by an editor since belongs elsewhere.
     const posts = await tx<{ article_id: string }[]>`
       WITH latest AS (
@@ -91,8 +113,11 @@ export async function mergeFactInto(fromId: number, intoId: number, reason: stri
                  first_report_at = least(first_report_at, (SELECT min(observed_at) FROM story_signals WHERE story_id = ${intoStory}))
                WHERE id = ${intoStory}`;
       const [left] = await tx`SELECT 1 FROM facts f JOIN fact_articles fa ON fa.fact_id = f.id WHERE f.story_id = ${fromStory} AND fa.role IN ('primary', 'report') LIMIT 1`;
-      if (left) await enqueue(QUEUES.digest, { storyId: fromStory }, { singletonKey: `story:${fromStory}` }, tx);
-      else if (await mergeStoryTx(tx, fromStory, intoStory, actor)) {
+      if (left) {
+        // The emptied fact now stands for intoStory so candidate lookups on older decisions follow it there.
+        await tx`UPDATE facts SET story_id = ${intoStory}, updated_at = now() WHERE id = ${fromId}`;
+        await enqueue(QUEUES.digest, { storyId: fromStory }, { singletonKey: `story:${fromStory}` }, tx);
+      } else if (await mergeStoryTx(tx, fromStory, intoStory, actor)) {
         await audit(actor, "story.merge", `story:${fromStory}`, `报道已全部并入另一个事实，旧地址跳到报道所在事件（事实 ${fromId}）`, null, { into: intoStory }, { db: tx });
       }
     }

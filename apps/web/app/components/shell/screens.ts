@@ -3,6 +3,7 @@
 // names of the pages in this tab's history, so a back button can say where it goes ("‹ 精选").
 import { useMatches } from "react-router";
 import { readJson, writeRaw } from "../../lib/local-state";
+import type { Text } from "../../lib/i18n";
 import type { TabKey } from "./nav";
 
 export interface Screen {
@@ -12,7 +13,7 @@ export interface Screen {
   home?: TabKey;
   /** Short name for back buttons that lead to this page (精选, 热点, 收藏 …). Pages named by their
    *  content leave it out; a back button to them reads "返回". */
-  name?: string;
+  name?: Text;
   /** The page draws its own bottom toolbar instead of the tab bar (articles). */
   toolbar?: boolean;
 }
@@ -40,7 +41,9 @@ export function historyIndex(): number {
 const SCREENS_KEY = "aihot:screens";
 const MAX_SCREENS = 60;
 
-interface HistoryScreen { key: string; name: string; tab?: TabKey }
+// A name is kept as the words shown (a string), so a release before or after this one reads it; an entry may still
+// hold both languages (Text) from a release that kept them.
+interface HistoryScreen { key: string; name: Text; tab?: TabKey }
 
 function readScreens(): Record<string, HistoryScreen> {
   const parsed = readJson(SCREENS_KEY, "session");
@@ -63,7 +66,7 @@ export function noteScreen(name: string | undefined, key: string, tab: TabKey | 
 }
 
 /** The name of the page a history back would show: undefined when unknown, "" when it has no short name. */
-export function previousScreen(): string | undefined {
+export function previousScreen(): Text | undefined {
   const idx = historyIndex();
   if (idx === 0) return undefined;
   return readScreens()[idx - 1]?.name;

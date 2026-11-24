@@ -1,5 +1,5 @@
-// Feishu delivery. Two separate apps: the login app (admin OAuth) and the message app (internal
-// feedback chat, operations alert chat, image upload). Content groups use custom bot webhooks, and so do
+// Feishu delivery uses the message app for internal feedback, operations alerts and image uploads.
+// Content groups use custom bot webhooks, and so do
 // alerts when FEISHU_ALERT_WEBHOOK_URL is set (they are plain text; feedback screenshots need the app).
 // Alerts and feedback never go to content groups, and content never goes to internal chats. What the owner is
 // told (sendAlert) goes first to Agent 自动化中台, which passes it on.
@@ -50,6 +50,13 @@ async function uploadImage(data: Buffer, filename: string): Promise<string> {
   return json.data.image_key;
 }
 
+/** A picture this app uploaded, read back by its key (Feishu gives an app only its own uploads). */
+export async function downloadImage(imageKey: string): Promise<Buffer> {
+  const res = await fetch(`${API}/im/v1/images/${encodeURIComponent(imageKey)}`, { headers: { authorization: `Bearer ${await tenantToken()}` }, signal: AbortSignal.timeout(30_000) });
+  if (!res.ok) throw new Error(`feishu image: HTTP ${res.status} ${(await res.text()).slice(0, 200)}`);
+  return Buffer.from(await res.arrayBuffer());
+}
+
 async function sendToChat(chatId: string, msgType: "text" | "post" | "interactive", content: unknown): Promise<string> {
   const res = await fetch(`${API}/im/v1/messages?receive_id_type=chat_id`, {
     method: "POST",
@@ -69,7 +76,7 @@ async function sendToChat(chatId: string, msgType: "text" | "post" | "interactiv
 /** How urgent: readers affected now, money or the owner's hands today, or a follow-up that can wait. */
 export type Level = "now" | "today" | "later";
 
-export interface Finding {
+interface FindingFields {
   key: string;
   level: Level;
   /** Plain words: no queue, unit or table names. */
@@ -90,9 +97,14 @@ export interface Finding {
    * The owner hears of it at once even while an agent takes the alerts (operations/alerts.ts): only the owner
    * can act (paying, renewing, a device beside them), or what would act has stopped (the whole site, the
    * machine the agent runs on, the channel to the agent). "only": nothing in it is the agent's to do (a
-   * top-up), so the agent is not woken for it.
+   * top-up), so the agent is not woken for it. "private" also limits delivery to the owner's private chat.
    */
-  owner?: true | "only";
+  owner?: true | "only" | "private";
+  /**
+   * The agent is the one to act: whenever the owner is messaged about it, the agent is woken first and the
+   * message says so instead of asking him to pass it on (operations/alerts.ts).
+   */
+  agentFirst?: true;
   /**
    * Do not message the owner, including when it clears or when a follow-up is derived from the handoff.
    * On the incident itself it is now or today and is woken: a later finding is not. One such key is one
@@ -100,9 +112,13 @@ export interface Finding {
    * stays on the ops list only.
    */
   agentOnly?: true;
-  /** The hub event type of such a wake, so each kind of agent-only work is its own line there; `alert.review` when unset. */
-  agentType?: `alert.${string}`;
 }
+
+/**
+ * An agent-only finding names what kind of work it is (`alert.<kind>`); which rule of the hub takes that kind, and when,
+ * is the hub's to say. No default: a new kind must not fall silently to another kind's handling.
+ */
+export type Finding = FindingFields & ({ agentOnly?: undefined; agentType?: undefined } | { agentOnly: true; agentType: `alert.${string}` });
 
 const MARK: Record<Exclude<Level, "later">, string> = { now: "🔴", today: "🟠" };
 
@@ -134,19 +150,19 @@ export function formatRecovery(title: string, since: Date, now: number): { title
 }
 
 /**
- * What the owner is told: through Agent 自动化中台 when the hub is set up; when it isn't, or doesn't take
- * it (it restarts on every release), the alert group's bot webhook, else the alert chat, falling back to the
- * internal feedback chat — never a content group.
+ * The hub sends the notification to the owner. A private message ID lets the caller retry exactly
+ * that notice through the hub. Other alerts use the existing group channel if the hub is unavailable.
  */
-export async function sendAlert(title: string, lines: string[]): Promise<"sent" | "disabled"> {
+export async function sendAlert(title: string, lines: string[], privateMessageId?: string): Promise<"sent" | "disabled" | "pending"> {
   // Production needs no label; any other environment that has sending on says which one it is.
   const text = `${config.environmentName === "production" ? "" : `【${config.environmentName}】`}${title}\n${lines.join("\n")}`;
   if (!feishuInternalEnabled()) {
     console.log(JSON.stringify({ level: "warn", msg: "alert (not sent: FEISHU_INTERNAL_ENABLED is off)", title, lines }));
     return "disabled";
   }
-  const rest = await toldThroughHub(webhookPieces(text));
+  const rest = await toldThroughHub(webhookPieces(text), privateMessageId);
   if (!rest.length) return "sent";
+  if (privateMessageId) return "pending";
   const webhook = credential("integrations", "FEISHU_ALERT_WEBHOOK_URL");
   if (webhook) {
     for (const piece of rest) {
@@ -162,14 +178,14 @@ export async function sendAlert(title: string, lines: string[]): Promise<"sent" 
 }
 
 /**
- * Hands the pieces to the hub's /tell with the source key, each under its own message key. The pieces it didn't take,
- * from the first it refused or couldn't be reached for, which go to the group instead.
+ * Hands the pieces to the hub's /tell with the source key, each under its own message key.
+ * Returns the unsent pieces so the caller can apply the alert's delivery policy.
  */
-async function toldThroughHub(pieces: string[]): Promise<string[]> {
+async function toldThroughHub(pieces: string[], messageId?: string): Promise<string[]> {
   const hub = credential("integrations", "WEBHOOK_HUB_URL");
   const key = credential("integrations", "WEBHOOK_HUB_KEY");
   if (!hub || !key) return pieces;
-  const id = `alert-${Date.now()}-${createHash("sha256").update(pieces.join("")).digest("hex").slice(0, 12)}`;
+  const id = messageId ?? `alert-${Date.now()}-${createHash("sha256").update(pieces.join("")).digest("hex").slice(0, 12)}`;
   for (const [i, piece] of pieces.entries()) {
     try {
       const res = await fetch(new URL("/tell", hub), {
@@ -178,7 +194,7 @@ async function toldThroughHub(pieces: string[]): Promise<string[]> {
       });
       if (res.status !== 200) throw new Error(`HTTP ${res.status}`);
     } catch (error) {
-      console.error(JSON.stringify({ level: "warn", msg: "alert not taken by the hub; the rest sent to the alert group", taken: i, error: String(error) }));
+      console.error(JSON.stringify({ level: "warn", msg: "alert not taken by the hub", taken: i, error: String(error) }));
       return pieces.slice(i);
     }
   }
@@ -272,8 +288,9 @@ async function screenshotFor(fb: { id: number; screenshot_key: string | null; cr
 /**
  * Forwards one feedback to the internal chat, with its screenshot. Until that succeeds the feedback keeps
  * the reason in forward_error, and the forwarding sweep (operations/feedback.ts) tries it again.
+ * `tell` false: the chat is not told, and only the screenshot goes to Feishu ("kept").
  */
-export async function forwardFeedbackToFeishu(id: number): Promise<"sent" | "disabled"> {
+export async function forwardFeedbackToFeishu(id: number, tell = true): Promise<"sent" | "kept" | "disabled"> {
   if (!feishuInternalEnabled()) return "disabled";
   const chat = credential("integrations", "FEISHU_INTERNAL_CHAT_ID");
   if (!chat) return "disabled";
@@ -282,6 +299,10 @@ export async function forwardFeedbackToFeishu(id: number): Promise<"sent" | "dis
   if (!fb) return "disabled";
   try {
     const shot = await screenshotFor(fb);
+    if (!tell) {
+      await sql`UPDATE feedback SET forward_error = NULL WHERE id = ${id}`;
+      return "kept";
+    }
     const paragraphs: unknown[][] = [
       [{ tag: "text", text: fb.content }],
       [{ tag: "text", text: `页面：${fb.page_url ?? "—"}` }],
@@ -304,7 +325,14 @@ export function postWebhook(url: string, card: unknown): Promise<{ status: "sent
   return sendWebhook(url, { msg_type: "interactive", card });
 }
 
-async function sendWebhook(url: string, message: unknown): Promise<{ status: "sent" | "failed" | "unknown"; body: string }> {
+/**
+ * POST a custom-bot message and read the acknowledgement. `code` picks the bot's result code (0 = accepted)
+ * from its JSON answer; the other bots (notify/dingtalk.ts) differ only there.
+ */
+export async function sendWebhook(
+  url: string, message: unknown,
+  code: (json: Record<string, unknown> | null) => unknown = (json) => json?.code ?? json?.StatusCode,
+): Promise<{ status: "sent" | "failed" | "unknown"; body: string }> {
   const res = await fetch(url, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -315,9 +343,8 @@ async function sendWebhook(url: string, message: unknown): Promise<{ status: "se
   // A successful HTTP transport is not an acknowledgement: proxies can return HTML or empty JSON.
   let status: "sent" | "failed" | "unknown" = res.status >= 400 && res.status < 500 ? "failed" : "unknown";
   try {
-    const json = JSON.parse(body) as { code?: number; StatusCode?: number } | null;
-    const code = json?.code ?? json?.StatusCode;
-    if (res.ok && typeof code === "number") status = code === 0 ? "sent" : "failed";
+    const result = code(JSON.parse(body) as Record<string, unknown> | null);
+    if (res.ok && typeof result === "number") status = result === 0 ? "sent" : "failed";
   } catch {
     // non-JSON body
   }

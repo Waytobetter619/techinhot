@@ -6,12 +6,13 @@ import { createPortal } from "react-dom";
 import { Presence } from "./Presence";
 import { IconCheck, IconClose } from "../icons";
 import { useModal } from "./modal";
+import { useT } from "../../lib/i18n";
 
 const CLOSE_DISTANCE = 110;
 const CLOSE_VELOCITY = 0.6; // px per ms
 
 /** A choice listed in a sheet: large type in a full-height row, the one in use in accent. */
-export const sheetChoice = (on: boolean) => `flex h-12 items-center justify-between text-[16px] transition-colors active:bg-bg-sunk ${on ? "font-semibold text-accent" : "text-ink"}`;
+export const sheetChoice = (on: boolean) => `flex h-12 items-center justify-between text-ui-body-lg transition-colors active:bg-bg-sunk ${on ? "font-semibold text-accent" : "text-ink"}`;
 
 /** The tick that ends the choice in use. */
 export const ChoiceTick = () => <IconCheck size={19} strokeWidth={2.2} />;
@@ -26,6 +27,7 @@ export function Sheet({ open, onClose, title, children, label, centered = false 
   /** Accessible name when there is no visible title. */
   label?: string;
 }) {
+  const t = useT();
   const titleId = useId();
   const panel = useRef<HTMLDivElement>(null);
   const body = useRef<HTMLDivElement>(null);
@@ -131,7 +133,7 @@ export function Sheet({ open, onClose, title, children, label, centered = false 
   return createPortal(
     <Presence show={open} enter="anim-fade-in" exit="anim-fade-out" duration={220}>
       <div className={`fixed inset-0 z-[70] flex flex-col justify-end ${centered ? "sm:items-center sm:justify-center sm:p-6" : ""}`}>
-        <button type="button" aria-label="关闭" tabIndex={-1} onClick={onClose} className="absolute inset-0 cursor-default bg-[rgba(8,14,15,0.42)]" />
+        <button type="button" aria-label={t("关闭", "Close")} tabIndex={-1} onClick={onClose} className="absolute inset-0 cursor-default bg-[rgba(8,14,15,0.42)]" />
         <div
           ref={panel}
           role="dialog"
@@ -145,10 +147,10 @@ export function Sheet({ open, onClose, title, children, label, centered = false 
             <span aria-hidden="true" className={`mx-auto mt-[7px] block h-[5px] w-9 rounded-full bg-line-strong ${centered ? "sm:invisible" : ""}`} />
             {title && (
               <div className="flex min-h-12 items-center gap-3 pl-5 pr-2">
-                <h2 id={titleId} className="min-w-0 flex-1 text-[17px] font-bold leading-snug text-ink">
+                <h2 id={titleId} className="min-w-0 flex-1 text-ui-subheading-sm font-bold leading-snug text-ink">
                   {title}
                 </h2>
-                <button type="button" aria-label="关闭" onClick={onClose} className="grid size-11 shrink-0 place-items-center rounded-full text-ink-3">
+                <button type="button" aria-label={t("关闭", "Close")} onClick={onClose} className="grid size-11 shrink-0 place-items-center rounded-full text-ink-3">
                   <span className="grid size-[30px] place-items-center rounded-full bg-bg-sunk dark:bg-bg-muted">
                     <IconClose size={15} strokeWidth={2} />
                   </span>

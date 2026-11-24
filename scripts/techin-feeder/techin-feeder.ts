@@ -153,7 +153,8 @@ function toItem(row: Row): Item | null {
   const url = str(row, F.url);
   const time = str(row, F.time);
   if (!url || !time) return null;
-  const published = new Date(time);
+  // Techin 的 release_time 是不带时区的北京时间；补上 +08:00，结果才不取决于运行机器的时区。
+  const published = new Date(/(?:Z|[+-]\d{2}:?\d{2})$/.test(time) ? time : `${time.replace(" ", "T")}+08:00`);
   if (Number.isNaN(published.getTime())) return null;
   // 标题优先 AI 中文标题（外文文章的译文），其次原标题，再次原标题的英文翻译。
   const title = str(row, F.aiTitle) || str(row, F.title) || str(row, F.titleEn);

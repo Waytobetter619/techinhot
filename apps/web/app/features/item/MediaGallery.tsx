@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { MediaView } from "@aihot/contracts/site";
 import { Lightbox } from "../../components/ui/Lightbox";
 import { Picture } from "../../components/ui/Picture";
+import { useT } from "../../lib/i18n";
 
 /** A round play mark over a video's still. */
 function PlayMark() {
@@ -21,6 +22,7 @@ function PlayMark() {
  * a viewer that steps through them; videos are only a still in our data, so they open the original post.
  */
 export function MediaGallery({ media, postUrl }: { media: MediaView[]; postUrl: string }) {
+  const t = useT();
   const [open, setOpen] = useState<number | null>(null);
   const shown = media.slice(0, 9);
   const images = shown.filter((m) => m.kind !== "video");
@@ -29,7 +31,7 @@ export function MediaGallery({ media, postUrl }: { media: MediaView[]; postUrl: 
   return (
     <>
       <div className={`mt-5 grid gap-2 ${single ? "grid-cols-1" : shown.length === 2 || shown.length === 4 ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-3"}`}>
-        {shown.map((m) => {
+        {shown.map((m, i) => {
           const img = (
             <Picture
               src={m.poster ?? m.url}
@@ -44,13 +46,14 @@ export function MediaGallery({ media, postUrl }: { media: MediaView[]; postUrl: 
               style={single && m.width && m.height ? { aspectRatio: `${m.width} / ${m.height}` } : undefined}
             />
           );
+          const imageIndex = m.kind === "video" ? -1 : images.indexOf(m);
           return m.kind === "video" ? (
-            <a key={m.url} href={postUrl} target="_blank" rel="noopener noreferrer" aria-label="打开原推播放视频" className={tile}>
+            <a key={`${m.url}#${i}`} href={postUrl} target="_blank" rel="noopener noreferrer" aria-label={t("打开原推播放视频", "Play the video on X")} className={tile}>
               {img}
               <PlayMark />
             </a>
           ) : (
-            <button key={m.url} type="button" onClick={() => setOpen(images.indexOf(m))} aria-label={m.alt ? `查看大图：${m.alt}` : "查看大图"} className={`${tile} cursor-zoom-in`}>
+            <button key={`${m.url}#${i}`} type="button" onClick={() => setOpen(imageIndex)} aria-label={m.alt ? t(`查看大图：${m.alt}`, `View full size: ${m.alt}`) : t("查看大图", "View full size")} className={`${tile} cursor-zoom-in`}>
               {img}
             </button>
           );

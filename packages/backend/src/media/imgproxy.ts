@@ -9,6 +9,7 @@ import * as cheerio from "cheerio";
 import { config, credential } from "../config.ts";
 import { normalizeVideos } from "../content/video.ts";
 import { isNonArticleImage } from "../lib/image-url.ts";
+import { isXVideoUrl } from "../lib/video-url.ts";
 import { AVIF_MODE_SUFFIX, avifCandidates } from "@aihot/contracts/site";
 import { AVIF_MODES, IMAGE_WIDTHS, RESPONSIVE_MODES, type ProxyMode, type ResponsiveImageKind } from "./renditions.ts";
 export type { ProxyMode } from "./renditions.ts";
@@ -21,6 +22,7 @@ const WINDOW_SECONDS = 24 * 3600;
 const AVATAR_WINDOW_SECONDS = 30 * 24 * 3600;
 const LIFETIME_SECONDS = 48 * 3600;
 const SIG_HEX = 16;
+export const X_VIDEO_MODE = "x-video";
 /** How long browsers and the edge may keep a proxied image: as long as an avatar keeps its address. */
 export const LONGEST_CACHE_SECONDS = AVATAR_WINDOW_SECONDS;
 
@@ -31,7 +33,7 @@ function secret(): string {
 }
 
 export function signature(url: string, mode: string, exp: number | string): string {
-  return createHmac("sha256", secret()).update(`${url}|${mode}|${exp}`).digest("hex");
+  return createHmac("sha256", secret()).update(`${url}|${mode}|${exp}`).digest("hex").slice(0, SIG_HEX);
 }
 
 /** Expiry rounded up to a window boundary at least `lifetime` (48 h) ahead, so URLs stay cacheable. */
@@ -45,7 +47,11 @@ export function proxiedImage(url: string | null | undefined, mode: ProxyMode, ab
   if (url.startsWith("data:")) return url;
   if (!/^https?:\/\//i.test(url)) return null;
   const exp = proxyExpiry(nowMs, lifetimeSeconds, (RESPONSIVE_MODES.avatar as readonly ProxyMode[]).includes(mode) ? AVATAR_WINDOW_SECONDS : WINDOW_SECONDS);
-  const path = `/api/img-proxy?u=${encodeURIComponent(url)}&mode=${mode}&exp=${exp}&sig=${signature(url, mode, exp).slice(0, SIG_HEX)}`;
+  return signedMediaUrl(url, mode, exp, absolute);
+}
+
+function signedMediaUrl(url: string, mode: string, exp: number, absolute: boolean): string {
+  const path = `/api/img-proxy?u=${encodeURIComponent(url)}&mode=${mode}&exp=${exp}&sig=${signature(url, mode, exp)}`;
   return absolute ? `${config.siteUrl}${path}` : path;
 }
 
@@ -59,23 +65,22 @@ export type VerifyResult = { ok: true; url: string; mode: string; avif: boolean 
 
 export function verifyProxyRequest(params: { u?: string; mode?: string; exp?: string; sig?: string }, nowMs = Date.now()): VerifyResult {
   const { u, mode, exp, sig } = params;
-  if (!u || mode === "" || !exp || !sig) return { ok: false, reason: "missing" };
+  if (!u || !mode || !exp || !sig) return { ok: false, reason: "missing" };
   if (!/^\d{9,11}$/.test(exp)) return { ok: false, reason: "missing" };
   if (Number(exp) * 1000 < nowMs) return { ok: false, reason: "expired" };
   if (!/^https?:\/\//i.test(u)) return { ok: false, reason: "bad-url" };
-  // Older article pages signed body images without a mode (as "default"); those still in open tabs and
-  // caches keep loading, as full images, until their signature expires.
-  const avif = mode?.endsWith(AVIF_MODE_SUFFIX) ?? false;
-  const rendition = avif ? mode!.slice(0, -AVIF_MODE_SUFFIX.length) : mode;
-  if (avif && !(AVIF_MODES as readonly string[]).includes(rendition!)) return { ok: false, reason: "bad-signature" };
-  const given = Buffer.from(new RegExp(`^(?:[0-9a-f]{${SIG_HEX}}|[0-9a-f]{64})$`, "i").test(sig) ? sig : "", "hex");
-  const expected = Buffer.from(signature(u, rendition ?? "default", exp), "hex").subarray(0, given.length);
+  const avif = mode.endsWith(AVIF_MODE_SUFFIX);
+  const rendition = avif ? mode.slice(0, -AVIF_MODE_SUFFIX.length) : mode;
+  if (rendition === X_VIDEO_MODE && !isXVideoUrl(u)) return { ok: false, reason: "bad-url" };
+  if (avif && !(AVIF_MODES as readonly string[]).includes(rendition)) return { ok: false, reason: "bad-signature" };
+  const given = Buffer.from(new RegExp(`^[0-9a-f]{${SIG_HEX}}$`, "i").test(sig) ? sig : "", "hex");
+  const expected = Buffer.from(signature(u, rendition, exp), "hex");
   if (given.length === 0 || !timingSafeEqual(given, expected)) return { ok: false, reason: "bad-signature" };
-  return { ok: true, url: u, mode: rendition ?? "full", avif };
+  return { ok: true, url: u, mode: rendition, avif };
 }
 
 /**
- * Rewrites <img>/<video poster> sources in whitelisted body HTML to signed proxy URLs. Feed readers keep
+ * Rewrites images, video posters and X MP4s in safe body HTML to signed proxy URLs. Feed readers keep
  * items for days, so full RSS asks for a longer signature than a page.
  */
 export function proxyBodyImages(html: string, absolute = false, lifetimeSeconds = LIFETIME_SECONDS): string {
@@ -110,6 +115,14 @@ export function proxyBodyImages(html: string, absolute = false, lifetimeSeconds 
     });
   if (!/<video\b/i.test(rewritten)) return rewritten;
   const $ = cheerio.load(rewritten, null, false);
+  const exp = proxyExpiry(now, lifetimeSeconds, WINDOW_SECONDS);
+  // video.twimg.com is not directly reachable from mainland reader networks; the origin already
+  // uses its guarded egress route to fetch X media.
+  $("video[src], video > source[src]").each((_, el) => {
+    const source = $(el);
+    const url = source.attr("src")!;
+    if (isXVideoUrl(url)) source.attr("src", signedMediaUrl(url, X_VIDEO_MODE, exp, absolute));
+  });
   normalizeVideos($);
   return $.html();
 }

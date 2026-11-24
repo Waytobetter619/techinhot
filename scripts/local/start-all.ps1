@@ -61,15 +61,18 @@ if (-not (Test-Path (Join-Path $root "apps\web\build"))) {
   if ($LASTEXITCODE -ne 0) { throw "网页构建失败" }
 }
 
-# 4. 启动四个进程
+# 4. 启动进程（api、worker、web；feeder 按 FEEDER_ENABLED）
 New-Item -ItemType Directory -Force -Path $logs | Out-Null
 $env:NODE_ENV = "production"
 $procs = @(
   @{ name = "api";    cwd = $root;            args = @("--env-file=.env", "apps/api/src/main.ts") },
   @{ name = "worker"; cwd = $root;            args = @("--env-file=.env", "apps/worker/src/main.ts") },
-  @{ name = "web";    cwd = "$root\apps\web"; args = @("--env-file=../../.env", "server.ts") },
-  @{ name = "feeder"; cwd = $root;            args = @("--env-file=.env", "scripts/techin-feeder/techin-feeder.ts") }
+  @{ name = "web";    cwd = "$root\apps\web"; args = @("--env-file=../../.env", "server.ts") }
 )
+# Techin 舆情推送默认不启动；要用时在 .env 里设 FEEDER_ENABLED=true（并填好 TECHIN_TOKEN、INGEST_TOKEN）。
+if (Select-String -Path (Join-Path $root ".env") -Pattern '^\s*FEEDER_ENABLED\s*=\s*true\s*$' -Quiet) {
+  $procs += @{ name = "feeder"; cwd = $root; args = @("--env-file=.env", "scripts/techin-feeder/techin-feeder.ts") }
+}
 $state = @()
 foreach ($p in $procs) {
   $out = Join-Path $logs "$($p.name).log"

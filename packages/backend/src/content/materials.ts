@@ -2,12 +2,13 @@
 // It owns identity, revisions and the timeline rule, so no entrance can bypass them.
 import { sql, type Db, type Tx } from "../db.ts";
 import { newArticleId, sha256, stableJson } from "../lib/ids.ts";
-import { identityKeyForUrl, normalizeUrl, wechatPostUrl } from "../lib/url.ts";
+import { identityKeyForUrl, isWechatArticleAddress, normalizeUrl, wechatPostUrl } from "../lib/url.ts";
 import { collapseWhitespace, decodeEntities } from "../lib/text.ts";
 import { publishArticleTx } from "../publication/publish.ts";
 import { groupingReset, reconcileMaterialSource } from "./provenance.ts";
-import { emit } from "../modules.ts";
-import { rebaseTranslation } from "./presentation.ts";
+import { editorialPolicy, emit } from "../modules.ts";
+import { presentationAddsMaterial, rebaseTranslation } from "./presentation.ts";
+import { xArticleBody } from "./posts.ts";
 
 export interface MediaItem {
   kind: "image" | "video";
@@ -20,11 +21,12 @@ export interface MediaItem {
 
 export interface XPostData {
   tweetId: string;
+  authorUserId?: string | null;
   authorName: string;
   handle: string;
   avatarUrl?: string | null;
   text: string;
-  quoted?: { authorName: string; handle: string; text: string; url: string; media?: MediaItem[] } | null;
+  quoted?: { tweetId?: string | null; authorUserId?: string | null; authorName: string; handle: string; text: string; url: string; media?: MediaItem[] } | null;
   media?: MediaItem[];
   lang?: string | null;
   replyTo?: string | null;
@@ -197,6 +199,12 @@ export function identityKeyFor(m: MaterialInput): string {
   return `src:${m.sourceId}:${sha256(m.url + "\u0001" + m.title).slice(0, 32)}`;
 }
 
+/** Listings and writes resolve a publisher's URL to the same stored article. Explicit non-URL identities keep their namespace. */
+export async function resolveMaterialIdentity(m: MaterialInput, db: Db = sql): Promise<string> {
+  const requested = identityKeyFor(m);
+  return requested === identityKeyForUrl(m.url) ? await materialIdentityForUrl(m.url, db) ?? requested : requested;
+}
+
 /** Shared URL lookup for collection, external reports and administration. Historical WeChat keys
  * included sn; reuse the earliest stored post without rewriting its public id or access URL.
  * A browser-verified access URL also joins a short-only import to its confirmed publisher ID. */
@@ -204,7 +212,7 @@ export async function materialIdentityForUrl(url: string, db: Db = sql, verified
   const key = identityKeyForUrl(url), normalized = normalizeUrl(url);
   if (!key || !normalized) return key;
   const u = new URL(normalized);
-  if (u.hostname !== "mp.weixin.qq.com" || u.username || u.password || !/^\/s(?:\/[^/]+)?$/.test(u.pathname)) return key;
+  if (!isWechatArticleAddress(u)) return key;
   const access = new URL(verifiedAccessUrl ?? normalized);
   const post = wechatPostUrl(normalized), short = access.pathname.startsWith("/s/") ? access.origin + access.pathname : null;
   const [known] = await db<{ identity_key: string }[]>`SELECT identity_key FROM (
@@ -270,9 +278,7 @@ async function upsertIn(db: Db, m: MaterialInput): Promise<MaterialResult> {
     publishedAt: m.publishedAt && Number.isFinite(m.publishedAt.getTime()) ? m.publishedAt : null,
     sourceUpdatedAt: m.sourceUpdatedAt && Number.isFinite(m.sourceUpdatedAt.getTime()) ? m.sourceUpdatedAt : null,
   };
-  const requestedIdentity = identityKeyFor(m);
-  const identityKey = requestedIdentity === identityKeyForUrl(m.url)
-    ? await materialIdentityForUrl(m.url, db) ?? requestedIdentity : requestedIdentity;
+  const identityKey = await resolveMaterialIdentity(m, db);
   const discoveredAt = m.discoveredAt ?? new Date();
   const title = collapseWhitespace(m.title).slice(0, 1000) || m.url;
 
@@ -337,7 +343,10 @@ async function upsertIn(db: Db, m: MaterialInput): Promise<MaterialResult> {
   const excerpt = m.excerpt ?? existing!.excerpt;
   const next = contentHash({ title, bodyText, excerpt });
   if (!time && existing!.content_hash === next) {
-    await updatePresentation(db, existing!.id, { html: m.bodyHtml, media: m.media });
+    const updated = await updatePresentation(db, existing!.id, { html: m.bodyHtml, media: m.media, xPost: m.xPost ?? undefined });
+    if (updated === "revised") {
+      return { articleId: existing!.id, created: false, revised: true, backfill: existing!.backfill };
+    }
     return unchanged;
   }
   if (!time && existing!.content_hash === null) {
@@ -355,10 +364,22 @@ async function upsertIn(db: Db, m: MaterialInput): Promise<MaterialResult> {
   // already. Any earlier version counts, however long ago: a rotation with many variants would
   // otherwise start over, and a real edit reverted later is rare and loses nothing.
   const [seen] = await db`SELECT 1 FROM article_revisions WHERE article_id = ${existing!.id} AND content_hash = ${next} LIMIT 1`;
-  if (!time && seen) return unchanged;
+  if (!time && seen) {
+    if (editorialPolicy().reviewAnalysis && (m.bodyHtml !== undefined || m.media !== undefined || m.xPost !== undefined)) {
+      const updated = await updatePresentation(db, existing!.id, { html: m.bodyHtml, media: m.media, xPost: m.xPost ?? undefined });
+      if (updated === "revised") return { articleId: existing!.id, created: false, revised: true, backfill: existing!.backfill };
+    }
+    return unchanged;
+  }
   // Nor is the stored version with other characters lost in transit, or with them restored, or with other trailing counts.
   if (!time && sameBarringLoss(existing!.title, title) && sameBarringLoss(existing!.body_text, bodyText)
-      && (sameBarringLoss(existing!.excerpt, excerpt) || sameBarringLoss(maskTrailingCounts(existing!.excerpt), maskTrailingCounts(excerpt)))) return unchanged;
+      && (sameBarringLoss(existing!.excerpt, excerpt) || sameBarringLoss(maskTrailingCounts(existing!.excerpt), maskTrailingCounts(excerpt)))) {
+    if (editorialPolicy().reviewAnalysis && (m.bodyHtml !== undefined || m.media !== undefined || m.xPost !== undefined)) {
+      const updated = await updatePresentation(db, existing!.id, { html: m.bodyHtml, media: m.media, xPost: m.xPost ?? undefined });
+      if (updated === "revised") return { articleId: existing!.id, created: false, revised: true, backfill: existing!.backfill };
+    }
+    return unchanged;
+  }
 
   const media = m.media ? sql.json(m.media as never) : null;
   await reviseMaterial(db, existing!.id, {
@@ -373,26 +394,80 @@ async function upsertIn(db: Db, m: MaterialInput): Promise<MaterialResult> {
   return { articleId: existing!.id, created: false, revised: true, backfill: time?.backfill ?? existing!.backfill };
 }
 
-/** Caller holds the material lock. A presentation update preserves all semantic processing state. */
-export async function updatePresentation(db: Db, articleId: string, next: { html?: string | null; media?: MediaItem[] }): Promise<boolean> {
-  const [a] = await db<{ revision: number; body_html: string | null; media: MediaItem[] }[]>`
-    SELECT revision,body_html,media FROM articles WHERE id=${articleId} FOR UPDATE`;
+/** Caller holds the material lock. A presentation update preserves semantic state unless an editorial policy needs new HTML/media reviewed. */
+export async function updatePresentation(
+  db: Db,
+  articleId: string,
+  next: { html?: string | null; media?: MediaItem[]; xArticleHtml?: string; cover?: Record<string, any> | null; xPost?: XPostData | null },
+): Promise<false | "updated" | "revised"> {
+  const [a] = await db<{
+    revision: number; title: string; body_text: string | null; excerpt: string | null; content_hash: string | null;
+    body_html: string | null; cover: Record<string, any> | null; media: MediaItem[];
+    x_post: XPostData | null; x_article: Record<string, any> | null; participation_mode: string;
+  }[]>`
+    SELECT a.revision, a.title, a.body_text, a.excerpt, a.content_hash, a.body_html, a.cover, a.media,
+           a.x_post, a.x_article, s.participation_mode
+    FROM articles a JOIN sources s ON s.id = a.source_id WHERE a.id=${articleId} FOR UPDATE OF a`;
   if (!a) return false;
+  const oldXHtml = typeof a.x_article?.html === "string" ? a.x_article.html : null;
   const html = next.html ?? a.body_html;
   const media = next.media ?? a.media;
-  if (html === a.body_html && stableJson(media) === stableJson(a.media)) return false;
-  if (html !== a.body_html) {
+  const xHtml = next.xArticleHtml ?? oldXHtml;
+  const cover = a.cover ?? next.cover ?? null;
+  const xPost = next.xPost ?? a.x_post;
+  if (
+    html === a.body_html
+    && xHtml === oldXHtml
+    && stableJson(media) === stableJson(a.media)
+    && stableJson(cover) === stableJson(a.cover)
+    && stableJson(xPost) === stableJson(a.x_post)
+  ) return false;
+
+  if (
+    editorialPolicy().reviewAnalysis
+    && a.participation_mode === "editorial"
+    && presentationAddsMaterial(
+      { bodyText: a.body_text, html: a.body_html, xArticleHtml: oldXHtml, cover: a.cover, media: a.media, xPost: a.x_post },
+      { bodyText: a.body_text, html, xArticleHtml: xHtml, cover, media, xPost },
+    )
+  ) {
+    await reviseMaterial(db, articleId, {
+      set: sql`body_html = ${html}, media = ${db.json(media as never)},
+        cover = ${cover ? db.json(cover as never) : null},
+        x_post = ${xPost ? db.json(xPost as never) : null},
+        x_article = CASE
+          WHEN ${xHtml}::text IS NULL THEN x_article
+          WHEN x_article IS NULL THEN jsonb_build_object('html', ${xHtml}::text)
+          ELSE jsonb_set(x_article, '{html}', to_jsonb(${xHtml}::text))
+        END`,
+      hash: a.content_hash ?? contentHash({ title: a.title, bodyText: a.body_text, excerpt: a.excerpt }),
+      title: a.title,
+      bodyText: a.body_text,
+    });
+    return "revised";
+  }
+
+  if (html !== a.body_html || xHtml !== oldXHtml) {
     const [tr] = await db<{ body_html: string; origin: string }[]>`
       SELECT body_html,origin FROM translations WHERE article_id=${articleId} AND lang='zh' AND revision=${a.revision} FOR UPDATE`;
     // A publisher's translation is independently supplied, so only model translations share the source layout.
     if (tr?.origin === "model" && tr.body_html) {
-      const translated = rebaseTranslation(a.body_html ?? "", html ?? "", tr.body_html);
+      const previous = oldXHtml ? xArticleBody(a.x_post?.text ?? "", oldXHtml) : a.body_html ?? "";
+      const current = xHtml ? xArticleBody(xPost?.text ?? "", xHtml) : html ?? "";
+      const translated = rebaseTranslation(previous, current, tr.body_html);
       await db`UPDATE translations SET body_html=${translated} WHERE article_id=${articleId} AND lang='zh'`;
     }
   }
-  await db`UPDATE articles SET body_html=${html},media=${db.json(media as never)},updated_at=now() WHERE id=${articleId}`;
+  await db`UPDATE articles SET body_html=${html},media=${db.json(media as never)},
+    cover=${cover ? db.json(cover as never) : null},
+    x_post=${xPost ? db.json(xPost as never) : null},
+    updated_at=now(),
+    x_article=CASE WHEN ${xHtml}::text IS DISTINCT FROM x_article->>'html'
+      THEN CASE WHEN x_article IS NULL THEN jsonb_build_object('html', ${xHtml}::text) ELSE jsonb_set(x_article, '{html}', to_jsonb(${xHtml}::text)) END
+      ELSE x_article END
+    WHERE id=${articleId}`;
   await emit("articleChanged", { id: articleId, kind: "body", reason: "body presentation" }, db);
-  return true;
+  return "updated";
 }
 
 /**

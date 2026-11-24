@@ -49,11 +49,15 @@ export function tweetIdFromUrl(url: string): string | null {
   return m ? m[1]! : null;
 }
 
+export function isWechatArticleAddress(u: URL): boolean {
+  return /^https?:$/.test(u.protocol) && u.hostname === "mp.weixin.qq.com" && !u.username && !u.password && /^\/s(?:\/[^/]+)?$/.test(u.pathname);
+}
+
 /** Page-confirmed account and post identifiers, independent of the signature or short access path. */
 export function wechatPostUrl(url: string): string | null {
   let u: URL;
   try { u = new URL(url); } catch { return null; }
-  if (!/^https?:$/.test(u.protocol) || u.hostname !== "mp.weixin.qq.com" || u.username || u.password || !/^\/s(?:\/[^/]+)?$/.test(u.pathname)) return null;
+  if (!isWechatArticleAddress(u)) return null;
   const post = new URL("https://mp.weixin.qq.com/s");
   for (const key of ["__biz", "mid", "idx"]) {
     const value = u.searchParams.get(key);
@@ -99,7 +103,7 @@ function parseIpv4(s: string): [number, number, number, number] | null {
 }
 
 /** The eight 16-bit groups of an IPv6 address (accepts "::" and a trailing dotted IPv4). */
-function ipv6Groups(s: string): number[] | null {
+export function ipv6Groups(s: string): number[] | null {
   let text = s.toLowerCase().replace(/%.*$/, "");
   const dotted = /(\d{1,3}(?:\.\d{1,3}){3})$/.exec(text);
   if (dotted) {
@@ -115,6 +119,29 @@ function ipv6Groups(s: string): number[] | null {
   if ((halves.length === 1 && missing !== 0) || missing < 0) return null;
   const groups = [...head, ...Array(missing).fill("0"), ...tail].map((g) => (/^[0-9a-f]{1,4}$/.test(g) ? parseInt(g, 16) : NaN));
   return groups.length === 8 && groups.every((g) => Number.isFinite(g)) ? groups : null;
+}
+
+/** RFC 5952 canonical IPv6 (lowercase, longest zero-run >1 compressed) or canonical dotted IPv4; null if invalid. */
+export function canonicalIp(address: string): string | null {
+  const s = address.trim();
+  const v4 = parseIpv4(s);
+  if (v4) return v4.join(".");
+  const groups = ipv6Groups(s);
+  if (!groups) return null;
+  let bestStart = -1, bestLen = 0, curStart = -1, curLen = 0;
+  for (let i = 0; i < 8; i++) {
+    if (groups[i] === 0) {
+      if (curStart === -1) curStart = i;
+      curLen++;
+      if (curLen > bestLen) { bestStart = curStart; bestLen = curLen; }
+    } else {
+      curStart = -1;
+      curLen = 0;
+    }
+  }
+  const hex = groups.map((g) => g.toString(16));
+  if (bestLen < 2) return hex.join(":");
+  return `${hex.slice(0, bestStart).join(":")}::${hex.slice(bestStart + bestLen).join(":")}`;
 }
 
 function embeddedIpv4(hi: number, lo: number): [number, number, number, number] {

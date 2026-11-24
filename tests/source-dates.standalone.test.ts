@@ -3,7 +3,7 @@
 // and TZ=Asia/Shanghai to see both).
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { describeReport } from "@aihot/backend/events/relate";
+import { batchUser, describeReport } from "@aihot/backend/events/relate";
 import { readable } from "@aihot/backend/content/extract";
 import { parseLooseDate, readPublicationDate, readRelativeDate, describePublicationTime } from "@aihot/backend/sources/dates";
 
@@ -159,6 +159,15 @@ test('grouping distinguishes a publication day from an exact instant', () => {
   assert.doesNotMatch(text, /15:00/);
 });
 
+// Evidence past the first 6,000 characters of a long body reaches grouping, for the new report and the selected reading alike.
+test('grouping sees late evidence in a long body on both sides', () => {
+  const sourceText = '前'.repeat(6500) + '后半部的独立分析证据';
+  const report = { title: '研究发布后的长文解读', source: 'Example', firstParty: false, at: new Date(), summary: '概述', sourceText };
+  const prompt = batchUser(report, [], '新报道', [{ report: { ...report, sourceText: null }, sourceText }]);
+  assert.equal(prompt.split('后半部的独立分析证据').length - 1, 2);
+  assert.ok(describeReport({ ...report, sourceText: '短正文' }, '新报道').includes('短正文'));
+});
+
 test("legacy JSON and RSS formats keep their source date and zone", () => {
   for (const tz of ["UTC", "Asia/Shanghai", "America/New_York"]) {
     const previous = process.env.TZ;
@@ -225,4 +234,16 @@ test("today's time inside other text, or no real time, is no date", () => {
   for (const v of ["据说今天 15:46 发布", "今天 25:00", "今天 15:61", "版面之外·今天 15:46 1.1万", "关于·两天前开业的店", "甲·乙·今天 15:46", "·今天 15:46", "16h", "29 m ago later"]) {
     assert.deepEqual(readRelativeDate(v, now), { publishedAt: null, publicationTime: null }, v);
   }
+});
+
+test("complete day-month-year dates accept the publisher's punctuation", () => {
+  assert.equal(parseLooseDate("07 October, 2026", "+04:00")?.toISOString(), "2026-10-06T20:00:00.000Z");
+  assert.equal(parseLooseDate("Published 07 October, 2026", "+08:00")?.toISOString(), "2026-10-06T16:00:00.000Z");
+  assert.equal(parseLooseDate("October 7, 2026", "+00:00")?.toISOString(), "2026-10-07T00:00:00.000Z");
+  for (const value of ["31 April, 2026", "29 February, 2026", "07 Never, 2026", "October, 2026"]) assert.equal(parseLooseDate(value), null, value);
+});
+
+test("compact publication timestamps retain wall-clock seconds without accepting version numbers or invalid dates", () => {
+  assert.equal(parseLooseDate("20260930210715", "+08:00")?.toISOString(), "2026-09-30T13:07:15.000Z");
+  for (const value of ["20260230210715", "20260930250715", "20260930216015", "20260930210760", "202609302107", "version 20260930210715"]) assert.equal(parseLooseDate(value), null, value);
 });

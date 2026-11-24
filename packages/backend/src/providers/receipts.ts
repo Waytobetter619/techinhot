@@ -137,6 +137,15 @@ export function providerSpendingRefused(service: string, error: string): boolean
   return providerAccessRefused(service, error);
 }
 
+/**
+ * A provider's safety or content-inspection filter declined this input or output (Zhipu 1301,
+ * DashScope DataInspectionFailed, DeepSeek Content Exists Risk, OpenAI-compatible content_filter).
+ */
+export function providerContentRefused(error: unknown): boolean {
+  return failureKind(error) === "refused"
+    && /contentFilter|"1301"|DataInspectionFailed|data_inspection_failed|content_filter|Content Exists Risk/i.test((error as Error).message);
+}
+
 /** A temporary rate limit can pass; account/spending refusals need access restored first. */
 export function assertAccepted(service: string, status: number, body: string): void {
   if (status >= 200 && status < 300) return;
@@ -390,15 +399,20 @@ export function awaitingRelease(receipt: ReturnType<typeof sql> = sql`receipts`)
  * Releases an unknown receipt: marked failed, so the next attempt of its request calls again (who
  * releases and when: operations/recover.ts). Null when the receipt is not, or no longer, unknown.
  */
-export async function releaseUnknownReceipt(db: Db, id: number, error: string): Promise<{ subject: string | null; purpose: string } | null> {
+export async function releaseUnknownReceipt(db: Db, id: number, error: string, opts: { autoReleased?: boolean } = {}): Promise<{ subject: string | null; purpose: string } | null> {
   const [released] = await db<{ subject: string | null; purpose: string }[]>`
     UPDATE receipts SET status = 'failed', error = ${error}, updated_at = now() WHERE id = ${id} AND status = 'unknown' RETURNING subject, purpose`;
-  if (released) await db`UPDATE receipt_attempts SET status = 'failed', error = ${error} WHERE receipt_id = ${id} AND status = 'unknown'`;
+  if (released) {
+    await db`UPDATE receipt_attempts SET status = 'failed', error = ${error}, auto_released = ${opts.autoReleased === true}
+             WHERE receipt_id = ${id} AND status = 'unknown'`;
+  }
   return released ?? null;
 }
 
-export async function completeReceipt(db: Db, receiptId: number): Promise<void> {
+/** `storedElsewhere`: a top-level field of the answer the caller's write now keeps (embeddings: the vectors), dropped from the receipt. */
+export async function completeReceipt(db: Db, receiptId: number, storedElsewhere?: string): Promise<void> {
   await db`UPDATE receipts SET status = 'completed', completed_at = coalesce(completed_at, now()), updated_at = now() WHERE id = ${receiptId}`;
+  if (storedElsewhere) await db`UPDATE receipts SET response = response - ${storedElsewhere}::text WHERE id = ${receiptId}`;
 }
 
 /** Marks a received response that could not be used (e.g. unparsable) so a fresh attempt can be made. */

@@ -1,9 +1,12 @@
 // First-party site API (/api/site/*). Not a public API: it may evolve with the website,
 // but it is served from the same public read layer as v1, RSS and MCP.
+import type { MentionTarget } from "./mentions.ts";
 import type { CategoryKey, ChannelKey } from "./taxonomy.ts";
-import { isoWeekRange, monthDay } from "./time.ts";
+import { isoWeekRange, longDateEn, monthDay, monthDayEn } from "./time.ts";
 
 export interface SourceRef {
+  /** Stable canonical source id (`sources.id`); optional for legacy/unbacked citations. */
+  id?: string;
   /** The name readers see (publication/rules.ts publicSourceName), as is every source name here. */
   name: string;
 }
@@ -28,6 +31,18 @@ export function avifCandidates(srcSet: string): string {
   return srcSet.replace(/([?&]mode=[a-z0-9-]+)(?=&)/g, `$1${AVIF_MODE_SUFFIX}`);
 }
 
+/**
+ * The post an item quotes, as its page shows it: its words and their translation as HTML from the same
+ * renderer as the post's own text and the full RSS (paragraphs, lists, addresses as short links).
+ */
+export interface QuotedPostView {
+  authorName: string;
+  handle: string;
+  url: string;
+  html: string;
+  translationHtml: string | null;
+}
+
 export interface XPostView {
   authorName: string;
   handle: string;
@@ -38,11 +53,15 @@ export interface XPostView {
   /** translation: Chinese translation of the quoted post, when it is in another language. */
   quoted: { authorName: string; handle: string; text: string; url: string; translation: string | null } | null;
   media: MediaView[];
+  /** The post publishes a long X Article: its page reads like an article, under a headline. */
+  article: boolean;
 }
 
 export interface StoryRef {
   publicId: string;
   title: string;
+  /** The event page stands in search (sourceCount >= STORY_INDEX_MIN_SOURCES). */
+  indexable?: boolean;
 }
 
 /** What every site answer about an article carries; a card and a page each add the X post in their own form. */
@@ -67,7 +86,7 @@ export interface ItemSummary {
 
 /** The fields rendered by a site feed card; full original text lives in the item detail. */
 export interface FeedItemSummary extends Pick<ItemSummary, "id" | "title" | "summary" | "reason" | "source" | "publishedAt" | "timelineAt" | "category" | "tags" | "score" | "selected" | "channel"> {
-  x: (Pick<XPostView, "authorName" | "handle" | "avatarUrl" | "avatarSrcSet" | "media"> & {
+  x: (Pick<XPostView, "authorName" | "handle" | "avatarUrl" | "avatarSrcSet" | "media" | "article"> & {
     quoted: Omit<NonNullable<XPostView["quoted"]>, "url"> | null;
   }) | null;
   /**
@@ -125,6 +144,8 @@ export interface TimelineResponse {
 export interface PoolResponse {
   filters: TimelineFilters & { q: string | null; tab: "time" | "relevance" };
   items: FeedItemSummary[];
+  /** Of the items' tags, each that is a topic's own, with that topic's slug. */
+  tagTopics?: Record<string, string>;
   page: number;
   pageCount: number;
   total: number;
@@ -143,8 +164,8 @@ export interface OutlineEntry {
  * unless …/original asks for the original. Only the body shown is sent, with its outline.
  */
 export interface SiteItemDetail extends ItemSummary {
-  /** The post with all its media; its text is the body. */
-  x: Omit<XPostView, "text" | "translation"> | null;
+  /** The post with all its media; its text is the body, and the post it quotes is set as that body is. */
+  x: (Omit<XPostView, "text" | "translation" | "quoted"> & { quoted: QuotedPostView | null }) | null;
   /** Selected, but its fact's seat is held by this report: marked 同事件, without a reason of its own. */
   sameEvent?: { id: string; title: string } | null;
   readingMode: "full" | "summary-only";
@@ -155,11 +176,19 @@ export interface SiteItemDetail extends ItemSummary {
   relatedStories: StoryRef[];
   /** The topics the report belongs to. */
   topics: TopicLink[];
+  /** Of its tags, each that is a topic's own (a direction's or a form's, or the tag shown for a company), with that topic's slug. */
+  tagTopics: Record<string, string>;
+  /** The first daily that carries it, while that issue lists it: the issue's key, and whether the issue leads with it. */
+  daily: { key: string; lead: boolean } | null;
   indexable: boolean;
+  /** Indexable, but its own text says no more than its summary: only Google is asked not to index it. */
+  googleNoindex: boolean;
   markdownAvailable: boolean;
   group: GroupInfo | null;
   hasTranslation: boolean;
   bodyLanguage: "zh" | "original";
+  /** The pages its summary names (mentions.ts). */
+  mentions: MentionTarget[];
 }
 
 /** A fact's public reports under the list's filters: what "另外 N 家也报道了" opens. */
@@ -182,6 +211,7 @@ export interface GroupReportsResponse {
 export const HOT_FACE_LIMIT = 6;
 
 export interface HotParticipant {
+  sourceId?: string;
   name: string;
   kind: "editorial" | "signal";
   /** Only visible faces carry images: the source's icon or its latest collected X avatar (proxied). */
@@ -240,6 +270,14 @@ export interface StoryFactView {
   representative: StoryReportView;
 }
 
+/**
+ * An event page stands for its reports in search once at least this many distinct public editorial sources
+ * cover it (sourceCount): single-source clusters only repeat that source's own pages, so the event page is
+ * noindex and neither the sitemap nor change notifications list it; with multiple sources, its reports' own
+ * pages leave Google to the event page (2026-11-20; previously 2 reports regardless of source).
+ */
+export const STORY_INDEX_MIN_SOURCES = 2;
+
 export interface StoryDetail {
   publicId: string;
   title: string;
@@ -253,7 +291,7 @@ export interface StoryDetail {
   /** The story's own factual summary, when it has one. */
   summary: string | null;
   /** Without a digest or summary: the summary of the report the story started from. */
-  excerpt: { text: string; sourceName: string } | null;
+  excerpt: { itemId?: string; text: string; sourceId?: string; sourceName: string } | null;
   latest: string | null;
   /** The current public report supplying latest; never inferred from an independently generated digest. */
   latestReport: { id: string } | null;
@@ -271,6 +309,8 @@ export interface StoryDetail {
   related: Array<StoryRef & { relation: "storyline" | "related" }>;
   /** The topics its reports belong to, most reports first. */
   topics: TopicLink[];
+  /** The pages its overview names (mentions.ts). */
+  mentions: MentionTarget[];
 }
 
 // Reports (daily / weekly / monthly)
@@ -279,6 +319,7 @@ export type ReportKind = "daily" | "weekly" | "monthly";
 
 /** What each kind of report is called. */
 export const REPORT_NAMES: Record<ReportKind, string> = { daily: "日报", weekly: "周报", monthly: "月报" };
+export const REPORT_NAMES_EN: Record<ReportKind, string> = { daily: "Daily", weekly: "Weekly", monthly: "Monthly" };
 
 /** An issue's date as Chinese readers write and search it: "10月17日", "10月12日—18日" (or "9月28日—10月4日"), "2026年10月". */
 export function reportDateLabel(kind: ReportKind, key: string): string {
@@ -288,10 +329,19 @@ export function reportDateLabel(kind: ReportKind, key: string): string {
   return `${monthDay(start)}—${start.slice(5, 7) === end.slice(5, 7) ? `${Number(end.slice(8, 10))}日` : monthDay(end)}`;
 }
 
+/** reportDateLabel on English pages: "Oct 17", "Oct 12–18" (or "Sep 28 – Oct 4"), "October 2026". */
+export function reportDateLabelEn(kind: ReportKind, key: string): string {
+  if (kind === "daily") return monthDayEn(key);
+  if (kind === "monthly") return longDateEn(key);
+  const { start, end } = isoWeekRange(key)!;
+  return start.slice(5, 7) === end.slice(5, 7) ? `${monthDayEn(start)}–${Number(end.slice(8, 10))}` : `${monthDayEn(start)} – ${monthDayEn(end)}`;
+}
+
 export interface ReportCitation {
   itemId: string | null;
   title: string;
   summary: string | null;
+  sourceId?: string | null;
   sourceName: string;
   sourceUrl: string;
   sourceIconUrl: string | null;
@@ -305,7 +355,7 @@ export interface ReportCitation {
   otherSources?: number;
   /** That event's page (publicId). */
   storyId?: string;
-  /** A daily entry's other developments of the event, or reports of the launch merged into it (titles only). */
+  /** A daily entry's other developments of the event, or reports of the launch merged into it: the first few it lists (titles only). */
   related?: ReportCitation[];
   /** A daily entry whose event an earlier daily covered: that issue's date. */
   followUp?: string;
@@ -324,7 +374,7 @@ export interface ReportDetail {
   overview: string | null;
   highlights: ReportCitation[];
   /** As edited: daily categories, weekly and monthly themes. */
-  sections: Array<{ label: string; summary: string | null; items: ReportCitation[] }>;
+  sections: Array<{ key?: string; label: string; summary: string | null; items: ReportCitation[] }>;
   flashes: ReportCitation[];
   /**
    * The front page's picture: from the lead item (a daily's lead, a weekly or monthly's first highlight),
@@ -335,6 +385,8 @@ export interface ReportDetail {
   readingMinutes: number;
   prev: string | null;
   next: string | null;
+  /** The pages its paragraphs and summaries name (mentions.ts). */
+  mentions: MentionTarget[];
 }
 
 export interface ReportIndexEntry {
@@ -367,6 +419,8 @@ export interface SiteMeta {
 
 /** One entry of the site's changelog (site/changelog.json), newest first. */
 export interface ChangelogRelease {
+  /** Stable canonical release id (e.g. "2026-11-15-1757"). */
+  id?: string;
   date: string;
   time: string;
   kind: "更新" | "优化" | "公告" | "下线";
@@ -413,7 +467,7 @@ export interface SiteStats {
 
 export interface StoryFollowup {
   factId: string;
-  representative: { id: string; title: string; source: { name: string }; timelineAt: string };
+  representative: { id: string; title: string; source: SourceRef; timelineAt: string };
 }
 export interface StoryFollowupsResponse { items: StoryFollowup[]; more: boolean }
 
@@ -467,7 +521,7 @@ export interface TopicSummary extends TopicLink {
   /** Enough content to be listed and indexed. */
   indexable: boolean;
   /** The newest selected report. */
-  latest: { title: string; at: string } | null;
+  latest: { id?: string; title: string; at: string } | null;
 }
 
 export interface TopicsResponse {
@@ -486,6 +540,8 @@ export interface TopicPage {
   /** The site's modules' parts of the page, under their names; each module's web part draws its own. */
   modules: Record<string, unknown>;
   items: FeedItemSummary[];
+  /** Of the items' tags, each that is a topic's own, with that topic's slug. */
+  tagTopics?: Record<string, string>;
   page: number;
   pageCount: number;
   pageSize: number;

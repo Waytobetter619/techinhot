@@ -129,7 +129,7 @@ test("redirect limits do not expose query credentials", async () => {
   });
 });
 test("one deadline and response byte limit remain effective", async () => {
-  a.routes.set("/slow", async (_hit, res) => { await new Promise(resolve => setTimeout(resolve, 65)); res.writeHead(302, { location: "/slow" }); res.end(); });
+  a.routes.set("/slow", (_hit, res) => { setTimeout(() => { res.writeHead(302, { location: "/slow" }); res.end(); }, 65); });
   await assert.rejects(guardedFetch(a.url + "/slow", { timeoutMs: 100, maxRedirects: 9 }), { name: "TimeoutError" });
   a.routes.set("/large", (_hit, res) => { res.end("x".repeat(1000)); });
   await assert.rejects(guardedFetch(a.url + "/large", { maxBytes: 100 }), /too large/i);
@@ -155,7 +155,7 @@ test("normal private-network guards still refuse direct and redirect destination
 test("opaque JSON-source query configuration cannot redirect to another origin", async () => {
   redirect("/json", b.url + "/json?api_key=" + key);
   b.routes.set("/json", (_hit, res) => { res.writeHead(200, { "content-type": "application/json" }); res.end('[{"title":"fixture","url":"https://example.org/item"}]'); });
-  const source: SourceRow = { id: "redirect-fixture", name: "fixture", kind: "json_list", tier: "T1", participation_mode: "editorial", uses: [], first_party: false, interval_minutes: 60, enabled: true, cursor: null, fail_count: 0, config: { url: `${a.url}/json?api_key=${key}`, titlePaths: ["title"], urlTemplate: "{raw:url}" } };
+  const source: SourceRow = { id: "redirect-fixture", name: "fixture", kind: "json_list", tier: "T1", participation_mode: "editorial", uses: [], interval_minutes: 60, enabled: true, cursor: null, fail_count: 0, config: { url: `${a.url}/json?api_key=${key}`, titlePaths: ["title"], urlTemplate: "{raw:url}" } };
   const count = b.hits.length;
   await assert.rejects(fetchJsonList(source), /redirect/i);
   assert.equal(b.hits.length, count);
@@ -163,6 +163,6 @@ test("opaque JSON-source query configuration cannot redirect to another origin",
 test("opaque JSON query callers retain same-origin redirects", async () => {
   redirect("/json-safe", "/json-final?api_key=" + key);
   a.routes.set("/json-final", (_hit, res) => { res.writeHead(200, { "content-type": "application/json" }); res.end('[{"title":"same-origin","url":"https://example.org/safe"}]'); });
-  const source: SourceRow = { id: "same-origin", name: "fixture", kind: "json_list", tier: "T1", participation_mode: "editorial", uses: [], first_party: false, interval_minutes: 60, enabled: true, cursor: null, fail_count: 0, config: { url: `${a.url}/json-safe?api_key=${key}`, titlePaths: ["title"], urlTemplate: "{raw:url}" } };
+  const source: SourceRow = { id: "same-origin", name: "fixture", kind: "json_list", tier: "T1", participation_mode: "editorial", uses: [], interval_minutes: 60, enabled: true, cursor: null, fail_count: 0, config: { url: `${a.url}/json-safe?api_key=${key}`, titlePaths: ["title"], urlTemplate: "{raw:url}" } };
   assert.equal((await fetchJsonList(source))[0]!.title, "same-origin");
 });

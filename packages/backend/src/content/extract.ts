@@ -1,7 +1,8 @@
 // Article body extraction: readable text from the article page, or "unconfirmed" — never a wrong body.
 // Jina Reader is the budgeted fallback for pages that only render in a browser.
 import { Readability } from "@mozilla/readability";
-import type { parseHTML } from "linkedom";
+import { parseHTML } from "linkedom";
+import { DEPLOYMENT } from "@aihot/site";
 import { sql } from "../db.ts";
 import { guardedFetch, languageHeaders } from "../lib/http-fetch.ts";
 import { assertPageContent, contentDocument, UnavailablePageError } from "../lib/page-content.ts";
@@ -16,6 +17,7 @@ import { onlyXArticleLink, xArticleText } from "../sources/x.ts";
 import { sanitizeBody, trimTrailingChrome } from "./sanitize.ts";
 import { contentHash, fillPublicationTime, reviseMaterial, updatePresentation, type MediaItem } from "./materials.ts";
 import { markdownBody } from "./markdown.ts";
+import { articleCover, declaredCover, hasPicture, type Cover } from "./cover.ts";
 
 export interface ExtractedBody {
   html: string;
@@ -25,9 +27,22 @@ export interface ExtractedBody {
   /** The page's publication metadata; neither modification time nor dates mentioned in its prose. */
   publishedAt?: Date | null;
   publicationTime?: string | null;
+  /**
+   * The picture the page declares for sharing, for a body without a picture of its own (cover.ts), set above
+   * the body where it is shown. A caller that fetched the page checks it against the site's own (articleCover).
+   */
+  cover?: Cover | null;
 }
 
 const MIN_BODY_CHARS = 200;
+
+/**
+ * What the browser renderer leaves out of a body it reads: its answer is the whole page, so a site that
+ * refuses the direct fetch had its consent dialog, navigation and footer stored and translated as the
+ * article. Only what a page itself marks as not being the article: narrowing to main or running
+ * Readability over the rendered page lost real text on many sites.
+ */
+const PAGE_CHROME = "nav,footer,dialog,header:not(article header,main header),[role=banner],[role=navigation],[role=contentinfo],[role=dialog],[role=alertdialog],[aria-modal=true],#onetrust-consent-sdk";
 
 /**
  * Paths that serve a sign-in form rather than the page that was asked for. A path segment, never a
@@ -324,6 +339,16 @@ function hiddenIn(el: El, figure: El): boolean {
   return false;
 }
 
+/** Left out by Readability for readers: hidden by an attribute, from assistive technology, or by an inline style. */
+function unseen(el: El): boolean {
+  return el.hasAttribute("hidden") || el.getAttribute("aria-hidden") === "true" || /(?:^|;)(?:display:none|visibility:hidden)(?:;|$)/.test(el.getAttribute("style") ?? "");
+}
+
+function unseenWithin(el: El, root: El): boolean {
+  for (let node: El | null = el; node && node !== root; node = node.parentElement) if (unseen(node)) return true;
+  return false;
+}
+
 /** A [role="img"] holder that has nothing besides its svgs: no text, image or video of its own. */
 function onlyDrawings(holder: El): boolean {
   const copy = holder.cloneNode(true) as El;
@@ -394,6 +419,237 @@ function describeFigureDrawings(document: Doc) {
 }
 
 /**
+ * Words a link keeps for screen readers only, under the class names sites give them (sr-only, visually-hidden,
+ * screen-reader-text), say what the page shows another way: "(opens in new tab)", a heading anchor's "Link to
+ * this section", the dots of a gallery. They were stored and translated as text; readers never see them. They are
+ * marked here and taken out of Readability's result, so its judgment of a box by its links is unchanged: cards of
+ * other stories and a site's logo carry their names that way. A link to the picture it shows only opens it full
+ * size, and its words ("View full-size image: …") go now: counted as link text they made the figure's box read as
+ * a box of links (ideogram.ai: every figure set beside its prompt). Outside links, such words can stand for what a
+ * body cannot show (a chart's table of values, a drawing's description) and stay.
+ */
+const SCREEN_READER_ONLY = /^(?!not-)(?:[\w-]+[-_])?(?:sr-only|visually-hidden|visuallyhidden|screen-reader-text|screen-reader-only)$/i;
+const SCREEN_READER_MARK = "data-screen-reader-only";
+function markScreenReaderLinkText(document: Doc) {
+  for (const el of document.querySelectorAll("a [class]")) {
+    if (!(el.getAttribute("class") ?? "").split(/\s+/).some((name: string) => SCREEN_READER_ONLY.test(name))) continue;
+    const link = el.closest("a")!;
+    const href = link.getAttribute("href");
+    if (href && [...link.querySelectorAll("img")].some((img) => img.getAttribute("src") === href)) el.remove();
+    else el.setAttribute(SCREEN_READER_MARK, "");
+  }
+}
+function withoutScreenReaderLinkText(html: string): string {
+  if (!html.includes(SCREEN_READER_MARK)) return html;
+  const { document } = parseHTML(`<!doctype html><html><body>${html}</body></html>`);
+  for (const el of document.querySelectorAll(`[${SCREEN_READER_MARK}]`)) el.remove();
+  return document.body.innerHTML;
+}
+
+/** An image with an address of its own, not a placeholder: a src that is not empty or a data: URI. */
+function addressed(img: El): boolean {
+  const src = img.getAttribute("src")?.trim() ?? "";
+  return !!src && !/^data:/i.test(src);
+}
+
+/** The addresses of an image named by the given attributes (each entry of a srcset), without data: placeholders. */
+function addressesIn(el: El, names: string[]): string[] {
+  const images = el.localName === "img" ? [el] : [...el.querySelectorAll("img, source")];
+  return images.flatMap((img) => names.flatMap((name) => {
+    const value = img.getAttribute(name)?.trim() ?? "";
+    // A data: URI holds commas of its own; only a srcset lists addresses separated by them.
+    return name.endsWith("srcset") ? value.split(",").map((entry: string) => entry.trim().split(/\s+/)[0] ?? "") : [value];
+  })).filter((address) => address && !/^data:/i.test(address));
+}
+/** Every address an image shows, or loads once a script runs. */
+const shownAddresses = (el: El) => addressesIn(el, ["src", "data-src", "data-original", "data-lazy-src", "srcset", "data-srcset"]);
+/**
+ * The address Readability's lazy-image repair writes into an image's src (_fixLazyImages, Readability 0.6), under
+ * its own conditions: an SVG base64 src is left alone; a short base64 src beside another image address is dropped
+ * first; then only an image without src or srcset, or one whose class says lazy, takes an attribute naming an
+ * image file (one naming several with their widths becomes a srcset, which a body does not keep).
+ */
+function repairedAddress(img: El): string | null {
+  const attributes = Array.from(img.attributes as ArrayLike<{ name: string; value: string }>);
+  let src = img.getAttribute("src") ?? "";
+  const base64 = /^data:\s*([^\s;,]+)\s*;\s*base64\s*,/i.exec(src);
+  if (base64) {
+    if (base64[1] === "image/svg+xml") return null;
+    const elsewhere = attributes.some(({ name, value }) => name !== "src" && /\.(jpg|jpeg|png|webp)/i.test(value));
+    if (elsewhere && src.length - base64[0].length < 133) src = "";
+  }
+  const srcset = img.getAttribute("srcset");
+  if ((src || (srcset && srcset !== "null")) && !(img.getAttribute("class") ?? "").toLowerCase().includes("lazy")) return null;
+  let repaired: string | null = null;
+  for (const { name, value } of attributes) {
+    if (name === "src" || name === "srcset" || name === "alt" || /\.(jpg|jpeg|png|webp)\s+\d/.test(value)) continue;
+    if (/^\s*\S+\.(jpg|jpeg|png|webp)\S*\s*$/.test(value)) repaired = value.trim();
+  }
+  return repaired;
+}
+
+/**
+ * The addresses a stored body keeps for an image: the lazy address sanitizeBody puts in src (data-src,
+ * data-original), its src, or the one Readability's lazy-image repair gives it. A srcset is not kept.
+ */
+function keptAddresses(el: El): string[] {
+  const img = el.localName === "img" ? el : el.querySelector("img");
+  if (!img) return [];
+  const kept = addressesIn(img, ["data-src", "data-original", "src"]);
+  if (kept.length) return kept;
+  const repaired = repairedAddress(img);
+  return repaired ? [repaired] : [];
+}
+
+/**
+ * Readability puts a noscript picture in its placeholder's place only when the noscript holds a single img right
+ * after that placeholder, and removes every other noscript: a picture written with its sources (<picture>), or
+ * one written before its lazy placeholder, went with it (allenai.org, wiz.io: every picture of a page). A noscript
+ * holding only pictures, one with an address, stands in for its placeholders: the images with no address a body
+ * keeps, right before it, else right after it. An image beside it showing the same picture with an address a body
+ * keeps is that picture, left to Readability, which keeps one of the two; one that names it only in a srcset is
+ * not kept and is a placeholder too.
+ */
+function showNoscriptPictures(document: Doc) {
+  for (const noscript of document.querySelectorAll("noscript")) {
+    const held = [...noscript.children];
+    if (!held.length || collapsed(noscript.textContent) || held.some((el) => el.localName !== "img" && el.localName !== "picture")) continue;
+    if (!held.some((el) => (el.localName === "img" ? [el] : [...el.querySelectorAll("img")]).some(addressed))) continue;
+    const own = new Set(held.flatMap(shownAddresses));
+    const neighbours = [noscript.previousElementSibling, noscript.nextElementSibling].filter((el): el is El => !!el && (el.localName === "img" || el.localName === "picture"));
+    const same = neighbours.filter((el) => shownAddresses(el).some((address) => own.has(address)));
+    if (same.some((el) => keptAddresses(el).length)) continue;
+    for (const el of same) el.remove();
+    const run = (step: (el: El) => El | null) => {
+      const found: El[] = [];
+      for (let el = step(noscript); el?.localName === "img" && !keptAddresses(el).length; el = step(el)) found.push(el);
+      return found;
+    };
+    const before = run((el) => el.previousElementSibling);
+    for (const placeholder of before.length ? before : run((el) => el.nextElementSibling)) placeholder.remove();
+    noscript.replaceWith(...noscript.childNodes);
+  }
+}
+
+/** The words of a button that only says what a click on its picture does. */
+const ZOOM_LABEL = /^(?:(?:zoom|in|expand|enlarge|view|open|full|size|image|photo|picture|\d+)\s*)+$/i;
+
+/**
+ * Readability removes every button, and a picture the page opens larger on a click sits in one: the button went
+ * with its picture (reflection.ai, linear.app, mastra.ai: every picture of a page). A button holding a picture,
+ * the only button among its siblings, with no words of its own but such a label, is replaced by its figures,
+ * else by the pictures it shows (not a blurred placeholder without an address a body keeps); wide and narrow crops
+ * of one picture (the same description) are kept once. A row
+ * of picture buttons (tabs, thumbnails to choose from, reactions) and a button that says something are controls.
+ */
+function unwrapPictureButtons(document: Doc) {
+  for (const button of document.querySelectorAll("button")) {
+    const parent = button.parentElement;
+    if (!parent || unseen(button) || [...parent.children].some((el) => el !== button && el.localName === "button")) continue;
+    const outermost = (el: El, name: string) => {
+      const outer = el.parentElement?.closest(name);
+      return !outer || !button.contains(outer);
+    };
+    const figures = [...button.querySelectorAll("figure")].filter((figure) => outermost(figure, "figure") && !unseenWithin(figure, button));
+    const shown = figures.length ? figures
+      : [...button.querySelectorAll("picture, img")].filter((el) => outermost(el, "picture") && !unseenWithin(el, button) && keptAddresses(el).length);
+    if (!shown.length) continue;
+    const rest = button.cloneNode(true) as El;
+    for (const el of rest.querySelectorAll('figure, picture, img, svg, style, script, [aria-hidden="true"]')) el.remove();
+    const label = collapsed(rest.textContent);
+    if (label && !ZOOM_LABEL.test(label)) continue;
+    const descriptions = new Set<string>();
+    button.replaceWith(...shown.filter((el) => {
+      const description = collapsed((el.localName === "img" ? el : el.querySelector("img"))?.getAttribute("alt"));
+      if (!description) return true;
+      if (descriptions.has(description)) return false;
+      descriptions.add(description);
+      return true;
+    }));
+  }
+}
+
+/** The words of an element's class and id: "verge-theme-image__dark" and "darkMode" both have "dark". */
+const nameWords = (el: El): string[] => `${el.getAttribute("class") ?? ""} ${el.getAttribute("id") ?? ""}`
+  .replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase().split(/[^a-z0-9]+/);
+
+/**
+ * A figure can hold one picture twice, a version for each colour theme of the page, the dark one hidden while the
+ * light one shows (theverge.com's charts): kept now that the box around it stays, both showed. Among a figure's
+ * sibling pictures with the same description, one named for the dark theme beside one named for the light, shown
+ * and with an address a body keeps, is that picture's dark version and goes; a light version the page hides
+ * leaves the dark one as the picture. Different pictures can share a description (examples of one class), so a
+ * description alone decides nothing.
+ */
+function dropDarkThemeVersions(document: Doc) {
+  for (const figure of document.querySelectorAll("figure")) {
+    const groups = new Map<El, Map<string, El[]>>();
+    for (const picture of figure.querySelectorAll("img, picture")) {
+      const parent = picture.parentElement;
+      if (!parent || (picture.localName === "img" && parent.localName === "picture")) continue;
+      const description = collapsed((picture.localName === "img" ? picture : picture.querySelector("img"))?.getAttribute("alt"));
+      if (!description) continue;
+      const byDescription = groups.get(parent) ?? new Map<string, El[]>();
+      byDescription.set(description, [...(byDescription.get(description) ?? []), picture]);
+      groups.set(parent, byDescription);
+    }
+    for (const byDescription of groups.values()) {
+      for (const versions of byDescription.values()) {
+        const named = (word: string) => versions.filter((el) => nameWords(el).includes(word));
+        const light = named("light").filter((el) => {
+          // Seen from the image that gives the picture its address, a <picture>'s own img included.
+          const img = el.localName === "img" ? el : el.querySelector("img");
+          return !!img && !unseenWithin(img, figure) && keptAddresses(img).length > 0;
+        });
+        if (light.length) for (const el of named("dark")) if (!light.includes(el)) el.remove();
+      }
+    }
+  }
+}
+
+/**
+ * Readability's names and roles for what is beside an article, which remove a box before its content counts
+ * (_grabArticle, _getClassWeight).
+ */
+const READABILITY = Readability.prototype as unknown as {
+  REGEXPS: Record<"unlikelyCandidates" | "okMaybeItsACandidate" | "positive" | "negative", RegExp>;
+  UNLIKELY_ROLES: string[];
+};
+const READABILITY_NAMES = READABILITY.REGEXPS;
+function namedBeside(el: El): boolean {
+  if (READABILITY.UNLIKELY_ROLES.includes(el.getAttribute("role") ?? "")) return true;
+  const names = [el.getAttribute("class") ?? "", el.getAttribute("id") ?? ""];
+  const both = names.join(" ");
+  if (READABILITY_NAMES.unlikelyCandidates.test(both) && !READABILITY_NAMES.okMaybeItsACandidate.test(both)) return true;
+  const weight = (name: string) => (READABILITY_NAMES.positive.test(name) ? 25 : 0) - (READABILITY_NAMES.negative.test(name) ? 25 : 0);
+  return names.reduce((sum, name) => sum + (name ? weight(name) : 0), 0) < 0;
+}
+
+/**
+ * Readability judges the boxes around a figure by measures meant for link lists and galleries: a caption crediting
+ * its source with a link, or the picture's own link, reads as a box of links, and two figures side by side without
+ * a paragraph as a gallery, so the box went with its figures (Substack's captioned images, WordPress columns, image
+ * pairs: every such figure of a page). A box whose words all lie in its figures, holding a figure with a picture,
+ * only lays them out: it is replaced by what it holds, until the figures stand where no such measure reaches them.
+ * So is one whose other words are a caption line, a paragraph without links (WordPress's group of figures under
+ * "Figure 1. …"). A box with other words (titles linking to other stories, controls, a menu), a hidden box, and one
+ * Readability's names set beside the article (related, promo, sidebar) are left to it.
+ */
+function unwrapFigureBoxes(document: Doc) {
+  // Innermost first: a box of boxes of figures (columns of figures) is judged once its own boxes are gone.
+  for (const box of [...document.querySelectorAll("div")].reverse()) {
+    if (unseen(box) || namedBeside(box) || !box.querySelector("figure img, figure picture, figure video")) continue;
+    const rest = box.cloneNode(true) as El;
+    for (const figure of rest.querySelectorAll("figure")) figure.remove();
+    const words = collapsed(rest.textContent);
+    const lines = rest.querySelectorAll("p");
+    const caption = lines.length === 1 && !lines[0]!.querySelector("a") && collapsed(lines[0]!.textContent) === words;
+    if (words && !caption) continue;
+    box.replaceWith(...box.childNodes);
+  }
+}
+
+/**
  * Readability removes every aside. One set among the article's paragraphs (its parent holds paragraphs of
  * its own) that carries prose, such as an update note or a correction, is part of what the author wrote:
  * it is kept as a quotation. An aside of links, a line with a form, or one beside the article still goes.
@@ -416,11 +672,71 @@ function keepAsidesAmongParagraphs(document: Doc) {
 }
 
 /**
+ * Whether a class or id has one of the words by which Readability recognizes a byline, as a word of its own:
+ * "post-author", "PostAuthor" and "author_box" do, "authorization" does not.
+ */
+function namesAuthor(el: El): boolean {
+  const name = `${el.getAttribute("class") ?? ""} ${el.getAttribute("id") ?? ""}`.replace(/([a-z])([A-Z])/g, "$1 $2");
+  return name.toLowerCase().split(/[^a-z0-9]+/).some((word) => /^(?:authors?|byline|dateline|writtenby)$/.test(word));
+}
+
+/** An author's card is a photo with a few lines (name, title, bio); the longest seen ran to about 430 characters. */
+const AUTHOR_CARD_CHARS = 1000;
+
+/**
+ * A box among the article's paragraphs that names its author and holds a picture and a few lines is the
+ * author's card, not the article. Readability takes a byline only when its text is short, so the photo, name,
+ * title, bio and contact lines of a card set after the text were stored as the article's end (techcrunch.com,
+ * every article). The card goes before scoring; an author list or a contributions section without a picture,
+ * and a longer box whatever its name, stay.
+ */
+function dropAuthorCards(document: Doc) {
+  const flows = new Set<El>();
+  for (const paragraph of document.querySelectorAll("p")) if (paragraph.parentElement) flows.add(paragraph.parentElement);
+  for (const flow of flows) {
+    for (const box of [...flow.children]) {
+      if (box.localName === "p" || !namesAuthor(box) || !box.querySelector("img, picture")) continue;
+      if (collapsed(box.textContent).length < AUTHOR_CARD_CHARS) box.remove();
+    }
+  }
+}
+
+/**
+ * Readability reads "media" in a class or id as a social-media widget and drops the box. A box among the
+ * article's paragraphs is often named for what it embeds ("media-column", "article-media": a figure, a chart,
+ * a carousel of quotes), and every such box of a page went with its picture, caption or text. In the
+ * paragraphs' flow (each paragraph and box beside them, and what they hold) the word is taken out of the
+ * names before scoring; the rest still counts ("sponsor-media" still reads as sponsored, "social-media" as
+ * a social widget).
+ */
+function keepMediaAmongParagraphs(document: Doc) {
+  const flows = new Set<El>();
+  for (const paragraph of document.querySelectorAll("p")) if (paragraph.parentElement) flows.add(paragraph.parentElement);
+  const seen = new Set<El>();
+  for (const flow of flows) {
+    for (const box of flow.children) {
+      for (const el of [box, ...box.querySelectorAll("[class], [id]")]) {
+        if (seen.has(el)) continue;
+        seen.add(el);
+        for (const attribute of ["class", "id"]) {
+          const value = el.getAttribute(attribute);
+          if (!value || !/media/i.test(value)) continue;
+          const rest = value.replace(/media/gi, "").replace(/\s+/g, " ").trim();
+          if (rest) el.setAttribute(attribute, rest);
+          else el.removeAttribute(attribute);
+        }
+      }
+    }
+  }
+}
+
+/**
  * Readability scores class names, and utility classes that only set overflow, scrolling or snapping read to
  * it as "hidden" or "scroll" ("overflow-hidden", "scroll-mt-24"): a box of the author's text with such a class
- * was dropped. They say nothing about what the box holds, so they are taken off before scoring.
+ * was dropped, and so was a figure's picture under Tailwind's tw- prefix ("tw-overflow-hidden"). They say nothing
+ * about what the box holds, so they are taken off before scoring.
  */
-const LAYOUT_CLASS = /^(?:[\w-]+:)*(?:overflow|overscroll|scroll|snap)-[\w-]+$/;
+const LAYOUT_CLASS = /^(?:[\w-]+:)*(?:tw-)?(?:overflow|overscroll|scroll|snap)-[\w-]+$/;
 function dropLayoutClasses(document: Doc) {
   for (const el of document.querySelectorAll("[class]")) {
     const classes: string[] = (el.getAttribute("class") ?? "").split(/\s+/).filter(Boolean);
@@ -435,6 +751,7 @@ function dropLayoutClasses(document: Doc) {
 export function readableDocument(document: Doc, url: string, rules: PageRules = {}): ExtractedBody | null {
   if (isVideoPageUrl(url)) return null;
   const date = pagePublicationDate(document, rules.utcOffset);
+  const declared = declaredCover(document, url);
   try {
     const base = document.createElement("base");
     base.setAttribute("href", url);
@@ -446,13 +763,21 @@ export function readableDocument(document: Doc, url: string, rules: PageRules = 
   settleInlineVisibility(document);
   preserveWidgets(document, rules.preserve ?? []);
   describeFigureDrawings(document);
+  markScreenReaderLinkText(document);
+  showNoscriptPictures(document);
+  unwrapPictureButtons(document);
+  dropDarkThemeVersions(document);
   keepAsidesAmongParagraphs(document);
+  dropAuthorCards(document);
+  keepMediaAmongParagraphs(document);
   dropLayoutClasses(document);
+  // After the names that only say "media" or set overflow are gone, which would count against a box of figures.
+  unwrapFigureBoxes(document);
   // A document theme is not an article candidate: names such as "header-dark" can discard the root.
   document.documentElement.removeAttribute("class");
   const article = new Readability(document as unknown as ConstructorParameters<typeof Readability>[0], { charThreshold: MIN_BODY_CHARS, keepClasses: false }).parse();
   if (!article?.content) return null;
-  const clean = trimTrailingChrome(sanitizeBody(article.content, url));
+  const clean = trimTrailingChrome(sanitizeBody(withoutScreenReaderLinkText(article.content), url));
   const text = stripTags(clean);
   if (text.length < MIN_BODY_CHARS) return null;
   try { assertPageContent(article.title ?? "", text); }
@@ -467,13 +792,14 @@ export function readableDocument(document: Doc, url: string, rules: PageRules = 
     images.push({ kind: "image", url: m[1]!.replace(/&amp;/g, "&"), width: w ? Number(w[1]) : null, height: h ? Number(h[1]) : null });
     if (images.length >= 12) break;
   }
-  return { html: clean, text, images, via: "readability", ...date };
+  return { html: clean, text, images, via: "readability", ...date, cover: hasPicture(clean) ? null : declared };
 }
 
-export async function extractFromUrl(url: string, subject: string, rules: PageRules = {}, opts: { paidFallback?: boolean } = {}): Promise<ExtractedBody | null> {
+export async function extractFromUrl(url: string, subject: string, rules: PageRules = {}, opts: { paidFallback?: boolean; sourceId?: string } = {}): Promise<ExtractedBody | null> {
   if (isVideoPageUrl(url)) return null;
   const target = new URL(url);
   if (rules.bodyUrlSuffix) target.pathname += rules.bodyUrlSuffix;
+  let read: { body: ExtractedBody; pageUrl: string } | null = null;
   try {
     const res = await guardedFetch(target.href, { headers: languageHeaders(rules.acceptLanguage), timeoutMs: 20_000, maxBytes: 16 * 1024 * 1024 });
     if (isVideoPageUrl(res.url)) return null;
@@ -487,14 +813,18 @@ export async function extractFromUrl(url: string, subject: string, rules: PageRu
     }
     if (res.status === 200 && /html/.test(type)) {
       const got = readable(res.text(), res.url, rules);
-      if (got) return got;
+      if (got) read = { body: got, pageUrl: res.url };
     }
   } catch {
     // fall through to Jina
   }
+  // Outside the page's read: a failure of the store while checking the cover is no unreadable page.
+  if (read) return { ...read.body, cover: await articleCover(read.body.cover ?? null, url, read.pageUrl, opts.sourceId) };
   if (opts.paidFallback === false) return null;
   try {
-    const page = await jinaRead(target.href, { purpose: "body_fallback", subject });
+    // The rendered text carries none of the page's metadata, so a body read this way has no cover.
+    const extra = (DEPLOYMENT as { renderedArticleRemoveSelectors?: Record<string, string> }).renderedArticleRemoveSelectors?.[target.hostname];
+    const page = await jinaRead(target.href, { purpose: "body_fallback", subject, removeSelector: extra ? `${PAGE_CHROME},${extra}` : PAGE_CHROME });
     const html = markdownBody(page.markdown, url);
     const text = stripTags(html);
     if (text.length < MIN_BODY_CHARS) return null;
@@ -518,12 +848,12 @@ export function pageFetchable(url: string, sourceKind: string): boolean {
 
 /** Fetches and stores the body of one article. Unconfirmed bodies are recorded as such. */
 export async function extractArticleBody(articleId: string): Promise<"ok" | "unconfirmed" | "skipped"> {
-  const [a] = await sql<{ id: string; url: string; body_status: string; revision: number; x_post: { tweetId?: string } | null; config: SourceRow["config"] }[]>`
-    SELECT a.id, a.url, a.body_status, a.revision, a.x_post, s.config
+  const [a] = await sql<{ id: string; source_id: string; url: string; body_status: string; revision: number; x_post: { tweetId?: string } | null; config: SourceRow["config"] }[]>`
+    SELECT a.id, a.source_id, a.url, a.body_status, a.revision, a.x_post, s.config
     FROM articles a JOIN sources s ON s.id = a.source_id WHERE a.id = ${articleId}`;
   if (!a || a.body_status === "ok") return "skipped";
   if (a.x_post?.tweetId) return extractXArticle(a.id, a.x_post.tweetId, a.revision);
-  const got = await extractFromUrl(a.url, `article:${a.id}`, pageRules(a.config));
+  const got = await extractFromUrl(a.url, `article:${a.id}`, pageRules(a.config), { sourceId: a.source_id });
   if (!got) {
     return markUnconfirmed(articleId, a.revision);
   }
@@ -535,13 +865,15 @@ export async function extractArticleBody(articleId: string): Promise<"ok" | "unc
     if (!row) return "skipped";
     const time = a.config.detail?.publishedAtAuthoritative === true ? null : await fillPublicationTime(tx, articleId, got.publishedAt, undefined, got.publicationTime);
     const hash = contentHash({ title: row.title, bodyText: got.text, excerpt: row.excerpt });
+    // A cover decided before (when the article was first stored) stays.
+    const cover = got.cover ? sql.json(got.cover as never) : null;
     if (!time && hash === row.content_hash) {
-      await updatePresentation(tx, articleId, { html: got.html, media: row.media.length ? row.media : got.images });
-      await tx`UPDATE articles SET body_status = 'ok', updated_at = now() WHERE id = ${articleId}`;
+      await updatePresentation(tx, articleId, { html: got.html, media: row.media.length ? row.media : got.images, cover: got.cover ?? undefined });
+      await tx`UPDATE articles SET body_status = 'ok', cover = coalesce(cover, ${cover}::jsonb), updated_at = now() WHERE id = ${articleId}`;
       return "ok";
     }
     await reviseMaterial(tx, articleId, {
-      set: sql`body_html = ${got.html}, body_text = ${got.text}, body_status = 'ok',
+      set: sql`body_html = ${got.html}, body_text = ${got.text}, body_status = 'ok', cover = coalesce(cover, ${cover}::jsonb),
         media = CASE WHEN jsonb_array_length(media) = 0 THEN ${sql.json(got.images as never)}::jsonb ELSE media END`,
       hash, title: row.title, bodyText: got.text,
     });
@@ -563,12 +895,12 @@ async function markUnconfirmed(articleId: string, revision: number): Promise<"un
  */
 async function extractXArticle(articleId: string, tweetId: string, revision: number): Promise<"ok" | "unconfirmed" | "skipped"> {
   const found = await getArticle(tweetId, { purpose: "x_article", subject: `article:${articleId}` });
-  const got = found ? xArticleText(found) : null;
+  const got = found ? xArticleText(found, `https://x.com/i/status/${tweetId}`) : null;
   if (!got) {
     return markUnconfirmed(articleId, revision);
   }
   return sql.begin(async (tx) => {
-    const [row] = await tx<{ title: string; excerpt: string | null; body_text: string | null; x_post: { text?: string } | null; x_article: { title?: string | null; text?: string } | null }[]>`
+    const [row] = await tx<{ title: string; excerpt: string | null; body_text: string | null; x_post: { text?: string } | null; x_article: { title?: string | null; text?: string; html?: string | null } | null }[]>`
       SELECT title, excerpt, body_text, x_post, x_article FROM articles
       WHERE id = ${articleId} AND revision = ${revision} AND body_status <> 'ok' FOR UPDATE`;
     if (!row) return "skipped";
@@ -581,7 +913,10 @@ async function extractXArticle(articleId: string, tweetId: string, revision: num
     const title = got.title && onlyXArticleLink(row.x_post?.text) ? got.title : row.title;
     const bodyText = [base, block(got)].filter(Boolean).join("\n\n");
     if (bodyText === row.body_text && title === row.title) {
-      // The same article again: nothing new, no new revision.
+      // The same words can have new media or HTML blocks. Update their presentation (or revise when policy requires review).
+      if (got.html) {
+        await updatePresentation(tx, articleId, { xArticleHtml: got.html });
+      }
       await tx`UPDATE articles SET body_status = 'ok', x_article = ${tx.json(got as never)}, updated_at = now() WHERE id = ${articleId}`;
       return "ok";
     }

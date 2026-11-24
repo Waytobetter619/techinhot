@@ -116,8 +116,8 @@ test('report directories skip a withdrawn lead for the next citation, including 
     { label: 'second', items: [{ itemId: `${T}-historical`, title: 'Historical fallback' }, { itemId: id(2), title: 'Third item' }] },
   ] };
   const key = `2097-12-${String(1 + Math.floor(Math.random() * 28)).padStart(2, '0')}`;
-  await sql`INSERT INTO reports (kind, key, window_start, window_end, content, generated_at, origin)
-    VALUES ('daily', ${key}, ${now}, ${now}, ${sql.json(content)}, ${now}, 'manual')`;
+  await sql`INSERT INTO reports (kind, key, window_start, window_end, content, generated_at)
+    VALUES ('daily', ${key}, ${now}, ${now}, ${sql.json(content)}, ${now})`;
   const entry = (await listReports('daily')).find((r) => r.key === key)!;
   assert.deepEqual([entry.title, entry.count], ['Historical fallback', 3]);
   const full = (await app.inject({ method: 'GET', url: '/api/site/reports/daily' })).json().items;
@@ -131,7 +131,6 @@ test('unchanged pool and timeline revalidate with 304 while a content change ret
   for (const path of [`/api/site/pool?tag=${T}`, `/api/site/timeline?tag=${T}`]) {
     const first = await app.inject({ method: 'GET', url: path });
     assert.equal(first.statusCode, 200, path);
-    await new Promise((resolve) => setTimeout(resolve, 3));
     const same = await app.inject({ method: 'GET', url: path, headers: { 'if-none-match': String(first.headers.etag) } });
     assert.equal(same.statusCode, 304, path);
     assert.equal(same.body, '');

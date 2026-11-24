@@ -1,11 +1,13 @@
 // The phone shell's top bar (below lg). Left: where back leads, or the brand; middle: the page's title
-// once its own heading has scrolled up under the bar, or a switch that always shows; right: actions. Tab
-// pages also get a large title under the bar. Desktop pages keep their own headers.
+// once its own heading ([data-page-title]) has scrolled up under the bar, or a switch that always shows;
+// right: actions. Pages render one responsive h1 of their own instead of duplicating it here.
 import { forwardRef, useEffect, useLayoutEffect, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
-import { useLocation, useNavigate } from "react-router";
+import { useLocation } from "react-router";
 import { IconChevronLeft } from "../icons";
 import { historyIndex, previousScreen } from "./screens";
 import { markBack } from "./transitions";
+import { useNavigate } from "../../lib/link";
+import { useT, type Text } from "../../lib/i18n";
 
 const useIsoLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
@@ -13,17 +15,13 @@ export interface BackTarget {
   /** Where back goes when this page was opened directly (no page of ours behind it). */
   to: string;
   /** What the button says then; otherwise it names the page behind, or reads "返回". */
-  label: string;
+  label: Text;
 }
 
-export function PhoneBar({ back, title, large = false, sub, leading, center, actions }: {
+export function PhoneBar({ back, title, leading, center, actions }: {
   back?: BackTarget;
-  /** The page's name. In the bar once the page's heading ([data-page-title]) is under it; with `large`,
-   *  also as the large heading below the bar. */
+  /** The page's name, shown in the bar once the page's heading ([data-page-title]) is under it. */
   title?: ReactNode;
-  large?: boolean;
-  /** A line under the large title. */
-  sub?: ReactNode;
   leading?: ReactNode;
   /** Always shown in the middle instead of the title (精选 | 全部). */
   center?: ReactNode;
@@ -33,38 +31,28 @@ export function PhoneBar({ back, title, large = false, sub, leading, center, act
   const titleShown = useHeadingUnderBar(!center && !!title);
   const wideCenter = !!center && !back && !leading;
   return (
-    <>
-      <header
-        data-phone-bar=""
-        className={`bleed sticky top-0 z-40 bg-bg/85 backdrop-blur-xl backdrop-saturate-150 transition-shadow duration-200 lg:hidden ${scrolled ? "shadow-[0_1px_0_var(--line-soft)]" : ""}`}
-      >
-        <div className={`-mx-2.5 grid h-[var(--bar-h)] items-center ${wideCenter ? "grid-cols-[minmax(0,1fr)_auto]" : "grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]"}`}>
-          {!wideCenter && <div className="flex min-w-0 items-center">{back ? <BackButton {...back} /> : leading}</div>}
-          {/* A title not shown yet takes no width, so the back label is not cut short before it appears. */}
-          <div className={`flex min-w-0 justify-center ${wideCenter ? "" : "max-w-[calc(100vw-184px)]"}`} style={!center && !titleShown ? { maxWidth: 0 } : undefined}>
-            {center ?? (
-              title && (
-                <span
-                  aria-hidden={!titleShown}
-                  className={`truncate text-[15.5px] font-semibold text-ink transition-[opacity,transform] duration-200 ${titleShown ? "translate-y-0 opacity-100" : "translate-y-1 opacity-0"}`}
-                >
-                  {title}
-                </span>
-              )
-            )}
-          </div>
-          <div className="flex min-w-0 items-center justify-end">{actions}</div>
+    <header
+      data-phone-bar=""
+      className={`bleed sticky top-0 z-40 bg-bg/85 backdrop-blur-xl backdrop-saturate-150 transition-shadow duration-200 lg:hidden ${scrolled ? "shadow-[0_1px_0_var(--line-soft)]" : ""}`}
+    >
+      <div className={`-mx-2.5 grid h-[var(--bar-h)] items-center ${wideCenter ? "grid-cols-[minmax(0,1fr)_auto]" : "grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]"}`}>
+        {!wideCenter && <div className="flex min-w-0 items-center">{back ? <BackButton {...back} /> : leading}</div>}
+        {/* A title not shown yet takes no width, so the back label is not cut short before it appears. */}
+        <div className={`flex min-w-0 justify-center ${wideCenter ? "" : "max-w-[calc(100vw-184px)]"}`} style={!center && !titleShown ? { maxWidth: 0 } : undefined}>
+          {center ?? (
+            title && (
+              <span
+                aria-hidden={!titleShown}
+                className={`truncate text-ui-body-plus font-semibold text-ink transition-[opacity,transform] duration-200 ${titleShown ? "translate-y-0 opacity-100" : "translate-y-1 opacity-0"}`}
+              >
+                {title}
+              </span>
+            )
+          )}
         </div>
-      </header>
-      {large && title && (
-        <div className="pb-3 pt-0.5 lg:hidden">
-          <h1 data-page-title="" className="text-[30px] font-bold leading-[1.25] tracking-[-0.01em] text-ink">
-            {title}
-          </h1>
-          {sub && <div className="mt-1 text-[12.5px] leading-relaxed text-ink-4">{sub}</div>}
-        </div>
-      )}
-    </>
+        <div className="flex min-w-0 items-center justify-end">{actions}</div>
+      </div>
+    </header>
   );
 }
 
@@ -72,12 +60,13 @@ export function PhoneBar({ back, title, large = false, sub, leading, center, act
 function BackButton({ to, label }: BackTarget) {
   const navigate = useNavigate();
   const { key } = useLocation();
-  const [text, setText] = useState(label);
+  const t = useT();
+  const [text, setText] = useState(t(label));
   useIsoLayoutEffect(() => {
-    if (historyIndex() === 0) return setText(label);
+    if (historyIndex() === 0) return setText(t(label));
     const behind = previousScreen();
-    setText(behind ? behind : "返回");
-  }, [key, label]);
+    setText(behind ? t(behind) : t("返回", "Back"));
+  }, [key, label, t]);
   return (
     <button
       type="button"
@@ -86,7 +75,7 @@ function BackButton({ to, label }: BackTarget) {
         if (historyIndex() > 0) navigate(-1);
         else navigate(to, { viewTransition: true });
       }}
-      className="flex h-11 min-w-11 items-center pl-1 pr-2 text-[16px] text-accent transition-opacity active:opacity-50"
+      className="flex h-11 min-w-11 items-center pl-1 pr-2 text-ui-body-lg text-accent transition-opacity active:opacity-50"
     >
       <IconChevronLeft size={25} strokeWidth={2.1} />
       <span className="max-w-[7em] truncate">{text}</span>

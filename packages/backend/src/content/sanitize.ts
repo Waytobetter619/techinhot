@@ -2,6 +2,7 @@
 // External HTML is never executed; images keep their original src and are signed at read time.
 import * as cheerio from "cheerio";
 import sanitizeHtml from "sanitize-html";
+import { addressRuns } from "@aihot/contracts/addresses";
 import { isNonArticleImage } from "../lib/image-url.ts";
 import { normalizeVideos } from "./video.ts";
 
@@ -13,17 +14,21 @@ const ALLOWED_TAGS = [
 
 /** A class naming a promotion block (msr-promo, promo-box …), not text such as "promotion". */
 const PROMO_CLASS = /(?:^|[-_])promo(?:$|[-_])/i;
+const RELATED_HEADING = /^related (?:articles|posts|stories|content|reading|coverage)$/i;
 
 /**
- * Drop promotions and non-video source elements before unknown containers are unwrapped. Rotating
- * promotions are not article material, and a nested fallback source is not a video candidate.
+ * Drop promotions, related story cards, and non-video source elements before their containers are
+ * unwrapped. Feed content can include the same changing recommendations as the publisher's page.
  */
 function dropNonBodyMarkup(html: string): string {
-  if (!/promo|<source\b/i.test(html)) return html;
+  if (!/promo|<source\b|<section\b/i.test(html)) return html;
   const $ = cheerio.load(html, null, false);
   $("source").filter((_, el) => !$(el).parent().is("video")).remove();
   $("[class]")
     .filter((_, el) => ($(el).attr("class") ?? "").split(/\s+/).some((c) => PROMO_CLASS.test(c)))
+    .remove();
+  $("section:has(article a[href])")
+    .filter((_, el) => RELATED_HEADING.test(collapse($(el).children("h2, h3").first().text())))
     .remove();
   return $.html();
 }
@@ -64,7 +69,7 @@ export function sanitizeBody(html: string, baseUrl?: string): string {
     transformTags: {
       h1: "h2",
       h6: "h5",
-      div: (tagName, attribs) => ({ tagName: "p", attribs }),
+      div: "p",
       section: "p",
       article: "p",
       a: (tagName, attribs) => ({
@@ -145,7 +150,7 @@ export function normalizeBlocks(html: string): string {
  */
 const TRAILING_CHROME = [
   /^topics$/i, /^tags?$/i, /^latest in [\p{L}\s&-]{1,30}$/iu, /^latest (?:news|stories)$/i, /^most (?:popular|read)$/i,
-  /^related (?:articles|posts|stories|content|reading|coverage)$/i, /^more (?:stories|articles|news)$/i, /^(?:keep reading|read next|up next)$/i,
+  RELATED_HEADING, /^more (?:stories|articles|news)$/i, /^(?:keep reading|read next|up next)$/i,
   /^(?:you (?:might|may) also like|recommended(?: for you)?)$/i, /^(?:subscribe|sign up)\b.{0,80}$/i, /^share (?:this|on)\b.{0,40}$/i,
   /^follow us\b.{0,40}$/i, /^advertisement$/i,
 ];
@@ -190,36 +195,17 @@ function resolveUrl(href: string, base?: string): string {
   }
 }
 
-const escHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+export const escHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-// A bare address ends at whitespace, CJK text, full-width punctuation or emoji; trailing sentence
-// punctuation belongs to the sentence, not the link.
-const BARE_URL = /https?:\/\/[^\s<>"^`{|}　-〿㐀-䶿一-鿿＀-￯぀-ヿ가-힯☀-➿️‍\u{1f300}-\u{1faff}]+/gu;
-const TRAILING_PUNCT = /[.,;:!?*'"”’»…、。，；：！？）\]】}」』》]+$/;
 const INLINE = /(`[^`\n]+`|\*\*[^*\n]+\*\*|\[[^\]\n]+\]\(https?:\/\/[^)\s]+\))/g;
-
-/** An address without a closing bracket it never opened ("(see https://a.b/c)" keeps its ")"). */
-function balanced(url: string): string {
-  let u = url;
-  while (u.endsWith(")") && (u.match(/\(/g)?.length ?? 0) < (u.match(/\)/g)?.length ?? 0)) u = u.slice(0, -1);
-  return u;
-}
 
 function link(href: string, text: string): string {
   return `<a href="${escHtml(href)}" target="_blank" rel="noopener noreferrer nofollow">${escHtml(text)}</a>`;
 }
 
-/** Escaped text with its bare addresses made into links. */
+/** Escaped text with its bare addresses made into links, read as the pages read them (addresses.ts). */
 function linkify(text: string): string {
-  let out = "";
-  let last = 0;
-  for (const m of text.matchAll(BARE_URL)) {
-    const url = balanced(m[0].replace(TRAILING_PUNCT, ""));
-    if (!/^https?:\/\/[^/]+\.[^/]/.test(url)) continue;
-    out += escHtml(text.slice(last, m.index)) + link(url, url);
-    last = m.index + url.length;
-  }
-  return out + escHtml(text.slice(last));
+  return addressRuns(text).map((run) => (typeof run === "string" ? escHtml(run) : link(run.href, run.text))).join("");
 }
 
 /** Inline code, **bold** and [text](url), then bare addresses; everything else escaped. */
@@ -236,12 +222,40 @@ function inline(text: string): string {
     .join("");
 }
 
-const LIST_ITEM = /^[ \t]*([-*+•]|\d+[.)])[ \t]+/;
-const ORDERED = /^[ \t]*\d+[.)][ \t]+/;
+/** A list line: a bullet and a space, or a number with "." or ")" and a space, or with a Chinese "、". */
+const LIST_ITEM = /^[ \t]*(?:[-*+•·▪◦●➤][ \t]+|(\d{1,3})(?:[.)][ \t]+|、[ \t]*))(?=\S)/;
 const QUOTE = /^[ \t]*>[ \t]?/;
 const HEADING = /^(#{1,6})[ \t]+(.+)$/;
 
-/** One blank-line separated block: fenced code, a quote, a list, a heading, or a paragraph. */
+/** Which list a line belongs to: numbered, bulleted, or none. */
+const listKind = (line: string): "ol" | "ul" | null => {
+  const m = LIST_ITEM.exec(line);
+  return m ? (m[1] ? "ol" : "ul") : null;
+};
+
+/** How many lines from `from` continue one list: lines of the same kind, and in `whole` only one-line blocks. */
+function listRun(lines: string[], from: number, whole = false): number {
+  const kind = whole && lines[from]!.includes("\n") ? null : listKind(lines[from]!);
+  let end = from;
+  while (kind && end < lines.length && !(whole && lines[end]!.includes("\n")) && listKind(lines[end]!) === kind) end++;
+  return end - from;
+}
+
+/** List lines as a list, an ordered one numbered from its first line's number. */
+function list(lines: string[]): string {
+  const first = LIST_ITEM.exec(lines[0]!)?.[1];
+  const tag = first ? "ol" : "ul";
+  const start = first && Number(first) !== 1 ? ` start="${Number(first)}"` : "";
+  return `<${tag}${start}>${lines.map((l) => `<li>${inline(l.replace(LIST_ITEM, ""))}</li>`).join("")}</${tag}>`;
+}
+
+const paragraph = (lines: string[]) => `<p>${lines.map(inline).join("<br>")}</p>`;
+
+/**
+ * One blank-line separated block: fenced code, a quote, a heading, or lines. Two or more list lines in a
+ * row are a list ("亮点：" and its "- " lines under it); the lines around them stay paragraphs, and a single
+ * numbered line stays text (a section title such as "1. 股票代码ANT").
+ */
 function block(para: string): string {
   if (para.startsWith("```")) {
     const code = para.replace(/^```[^\n]*\n?/, "").replace(/\n?```$/, "");
@@ -249,29 +263,44 @@ function block(para: string): string {
   }
   const lines = para.split("\n").filter((l) => l.trim());
   if (lines.length && lines.every((l) => QUOTE.test(l))) return `<blockquote><p>${lines.map((l) => inline(l.replace(QUOTE, ""))).join("<br>")}</p></blockquote>`;
-  if (lines.length > 1 && lines.every((l) => LIST_ITEM.test(l))) {
-    const tag = ORDERED.test(lines[0]!) ? "ol" : "ul";
-    return `<${tag}>${lines.map((l) => `<li>${inline(l.replace(LIST_ITEM, ""))}</li>`).join("")}</${tag}>`;
-  }
   const heading = lines.length === 1 ? HEADING.exec(lines[0]!) : null;
   if (heading) {
     const level = Math.min(heading[1]!.length + 1, 6);
     return `<h${level}>${inline(heading[2]!)}</h${level}>`;
   }
-  return `<p>${para.split("\n").map(inline).join("<br>")}</p>`;
+  let html = "";
+  let text: string[] = [];
+  for (let i = 0; i < lines.length;) {
+    const run = listRun(lines, i);
+    if (run < 2) {
+      text.push(lines[i++]!);
+      continue;
+    }
+    if (text.length) html += paragraph(text);
+    text = [];
+    html += list(lines.slice(i, i + run));
+    i += run;
+  }
+  return text.length ? html + paragraph(text) : html;
 }
 
 /**
  * Plain text to HTML, for sources that only give text (X posts, translations): paragraphs and line
  * breaks, the few Markdown marks people type (code, bold, links, lists, quotes, headings) and safe
- * links for bare addresses. The text is never taken as HTML.
+ * links for bare addresses. The text is never taken as HTML. A line of spaces parts paragraphs like an
+ * empty one, and list items written a blank line apart are still one list.
  */
 export function textToHtml(text: string): string {
-  return text
-    .replace(/\r\n?/g, "\n")
-    .split(/\n{2,}/)
-    .map((para) => para.trim())
-    .filter(Boolean)
-    .map(block)
-    .join("");
+  const paras = text.replace(/\r\n?/g, "\n").split(/\n(?:[ \t 　]*\n)+/).map((para) => para.trim()).filter(Boolean);
+  let html = "";
+  for (let i = 0; i < paras.length;) {
+    const run = listRun(paras, i, true);
+    if (run < 2) {
+      html += block(paras[i++]!);
+      continue;
+    }
+    html += list(paras.slice(i, i + run));
+    i += run;
+  }
+  return html;
 }

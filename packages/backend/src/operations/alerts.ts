@@ -6,14 +6,14 @@
 //           closed on its own: a fix removes it, and one judged not worth fixing is closed with a reason.
 // A finding with agentOnly is still now or today, but it only wakes the agent: nothing is sent when it
 // opens, nothing is sent when it clears, and it stays off the 09:00 digest.
-// A module can name those alerts as well, including `name:<item>`, so a row saved before the flag still closes quietly.
 // With an agent taking the alerts (notify/agent.ts), a now or today problem that is not the owner's own
 // (Finding.owner) is handed to the agent instead. The owner hears of it when the same problem is handed over
 // a third time in a day, or when it is still open HANDED_MS after the handoff, and from then on as above;
 // an incident the agent judged not a fault (holdAlert) is not told before its hold ends. The agent is not
-// woken for what is the owner's alone (owner "only"). While the channel to the agent fails, the owner hears everything again.
+// woken for what is the owner's alone (owner "only" or "private"). While the channel to the agent fails, the owner hears everything again.
 // The shared hub owns serial execution and retry; accepted events are never dispatched again here.
 // Delivery goes through sendAlert (alert webhook or ops chat, internal-chat fallback; off unless FEISHU_INTERNAL_ENABLED).
+import { randomUUID } from "node:crypto";
 import { addDays, beijingAt, beijingDate, beijingDay, beijingStamp, isValidDate } from "@aihot/contracts/time";
 import { ALERTS, EDITION_TIMES } from "@aihot/site";
 import { audit } from "../audit.ts";
@@ -50,7 +50,8 @@ const QUIET_MINUTES = Math.min(Number(process.env.ALERT_QUIET_MINUTES || ALERTS.
 const QUIET_FETCHING_MINUTES = Math.min(Math.max(ALERTS.quietWhileFetchingMinutes, QUIET_MINUTES), 1440);
 
 /** One check: the problems it finds now. `open` retains ongoing incidents, read once per round. */
-type Check = (now: number, open: AlertState) => Promise<Finding[]>;
+type FindingWithCoverage = Finding & { coveredSourceFailures?: string[] };
+type Check = (now: number, open: AlertState) => Promise<FindingWithCoverage[]>;
 
 /** Everything checked every round, in the order the findings are listed. */
 const CHECKS: Check[] = [
@@ -68,6 +69,7 @@ const CHECKS: Check[] = [
   moduleAlerts,
   // Follow-ups
   sourceFollowUps,
+  baiduPushFailing,
   unknownOutcomes,
   agentTransportFindings,
   waitingQueues,
@@ -76,10 +78,19 @@ const CHECKS: Check[] = [
 
 /** Everything wrong right now, with its level. */
 export async function collectFindings(now = Date.now(), open?: AlertState): Promise<Finding[]> {
+  return withoutCoveredFindings(await readFindings(now, open));
+}
+
+async function readFindings(now: number, open?: AlertState): Promise<FindingWithCoverage[]> {
   const announced = open ?? await alertState();
-  const out: Finding[] = [];
+  const out: FindingWithCoverage[] = [];
   for (const check of CHECKS) out.push(...(await check(now, announced)));
   return out;
+}
+
+function withoutCoveredFindings(findings: FindingWithCoverage[]): Finding[] {
+  const covered = new Set(findings.flatMap(finding => finding.coveredSourceFailures ?? []));
+  return findings.filter(finding => !covered.has(finding.key));
 }
 
 // Content flow, judged by outcome: whatever broke (worker, egress proxy, models, queues), readers see
@@ -104,6 +115,7 @@ async function contentCollection(now: number, open: AlertState): Promise<Finding
     impact: last?.at ? `读者看不到新文章：最后一篇收录于 ${beijingStamp(last.at)}` : "读者看不到新文章：一天内没有收录任何文章",
     heals: ALERTS.usualFlow ? `没有，${ALERTS.usualFlow}` : "没有",
     action: "把这条发给 AI 排查处理",
+    agentFirst: true,
     detail: quietFor <= QUIET_FETCHING_MINUTES * 60_000
       ? `editorial articles.discovered_at 超过 ${QUIET_MINUTES} 分钟没有新值，期间没有一次成功的 editorial fetch_runs（热度信号单独评估）；查 worker、sources.schedule、出网代理与采集失败`
       : `editorial articles.discovered_at 超过 ${QUIET_FETCHING_MINUTES} 分钟没有新值（采集仍成功也算）；查采集结果为何一直是 new_count=0：解析、去重与入库`,
@@ -118,32 +130,60 @@ async function contentCollection(now: number, open: AlertState): Promise<Finding
  * worker down meanwhile, so only a fetch that works again is recovery. Production, 30 days to 2026-10-28:
  * the egress proxy dropped on 10-05, 10-17 and 10-26 and 23–37% of the sources were failing at the worst;
  * at no other time more than 11.5%. Fewer than 50 failing sources are each one's own follow-up.
+ * A provider's own server error (`<service> HTTP 5xx:`, receipts.ts assertAccepted) proved the way out works:
+ * 2026-11-21 SocialData's search answered 500 for hours while every website fetched, and its X accounts alone
+ * were half the sources. Such an outage is told once and then daily: nobody here can make it heal sooner, but only
+ * when the provider's errors are many on their own; a few of them must not relabel a failing way out. A 4xx
+ * (a refused key, a used-up budget) is ours to fix and stays in the hourly count.
  */
 const FAILING_SHARE = 0.15;
 const FAILING_SOURCES = 50;
+const PROVIDER_ANSWER = "^([a-z_]+) HTTP 5[0-9]{2}:";
 
-async function sourcesFailing(now: number, open: AlertState): Promise<Finding[]> {
+async function sourcesFailing(now: number, open: AlertState): Promise<FindingWithCoverage[]> {
   if (!collecting() && !open["content.fetch"]) return [];
-  const latest = sql`SELECT r.status, r.error, r.started_at FROM sources s CROSS JOIN LATERAL (
+  const latest = sql`SELECT s.id, r.status, r.error, r.started_at FROM sources s CROSS JOIN LATERAL (
       SELECT status, error, started_at FROM fetch_runs f
       WHERE f.source_id = s.id AND f.status IN ('ok', 'failed') AND f.started_at <= ${new Date(now)}
       ORDER BY started_at DESC LIMIT 1) r
     WHERE s.enabled`;
-  const [r] = await sql<{ fetched: number; failing: number }[]>`
-    SELECT count(*)::int AS fetched, count(*) FILTER (WHERE status = 'failed')::int AS failing FROM (${latest}) l`;
-  if (!r || r.failing < FAILING_SOURCES || r.failing < r.fetched * FAILING_SHARE) return [];
+  const [r] = await sql<{ fetched: number; failing: number; answered: string[] | null }[]>`
+    SELECT count(*)::int AS fetched, count(*) FILTER (WHERE status = 'failed')::int AS failing,
+      array_agg(id) FILTER (WHERE status = 'failed' AND error ~ ${PROVIDER_ANSWER}) AS answered FROM (${latest}) l`;
+  const many = (n: number) => n >= FAILING_SOURCES && n >= r!.fetched * FAILING_SHARE;
+  if (!r || !many(r.failing)) return [];
+  const answered = r.answered ?? [];
   const errors = await sql<{ error: string; n: number; first: Date }[]>`
     SELECT left(coalesce(error, ''), 120) AS error, count(*)::int AS n, min(started_at) AS first FROM (${latest}) l
     WHERE status = 'failed' GROUP BY 1 ORDER BY 2 DESC`;
-  return [{
+  const detail = `失败信源占 ${Math.round((r.failing / r.fetched) * 100)}%（门槛 ${FAILING_SHARE * 100}% 且至少 ${FAILING_SOURCES} 个），其中服务商回了错误的 ${answered.length} 个；常见错误：${errors.slice(0, 3).map((e) => `${e.error || "（无）"} ×${e.n}`).join("；")}`;
+  const since = new Date(Math.min(...errors.map((e) => e.first.getTime())));
+  if (many(r.failing - answered.length) || !many(answered.length)) return [{
     key: "content.fetch",
     level: "now",
     title: "大量信源抓取失败，这些信源的新文章进不来",
     impact: `最近抓取过的 ${r.fetched} 个信源里，${r.failing} 个最近一次抓取失败，读者暂时看不到它们的新文章`,
     heals: "服务器连外网的线路恢复后会按排程重新抓取，这段时间的新文章会晚到；线路不恢复就一直进不来",
     action: "转给 AI 检查出网代理和抓取错误",
-    detail: `失败信源占 ${Math.round((r.failing / r.fetched) * 100)}%（门槛 ${FAILING_SHARE * 100}% 且至少 ${FAILING_SOURCES} 个）；常见错误：${errors.slice(0, 3).map((e) => `${e.error || "（无）"} ×${e.n}`).join("；")}`,
-    since: new Date(Math.min(...errors.map((e) => e.first.getTime()))),
+    detail,
+    since,
+  }];
+  const services = [...new Set(errors.map((e) => e.error.match(new RegExp(PROVIDER_ANSWER))?.[1]).filter((s): s is string => !!s))];
+  const names = services.map(providerName).join("、");
+  const stops = services.map((s) => provider(s)?.stops).filter(Boolean).join("，");
+  return [{
+    key: "content.fetch",
+    level: "today",
+    owner: "only",
+    title: `${names} 出故障，${stops || "经它抓取的信源进不来"}`,
+    impact: `最近抓取过的 ${r.fetched} 个信源里，${r.failing} 个最近一次抓取失败，其中 ${answered.length} 个是 ${names} 那边出错，读者暂时看不到它们的新内容`,
+    heals: `会，${names} 恢复后按排程重新抓取，这段时间的新内容会晚到`,
+    action: "不用处理，是对方的故障；恢复后会再发一条通知",
+    detail,
+    since,
+    // The provider alert already covers these failures. Other errors and other problems on the same
+    // source still need their own follow-up (2026-11-23: 55 copies of a single SocialData outage).
+    coveredSourceFailures: answered.map(id => `sources.failing.${id}`),
   }];
 }
 
@@ -206,7 +246,7 @@ async function contentProcessing(now: number, open: AlertState): Promise<Finding
   }];
 }
 
-// Content-group pushes the Feishu webhook refused (a removed bot, a changed address); nothing resends them.
+// Content-group pushes the group's webhook refused (a removed bot, a changed address); nothing resends them.
 async function refusedDeliveries(now: number, open: AlertState): Promise<Finding[]> {
   const incident = open["deliveries.failed"];
   const since = new Date((incident ? Date.parse(incident.since) : now) - 86400_000);
@@ -220,7 +260,7 @@ async function refusedDeliveries(now: number, open: AlertState): Promise<Finding
   return [{
     key: "deliveries.failed",
     level: "today",
-    title: "飞书内容群有推送没发出去",
+    title: `${refused!.target ?? "内容群"}有推送没发出去`,
     impact: `${refused!.n} 条通知尚未确认送达${refused!.target ?? "内容群"}`,
     heals: "不会自动重发",
     action: "转给 AI 处理；如果推送机器人被移出了群，需要你把它加回去",
@@ -258,6 +298,27 @@ async function backupAge(now: number): Promise<Finding[]> {
   return [];
 }
 
+/**
+ * Baidu's push (operations/baidu-push.ts) failing for a whole day: a revoked token or a site that lost its
+ * verification does not heal, while Baidu answering "please retry later" for an hour does. Readers see
+ * nothing; new pages reach Baidu later, so it is a follow-up.
+ */
+async function baiduPushFailing(now: number): Promise<Finding[]> {
+  const [r] = await sql<{ since: Date | null; error: string | null }[]>`
+    WITH last_ok AS (SELECT max(started_at) AS at FROM job_runs WHERE job = 'seo.baidu-push' AND status = 'ok')
+    SELECT min(f.started_at) AS since, (array_agg(f.error ORDER BY f.started_at DESC))[1] AS error
+    FROM job_runs f, last_ok
+    WHERE f.job = 'seo.baidu-push' AND f.status = 'failed' AND f.started_at > coalesce(last_ok.at, '-infinity') AND f.started_at <= ${new Date(now)}`;
+  if (!r?.since || now - r.since.getTime() < DAY_MS) return [];
+  return [{
+    key: "seo.baidu-push",
+    level: "later",
+    title: "百度主动推送一天没成功",
+    detail: `从 ${beijingStamp(r.since)} 起 seo.baidu-push 一直失败，最近一次：${(r.error ?? "").slice(0, 200)}；401 是令牌失效（百度搜索资源平台 · 普通收录 · API提交 重新取，写进生产 backend.env 的 BAIDU_PUSH_TOKEN），400 site error 是站点掉了验证（首页的 baidu-site-verification 标签）`,
+    since: r.since,
+  }];
+}
+
 /** What the site's modules find. */
 async function moduleAlerts(now: number): Promise<Finding[]> {
   const out: Finding[] = [];
@@ -281,14 +342,15 @@ async function sourceFollowUps(now: number): Promise<Finding[]> {
 async function unknownOutcomes(): Promise<Finding[]> {
   const out: Finding[] = [];
 
-  const [r] = await sql<{ receipts: number; services: string | null; deliveries: number }[]>`
+  const [r] = await sql<{ receipts: number; services: string | null; deliveries: number; targets: string | null }[]>`
     SELECT (SELECT count(*)::int FROM receipts WHERE ${awaitingRelease()}) AS receipts,
            (SELECT string_agg(DISTINCT service || '/' || purpose, '、') FROM receipts WHERE ${awaitingRelease()}) AS services,
-           (SELECT count(*)::int FROM deliveries WHERE status = 'unknown') AS deliveries`;
+           (SELECT count(*)::int FROM deliveries WHERE status = 'unknown') AS deliveries,
+           (SELECT string_agg(DISTINCT t.note, '、') FROM deliveries d JOIN notify_targets t ON t.key = d.target_key WHERE d.status = 'unknown') AS targets`;
   if (r!.receipts > 0) {
     out.push({ key: "receipts.unknown", level: "later", title: `${r!.receipts} 个付费请求的结果尚未确认`, detail: `${r!.services}；仍挡住内容发布的请求需核对计费或按已有授权放行` });
   }
-  if (r!.deliveries > 0) out.push({ key: "deliveries.unknown", level: "later", title: `${r!.deliveries} 条飞书内容群推送不确定是否送达`, detail: "核对飞书内容群里有没有发出，再标记或补发" });
+  if (r!.deliveries > 0) out.push({ key: "deliveries.unknown", level: "later", title: `${r!.deliveries} 条内容群推送不确定是否送达`, detail: `核对${r!.targets ?? "内容群"}里有没有发出，再标记或补发` });
   return out;
 }
 
@@ -324,12 +386,13 @@ const PROVIDERS: Record<string, { name: string; where: string; stops?: string }>
   jina: { name: "Jina", stops: "部分文章取不到正文", where: "Jina 后台" },
   dajiala: { name: "极致了（Dajiala）", stops: "公众号新文章收不到", where: "极致了后台" },
 };
-export const providerName = (service: string) => PROVIDERS[service]?.name ?? service;
+const provider = (service: string) => serverModules().find((module) => module.providers?.[service])?.providers?.[service] ?? PROVIDERS[service];
+export const providerName = (service: string) => provider(service)?.name ?? service;
 export const providerStops = async (service: string, models?: ReadonlySet<string>): Promise<string> => {
-  const p = PROVIDERS[service];
+  const p = provider(service);
   return p ? (p.stops ?? modelStops(service, models)) : "相关功能停了";
 };
-export const providerConsole = (service: string) => PROVIDERS[service]?.where ?? `${service} 后台`;
+export const providerConsole = (service: string) => provider(service)?.where ?? `${service} 后台`;
 
 const REFUSED_PREFIX = "provider.refused.";
 
@@ -350,37 +413,20 @@ async function providerFindings(now: number, open: AlertState): Promise<Finding[
     summary.n += p.n;
     models.set(key, summary);
   }
-  // Earlier versions combined every model under a service key without saving its scope. Freeze the
-  // unresolved models once for those existing events; their old timestamps cannot establish that scope.
-  for (const [key, incident] of Object.entries(open)) {
-    if (!key.startsWith(REFUSED_PREFIX) || key.includes(":") || incident.refusedModels) continue;
-    const service = key.slice(REFUSED_PREFIX.length);
-    incident.refusedModels = [...models.values()].filter(p => p.service === service).map(p => p.model);
-  }
-  const refused = new Map<string, { service: string; n: number; last: string; models?: Set<string> }>();
-  for (const [modelKey, p] of models) {
-    const legacyKey = `${REFUSED_PREFIX}${p.service}`;
-    const legacy = open[legacyKey];
-    const key = legacy?.refusedModels?.includes(p.model) ? legacyKey : modelKey;
+  for (const [key, p] of models) {
     if (!open[key] && p.latest <= now - 3600_000) continue;
-    const summary = refused.get(key) ?? { service: p.service, n: 0, last: p.last, models: new Set<string>() };
-    summary.n += p.n;
-    if (p.model === null) summary.models = undefined;
-    else summary.models?.add(p.model);
-    refused.set(key, summary);
-  }
-  for (const [key, p] of refused) {
     const service = p.service;
-    const unused = p.models && !PROVIDERS[service]?.stops && !(await stepsOnService(service, p.models)).length;
+    const scope = p.model === null ? undefined : new Set([p.model]);
+    const unused = scope && !provider(service)?.stops && !(await stepsOnService(service, scope)).length;
     out.push({
       key,
       level: unused ? "later" : "today",
       ...(unused ? {} : { owner: true as const }),
       title: unused ? `${providerName(service)} 的旧模型限制尚未验证` : `${providerName(service)} 拒绝调用，需要核对账号或额度`,
-      impact: unused ? "当前处理步骤未使用这些受限模型；旧限制仍未验证" : await providerStops(service, p.models),
+      impact: unused ? "当前处理步骤未使用这些受限模型；旧限制仍未验证" : await providerStops(service, scope),
       heals: "需先恢复访问，再确认失败任务已接续",
       action: `去${providerConsole(service)}看余额、套餐和消费上限；充值或恢复后让 AI 核实调用并补跑刚才失败的任务（后台看着都正常的话，也把这条发给 AI 查原因）`,
-      detail: `${p.models ? `模型 ${[...p.models].join("、")}；` : ""}最近一次成功后被拒 ${p.n} 次，尚未取得后续成功调用：${p.last}`,
+      detail: `${p.model !== null ? `模型 ${p.model}；` : ""}最近一次成功后被拒 ${p.n} 次，尚未取得后续成功调用：${p.last}`,
     });
   }
   const capped = await sql<{ service: string; per_day: number; used: number }[]>`
@@ -401,8 +447,22 @@ async function providerFindings(now: number, open: AlertState): Promise<Finding[
   return out;
 }
 
-interface AlertState {
-  [key: string]: { title: string; since: string; sentAt?: string; agentOnly?: true; handedAt?: string; refusedModels?: (string | null)[] };
+type PrivateNotice = ReturnType<typeof formatAlert> & { id: string; recovery: boolean };
+
+interface AlertEntry {
+  title: string;
+  since: string;
+  sentAt?: string;
+  agentOnly?: true;
+  privateOwner?: true;
+  privateNotice?: PrivateNotice;
+  handedAt?: string;
+}
+type AlertState = Record<string, AlertEntry>;
+
+async function saveAlertEntry(key: string, entry: AlertEntry) {
+  await sql`INSERT INTO settings (key, value, updated_by) VALUES ('alerts.state', ${sql.json({ [key]: entry } as never)}, 'alerts')
+            ON CONFLICT (key) DO UPDATE SET value = coalesce(settings.value, '{}'::jsonb) || EXCLUDED.value, updated_at = now()`;
 }
 
 const DAILY_PREFIX = "report.daily:";
@@ -514,8 +574,25 @@ export async function checkAlerts(now = Date.now()) {
   const returns = await returnsTold(now);
   const holds = await savedHolds();
   const sent: string[] = [];
+  async function tellPrivate(key: string, entry: AlertEntry, message: ReturnType<typeof formatAlert>, recovery = false) {
+    const notice = entry.privateNotice ?? { ...message, id: `alert-private-${randomUUID()}`, recovery };
+    if (!entry.privateNotice) {
+      // The hub may accept a notice before its response is lost. Keep its exact key and text across runs.
+      entry = { ...entry, privateNotice: notice };
+      await saveAlertEntry(key, entry);
+      state[key] = entry;
+    }
+    if (await sendAlert(notice.title, notice.lines, notice.id) === "pending") return;
+    if (notice.recovery) delete state[key];
+    else state[key] = { ...entry, sentAt: new Date(now).toISOString(), privateNotice: undefined };
+    sent.push(notice.recovery ? `${key}:recovered` : key);
+  }
+  for (const [key, entry] of Object.entries(state)) {
+    if (entry.privateNotice) await tellPrivate(key, entry, entry.privateNotice);
+  }
   for (const f of all) {
     const open = state[f.key];
+    if (open?.privateNotice) continue;
     if (f.level === "later") {
       // Switching before the first check changes the impact, not whether access has recovered.
       if (f.key.startsWith(REFUSED_PREFIX) && !open) state[f.key] = { title: f.title, since: new Date(now).toISOString() };
@@ -548,12 +625,11 @@ export async function checkAlerts(now = Date.now()) {
     // Claim AI was notified only after the hub actually accepts this incident's wake; persist the occurrence
     // timestamp first so a failed owner send or crash after waking cannot mint a second incident ID on retry.
     let woken = false;
-    if (handing && f.key !== "webhook.transport" && f.owner !== "only" && f.action === "把这条发给 AI 排查处理") {
+    if (handing && f.agentFirst) {
       if (!open) {
         const entry = { title: f.title, since: since.toISOString() };
         state[f.key] = entry;
-        await sql`INSERT INTO settings (key, value, updated_by) VALUES ('alerts.state', ${sql.json({ [f.key]: entry } as never)}, 'alerts')
-                  ON CONFLICT (key) DO UPDATE SET value = coalesce(settings.value, '{}'::jsonb) || ${sql.json({ [f.key]: entry } as never)}, updated_at = now()`;
+        await saveAlertEntry(f.key, entry);
       }
       woken = await wakeAgent({ ...f, since }, now);
     }
@@ -564,24 +640,33 @@ export async function checkAlerts(now = Date.now()) {
         ? { ...f, action: "已自动通知 AI 排查处理，修不好或要你拍板时会再找你；恢复后会再发一条通知" }
         : f;
     const msg = formatAlert(shown, since, now, !!open?.sentAt);
+    const entry = { ...open, title: f.title, since: since.toISOString() };
+    if (f.owner === "private") {
+      await tellPrivate(f.key, { ...entry, privateOwner: true }, msg);
+      continue;
+    }
     await sendAlert(msg.title, msg.lines);
-    state[f.key] = { ...open, title: f.title, since: since.toISOString(), sentAt: new Date(now).toISOString() };
+    state[f.key] = { ...entry, sentAt: new Date(now).toISOString() };
     sent.push(f.key);
   }
   const found = new Set(all.map((f) => f.key));
   const dailies = await settleDailies(state, found, now);
   sent.push(...dailies.sent);
   for (const [key, open] of Object.entries(state)) {
-    if (found.has(key) || dailies.missing.has(key)) continue;
+    if (found.has(key) || dailies.missing.has(key) || open.privateNotice) continue;
     // An agent-only incident was never told to the owner, so clearing it stays quiet too.
     if (open.agentOnly || !open.sentAt) {
       delete state[key];
       continue;
     }
-    const [dropped] = key === "deliveries.failed" ? await sql`SELECT count(*)::int AS n FROM deliveries d
-      WHERE d.status='failed' AND d.updated_at>${new Date(Date.parse(open.since)-86400_000)}
-        AND EXISTS(SELECT 1 FROM audit_log a WHERE a.action='delivery.drop' AND a.subject='delivery:' || d.id AND a.created_at>=d.updated_at)` : [];
     const msg = formatRecovery(open.title, new Date(open.since), now);
+    if (open.privateOwner) {
+      await tellPrivate(key, open, msg, true);
+      continue;
+    }
+    const [dropped] = key === "deliveries.failed" ? await sql`SELECT count(*)::int AS n FROM deliveries d
+      WHERE d.status IN ('failed','skipped') AND d.updated_at>${new Date(Date.parse(open.since)-86400_000)}
+        AND EXISTS(SELECT 1 FROM audit_log a WHERE a.action='delivery.drop' AND a.subject='delivery:' || d.id AND a.created_at>=d.updated_at)` : [];
     if (dropped?.n) await sendAlert(`已结束跟进：${open.title}`, [`${dropped.n} 条旧通知已决定不再补发，未确认送达`]);
     else await sendAlert(msg.title, msg.lines);
     sent.push(`${key}:${dropped?.n ? "closed" : "recovered"}`);
@@ -593,7 +678,7 @@ export async function checkAlerts(now = Date.now()) {
             ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`;
   // Revisit every open incident: a crash between saving the owner's alert and dispatching cannot lose it.
   // Transport receipts retain IDs across uncertain responses, independently from owner reminders.
-  for (const f of all) if (f.level !== "later" && f.key !== "webhook.transport" && f.owner !== "only" && state[f.key]) {
+  for (const f of all) if (f.level !== "later" && f.key !== "webhook.transport" && f.owner !== "only" && f.owner !== "private" && state[f.key]) {
     await wakeAgent({ ...f, since: new Date(state[f.key]!.since) }, now);
   }
   await flushAgentEvents();
@@ -665,10 +750,12 @@ export async function restoreFollowUp(key: string, reason: string, actor: string
 /** 09:00: the open follow-ups, one list; nothing when there are none. Closures whose problem is gone lapse here.
  *  Agent-only handoffs stay on the ops list and are not part of the owner's message. */
 export async function sendDigest(now = Date.now()) {
-  const found = (await collectFindings(now)).filter((f) => f.level === "later");
-  const dismissed = await dismissedFollowUps(found, now);
+  const findings = await readFindings(now);
+  // A source's closure remains in effect while a provider alert temporarily covers its failure.
+  const dismissed = await dismissedFollowUps(findings, now);
   const lapsed = Object.keys(await savedDismissals()).filter((key) => !dismissed[key]);
   if (lapsed.length) await sql`UPDATE settings SET value = value - ${sql.array(lapsed)}::text[], updated_at = now() WHERE key = 'alerts.dismissed'`;
+  const found = withoutCoveredFindings(findings).filter((f) => f.level === "later");
   const items = found.filter((f) => !dismissed[f.key] && !f.agentOnly);
   const lines = items.map((f, i) => `${i + 1}. ${f.title}${f.detail ? `\n   ${f.detail}` : ""}`);
   // Once the hub has the list, the agent works through it alone and passes on what is still the owner's. Without

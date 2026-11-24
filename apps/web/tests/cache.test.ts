@@ -1,8 +1,10 @@
+import { pollFor } from "../../../tests/poll.ts";
 // Run after `npm run build -w @aihot/web`. Real production server/router, synthetic HTTP API only.
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { ADMIN } from "@aihot/site";
 import { SIGN_IN_HOME } from "@aihot/contracts/admin";
+import { isPrivatePage } from "@aihot/contracts/http-policy";
 import { CATEGORY_KEYS } from "@aihot/contracts/taxonomy";
 import { UNSAFE_decodeViaTurboStream } from "react-router";
 import { fakeApi, startWebServer, type WebServer } from "./web-server.ts";
@@ -18,7 +20,7 @@ const api = fakeApi(async (url, res, req) => {
   if (url.pathname === "/api/site/meta") {
     // Past the deadline on the wall clock the server reads: timers run on another clock, and a CI VM
     // stepping its wall clock back mid-wait would otherwise answer before the deadline.
-    while (metaAfterDeadline && Date.now() < deadline * 1000 + 50) await new Promise((resolve) => setTimeout(resolve, deadline * 1000 + 50 - Date.now()));
+    if (metaAfterDeadline) await pollFor(() => Date.now() >= deadline * 1000 + 50, "upstream cache expiry");
     return { changelogVersion: "2026-09-28T12:00" };
   }
   if (url.pathname === "/api/site/timeline") {
@@ -136,6 +138,17 @@ test("admin data and actions never become public cache entries", async () => {
   await action.text();
 });
 
+test("gray pages are private like the admin's, whatever their route asks for", async () => {
+  for (const pathname of ["/preview", "/preview/", "/preview/models", "/Preview/models", "/admin", "/admin/runs", "/admin/expiry"]) assert.equal(isPrivatePage(pathname), true, pathname);
+  for (const pathname of ["/", "/previews", "/all", "/items/preview", "/administer"]) assert.equal(isPrivatePage(pathname), false, pathname);
+  for (const pathname of ["/preview/missing", "/preview/missing.data", "/preview/missing.data?_routes=root"]) {
+    const res = await fetch(origin + pathname);
+    assert.equal(res.headers.get("Cache-Control"), "private, no-store", pathname);
+    assert.equal(res.headers.get("X-Accel-Expires"), "0", pathname);
+    await res.text();
+  }
+});
+
 test("browser freshness shares the selected deadline, including slow sibling loaders", async () => {
   const savedDeadline = deadline;
   try {
@@ -195,20 +208,20 @@ test("browser caching preserves noindex and private sign-in responses", async ()
   assert.match(await feedback.text(), /name="robots" content="noindex/);
   assert.equal(feedback.headers.get("Cache-Control"), "public, max-age=300, s-maxage=300, must-revalidate");
   const login = await fetch(origin + "/admin/login");
-  assert.equal(login.status, 200);
+  assert.equal(login.status, ADMIN ? 200 : 404, "a site without admin pages has no admin sign-in either");
   assert.equal(login.headers.get("Cache-Control"), "private, no-store");
-  assert.equal(login.headers.get("X-Robots-Tag"), "noindex, nofollow");
+  if (ADMIN) assert.equal(login.headers.get("X-Robots-Tag"), "noindex, nofollow");
   await login.text();
 });
 
-test("a signed-in admin is sent past the sign-in page", async () => {
+test("a signed-in admin is sent past the sign-in page", { skip: !ADMIN && "this site has no admin pages" }, async () => {
   const api = fakeApi((url, res, req) => {
     if (url.pathname === "/api/admin/me") {
       if (req.headers.cookie?.includes("aihot_admin=fixture")) return { name: "Fixture admin", csrf: "fixture", dev: false };
       res.statusCode = 401;
       return { code: "unauthorized" };
     }
-    if (url.pathname === "/api/auth/options") return { password: true, feishu: false };
+    if (url.pathname === "/api/auth/options") return { password: true };
   });
   const signedIn = await startWebServer(api);
   try {
@@ -222,7 +235,7 @@ test("a signed-in admin is sent past the sign-in page", async () => {
       await away.text();
     }
     const anonymous = await fetch(`${signedIn.origin}/admin/login?return=%2Fadmin`, { redirect: "manual" });
-    assert.equal(anonymous.status, 200, "without a session the page still offers the ways in");
+    assert.equal(anonymous.status, 200, "without a session the page still offers the password sign-in");
     await anonymous.text();
   } finally {
     await signedIn.stop();

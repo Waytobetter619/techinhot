@@ -1,15 +1,16 @@
 // Public read layer, item level. Every exit (site API, v1, RSS, MCP, sitemap) reads
 // items through these columns and views; which rows are public is decided by scope.ts.
 import { CATEGORY_KEYS, toPublicApiCategory, type CategoryKey, type ChannelKey, type PublicApiCategoryKey } from "@aihot/contracts/taxonomy";
-import type { FeedItemSummary, ItemSummary, MediaView, XPostView } from "@aihot/contracts/site";
-import { POLICY } from "@aihot/site";
+import { STORY_INDEX_MIN_SOURCES, type FeedItemSummary, type ItemSummary, type MediaView, type XPostView } from "@aihot/contracts/site";
+import { itemUrl } from "./links.ts";
+import { POLICY, SITE } from "@aihot/site";
 import { sql, type Db } from "../db.ts";
 import { isChineseText } from "../lib/text.ts";
 import { isEmptyOrLinkOnly, withXArticle } from "../content/posts.ts";
 import { proxiedImage, proxiedImageSet } from "../media/imgproxy.ts";
 import { sourceOwnsPost } from "../sources/account.ts";
 import { displayTags, publicSourceName } from "./rules.ts";
-import { foldableSelectionCondition, seatedCondition } from "./scope.ts";
+import { foldableSelectionCondition, seatedCondition, storyReportCondition } from "./scope.ts";
 
 export interface ItemRow {
   id: string;
@@ -30,14 +31,16 @@ export interface ItemRow {
   seat: boolean;
   visibility: string;
   body_mode: "full" | "summary";
+  suppress_original?: boolean;
   indexable: boolean;
   fact_id: number | null;
+  source_id: string;
   source_name: string;
   /** Participation mode of the source now (editorial, hot_signal, isolated). */
   source_mode: string;
   x_post: Record<string, any> | null;
-  /** Saved long article, projected only where the publication allows full text. */
-  x_article: { title?: string; text?: string } | null;
+  /** Saved long article, projected only where the publication allows full text; lists leave out its page HTML. */
+  x_article: { title?: string; text?: string; html?: string | null } | null;
   /** Current source icon only when that account is this post's author. */
   author_avatar_url?: string | null;
   author: string | null;
@@ -49,22 +52,62 @@ export interface ItemRow {
   quoted_zh: string | null;
 }
 
+/** The article fields shared by the website, API, Agent tools and both RSS formats. */
+export const PUBLIC_ITEM_COLUMNS = sql`p.article_id AS id, p.title, p.summary, p.url, p.category, p.published_at, s.name AS source_name`;
+
 /** Columns every item listing selects. Internal judgement details never leave this layer. */
 export const ITEM_COLUMNS = sql`
-  p.article_id AS id, p.title, p.original_title, p.summary, p.reason, p.category, p.tags, p.score,
-  p.selected, p.seat, p.channel, p.url, p.published_at, p.discovered_at, p.timeline_at, p.visibility,
-  p.body_mode, p.indexable, p.fact_id, s.name AS source_name, s.participation_mode AS source_mode,
-  a.x_post, CASE WHEN p.body_mode = 'full' THEN a.x_article END AS x_article, a.author, a.language,
-  CASE WHEN s.kind = 'x_search' AND ${sourceOwnsPost(sql`s.config`, sql`a.x_post->>'handle'`)} THEN s.icon_url END AS author_avatar_url,
+  ${PUBLIC_ITEM_COLUMNS}, p.original_title, p.reason, p.tags, p.score,
+  p.selected, p.seat, p.channel, p.discovered_at, p.timeline_at, p.visibility,
+  p.body_mode, p.suppress_original, p.indexable, p.fact_id, s.id AS source_id, s.participation_mode AS source_mode,
+  CASE WHEN NOT p.suppress_original THEN a.x_post END AS x_post,
+  CASE WHEN p.body_mode = 'full' THEN a.x_article - 'html' END AS x_article,
+  a.author, a.language,
+  CASE WHEN NOT p.suppress_original AND s.kind = 'x_search' AND ${sourceOwnsPost(sql`s.config`, sql`a.x_post`)} THEN s.icon_url END AS author_avatar_url,
   st.public_id::text AS story_public_id, st.title AS story_title,
-  CASE WHEN p.channel = 'x' THEN tr.body_text END AS zh_text, qt.text_zh AS quoted_zh`;
+  CASE WHEN p.channel = 'x' AND NOT p.suppress_original THEN tr.body_text END AS zh_text,
+  CASE WHEN NOT p.suppress_original THEN qt.text_zh END AS quoted_zh`;
 
 /** Public API listings never render article bodies, X media or story metadata. */
 export type ApiItemRow = Pick<ItemRow, "id" | "title" | "original_title" | "summary" | "source_name" | "url" | "published_at" | "discovered_at" | "category" | "score" | "selected" | "reason">;
 /** `selected` is the machine meaning: the report holds its fact's selected seat (scope.ts seatedCondition). */
 export const API_ITEM_COLUMNS = sql`
-  p.article_id AS id, p.title, p.original_title, p.summary, s.name AS source_name, p.url,
-  p.published_at, p.discovered_at, p.category, p.score, (p.selected AND p.seat) AS selected, p.reason`;
+  ${PUBLIC_ITEM_COLUMNS}, p.original_title, p.discovered_at, p.score, (p.selected AND p.seat) AS selected, p.reason`;
+export interface V1ItemPayload {
+  id: string;
+  title: string;
+  originalTitle: string | null;
+  summary: string | null;
+  source: { name: string };
+  links: { aihot: string; original: string };
+  publishedAt: string | null;
+  discoveredAt: string;
+  category: string | null;
+  score: number | null;
+  selected: boolean;
+  reason: string | null;
+  attribution: { name: string; url: string };
+}
+
+export function rowToV1(p: ApiItemRow): V1ItemPayload {
+  const aihot = itemUrl(p.id);
+  return {
+    id: p.id,
+    title: p.title,
+    originalTitle: p.original_title,
+    summary: p.summary,
+    source: { name: p.source_name },
+    links: { aihot, original: p.url },
+    publishedAt: p.published_at ? p.published_at.toISOString() : null,
+    discoveredAt: p.discovered_at.toISOString(),
+    category: toPublicApiCategory(p.category),
+    score: p.score === null ? null : Math.round(Number(p.score)),
+    selected: p.selected,
+    reason: p.selected ? p.reason : null,
+    attribution: { name: SITE.name, url: aihot },
+  };
+}
+
 export const API_ITEM_FROM = sql`FROM publications p JOIN sources s ON s.id = p.source_id`;
 
 /** A translation of an older revision is left out: the original changed after it (the worker translates it again). */
@@ -74,7 +117,7 @@ export const ITEM_FROM = sql`
   JOIN articles a ON a.id = p.article_id
   LEFT JOIN stories st ON st.id = p.story_id AND st.merged_into IS NULL
   LEFT JOIN translations tr ON tr.article_id = p.article_id AND tr.lang = 'zh' AND tr.revision >= a.revision
-  LEFT JOIN quote_translations qt ON p.channel = 'x' AND qt.tweet_id = substring(a.x_post->'quoted'->>'url' from '/status/([0-9]+)')`;
+  LEFT JOIN quote_translations qt ON p.channel = 'x' AND qt.tweet_id = coalesce(a.x_post->'quoted'->>'tweetId', substring(a.x_post->'quoted'->>'url' from '/status/([0-9]+)'))`;
 
 export function channelCondition(channel: ChannelKey | null | undefined) {
   if (!channel || channel === "all") return sql``;
@@ -138,6 +181,7 @@ export function xView(row: Pick<ItemRow, "x_post" | "zh_text"> & Partial<Pick<It
     // Stored X translations cover the post alone. Never label that introduction as the whole long article.
     translation: !row.x_article?.text && !isEmptyOrLinkOnly(String(x.text ?? "")) && row.zh_text && row.zh_text.trim() !== String(x.text ?? "").trim() ? row.zh_text : null,
     quoted,
+    article: !!row.x_article?.text,
     // A multi-image list grid is 112 CSS px wide; one image can be 240 px. Keep 3x pixels for both.
     // Detail retains full media for the lightbox; srcSet bounds the displayed image.
     media: media.map(({ raw, view }) => compact && media.length > 1 ? mediaView(raw, "card", responsive)! : view),
@@ -148,8 +192,50 @@ export function xView(row: Pick<ItemRow, "x_post" | "zh_text"> & Partial<Pick<It
  * Whether pages show an X post's own text and media. A site that counts them as full text shows them
  * only where the source allows full text, as it does an article's body.
  */
-export function showsPost(row: { channel: string; body_mode: string }): boolean {
-  return row.channel === "x" && (!POLICY.xPostIsFullText || row.body_mode === "full");
+export function showsPost(row: { channel: string; body_mode: string; suppress_original?: boolean }): boolean {
+  return row.channel === "x" && !row.suppress_original && (!POLICY.xPostIsFullText || row.body_mode === "full");
+}
+
+/** A page's own text shorter than this is one standard post's worth (280 characters) or less. */
+export const THIN_PAGE_CHARS = 300;
+
+/**
+ * A thin article page, over ITEM_FROM: its own text, as the page shows it (the post with its long article
+ * where pages show posts, else the full text), runs under THIN_PAGE_CHARS, so the page says no more than its
+ * summary (about 150 characters) already does. Google is asked not to index such a page (googlebot noindex)
+ * and the sitemap leaves it out, so Google's fetches go to events, reports and full articles. Every other
+ * engine indexes it as `indexable` says, and change notifications keep it. A page an editor marked for
+ * indexing is never thin. Counted on the article itself, never its translation, so a translation arriving
+ * later does not flip the decision.
+ */
+export function thinPageCondition() {
+  const post = POLICY.xPostIsFullText
+    ? sql`p.channel = 'x' AND p.body_mode = 'full'`
+    : sql`p.channel = 'x' AND NOT p.suppress_original`;
+  return sql`(p.seo_indexed_at IS NULL AND CASE
+    WHEN ${post} THEN char_length(CASE WHEN a.x_post IS NULL THEN coalesce(a.body_text, '') ELSE coalesce(a.x_post->>'text', '') END)
+      + CASE WHEN p.body_mode = 'full' THEN char_length(coalesce(a.x_article->>'text', '')) ELSE 0 END
+    WHEN p.body_mode = 'full' AND a.body_html IS NOT NULL THEN char_length(coalesce(a.body_text, ''))
+    ELSE 0 END < ${THIN_PAGE_CHARS})`;
+}
+
+/** The article's own event (`st`, over ITEM_FROM) is covered by STORY_INDEX_MIN_SOURCES distinct public sources or more. */
+export function storyIndexableCondition(now: Date) {
+  return sql`(st.id IS NOT NULL AND (
+    SELECT count(DISTINCT p.source_id) FROM facts f JOIN fact_articles fa ON fa.fact_id = f.id
+    JOIN publications p ON p.article_id = fa.article_id JOIN sources s ON s.id = p.source_id
+    WHERE f.story_id = st.id AND ${storyReportCondition(now)}) >= ${STORY_INDEX_MIN_SOURCES})`;
+}
+
+/**
+ * The article's own event (`st`, over ITEM_FROM) is covered by STORY_INDEX_MIN_SOURCES distinct public sources
+ * or more, so the event page stands for them in search. As with a thin page, Google is asked not to index the
+ * article (googlebot noindex) and the sitemap leaves it out; every other engine indexes it as `indexable`
+ * says, and change notifications keep it. A page an editor marked for indexing stays. The sources are counted
+ * as the event page counts them; inside the count, `p` and `s` are the event's reports, not the article.
+ */
+export function eventPageCondition(now: Date) {
+  return sql`(p.seo_indexed_at IS NULL AND ${storyIndexableCondition(now)})`;
 }
 
 /** The shared public article; its X post is added as each answer shows it. */
@@ -160,7 +246,7 @@ export function toItemSummary(row: ItemRow): ItemSummary {
     originalTitle: row.original_title,
     summary: row.summary,
     reason: row.selected ? row.reason : null,
-    source: { name: publicSourceName(row.source_name) },
+    source: { id: row.source_id, name: publicSourceName(row.source_name) },
     links: { original: row.url },
     publishedAt: row.published_at?.toISOString() ?? null,
     discoveredAt: row.discovered_at.toISOString(),
@@ -184,7 +270,7 @@ export function toFeedItemSummary(row: ItemRow): FeedItemSummary {
     category: item.category, tags: item.tags, score: item.score, selected: item.selected, channel: item.channel,
     x: x ? {
       authorName: x.authorName, handle: x.handle, avatarUrl: x.avatarUrl,
-      ...(x.avatarSrcSet ? { avatarSrcSet: x.avatarSrcSet } : {}), media: x.media,
+      ...(x.avatarSrcSet ? { avatarSrcSet: x.avatarSrcSet } : {}), media: x.media, article: x.article,
       quoted: x.quoted ? { authorName: x.quoted.authorName, handle: x.quoted.handle, text: x.quoted.text, translation: x.quoted.translation } : null,
     } : null,
   };

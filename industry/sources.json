@@ -1128,6 +1128,570 @@
       ],
       "site_fulltext": false,
       "syndicate_fulltext": false
+    },
+    {
+      "id": "x-openai",
+      "name": "OpenAI（X）",
+      "kind": "x_search",
+      "config": {
+        "query": "from:OpenAI -filter:replies",
+        "searchType": "Latest",
+        "publisherRole": "organization"
+      },
+      "tier": "T1_5",
+      "participation_mode": "editorial",
+      "interval_minutes": 60,
+      "tags": [
+        "X",
+        "官方"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "owner_entity_id": "openai"
+    },
+    {
+      "id": "x-anthropicai",
+      "name": "Anthropic（X）",
+      "kind": "x_search",
+      "config": {
+        "query": "from:AnthropicAI -filter:replies",
+        "searchType": "Latest",
+        "publisherRole": "organization"
+      },
+      "tier": "T1_5",
+      "participation_mode": "editorial",
+      "interval_minutes": 60,
+      "tags": [
+        "X",
+        "官方"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "owner_entity_id": "anthropic"
+    },
+    {
+      "id": "x-googledeepmind",
+      "name": "Google DeepMind（X）",
+      "kind": "x_search",
+      "config": {
+        "query": "from:GoogleDeepMind -filter:replies",
+        "searchType": "Latest",
+        "publisherRole": "organization"
+      },
+      "tier": "T1_5",
+      "participation_mode": "editorial",
+      "interval_minutes": 60,
+      "tags": [
+        "X",
+        "官方"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "owner_entity_id": "google"
+    },
+    {
+      "id": "x-xai",
+      "name": "xAI（X）",
+      "kind": "x_search",
+      "config": {
+        "query": "from:xai -filter:replies",
+        "searchType": "Latest",
+        "publisherRole": "organization"
+      },
+      "tier": "T1_5",
+      "participation_mode": "editorial",
+      "interval_minutes": 60,
+      "tags": [
+        "X",
+        "官方"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "owner_entity_id": "xai"
+    },
+    {
+      "id": "x-aiatmeta",
+      "name": "AI at Meta（X）",
+      "kind": "x_search",
+      "config": {
+        "query": "from:AIatMeta -filter:replies",
+        "searchType": "Latest",
+        "publisherRole": "organization"
+      },
+      "tier": "T1_5",
+      "participation_mode": "editorial",
+      "interval_minutes": 60,
+      "tags": [
+        "X",
+        "官方"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "owner_entity_id": "meta"
+    },
+    {
+      "id": "x-deepseek_ai",
+      "name": "DeepSeek（X）",
+      "kind": "x_search",
+      "config": {
+        "query": "from:deepseek_ai -filter:replies",
+        "searchType": "Latest",
+        "publisherRole": "organization"
+      },
+      "tier": "T1_5",
+      "participation_mode": "editorial",
+      "interval_minutes": 60,
+      "tags": [
+        "X",
+        "官方"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "owner_entity_id": "deepseek"
+    },
+    {
+      "id": "x-alibaba_qwen",
+      "name": "Qwen（X）",
+      "kind": "x_search",
+      "config": {
+        "query": "from:Alibaba_Qwen -filter:replies",
+        "searchType": "Latest",
+        "publisherRole": "organization"
+      },
+      "tier": "T1_5",
+      "participation_mode": "editorial",
+      "interval_minutes": 60,
+      "tags": [
+        "X",
+        "官方"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "owner_entity_id": "qwen"
+    },
+    {
+      "id": "x-sama",
+      "name": "Sam Altman",
+      "kind": "x_search",
+      "config": {
+        "query": "from:sama -filter:replies",
+        "searchType": "Latest",
+        "publisherRole": "person"
+      },
+      "tier": "T1_5",
+      "participation_mode": "editorial",
+      "interval_minutes": 60,
+      "tags": [
+        "X",
+        "人物"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "owner_entity_id": "openai"
+    },
+    {
+      "id": "x-gdb",
+      "name": "Greg Brockman",
+      "kind": "x_search",
+      "config": {
+        "query": "from:gdb -filter:replies",
+        "searchType": "Latest",
+        "publisherRole": "person"
+      },
+      "tier": "T1_5",
+      "participation_mode": "editorial",
+      "interval_minutes": 60,
+      "tags": [
+        "X",
+        "人物"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "owner_entity_id": "openai"
+    },
+    {
+      "id": "x-demishassabis",
+      "name": "Demis Hassabis",
+      "kind": "x_search",
+      "config": {
+        "query": "from:demishassabis -filter:replies",
+        "searchType": "Latest",
+        "publisherRole": "person"
+      },
+      "tier": "T1_5",
+      "participation_mode": "editorial",
+      "interval_minutes": 60,
+      "tags": [
+        "X",
+        "人物"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "owner_entity_id": "google"
+    },
+    {
+      "id": "x-sundarpichai",
+      "name": "Sundar Pichai",
+      "kind": "x_search",
+      "config": {
+        "query": "from:sundarpichai -filter:replies",
+        "searchType": "Latest",
+        "publisherRole": "person"
+      },
+      "tier": "T1_5",
+      "participation_mode": "editorial",
+      "interval_minutes": 60,
+      "tags": [
+        "X",
+        "人物"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "owner_entity_id": "google"
+    },
+    {
+      "id": "x-jeffdean",
+      "name": "Jeff Dean",
+      "kind": "x_search",
+      "config": {
+        "query": "from:JeffDean -filter:replies",
+        "searchType": "Latest",
+        "publisherRole": "person"
+      },
+      "tier": "T1_5",
+      "participation_mode": "editorial",
+      "interval_minutes": 60,
+      "tags": [
+        "X",
+        "人物"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "owner_entity_id": "google"
+    },
+    {
+      "id": "x-officiallogank",
+      "name": "Logan Kilpatrick",
+      "kind": "x_search",
+      "config": {
+        "query": "from:OfficialLoganK -filter:replies",
+        "searchType": "Latest",
+        "publisherRole": "person"
+      },
+      "tier": "T1_5",
+      "participation_mode": "editorial",
+      "interval_minutes": 60,
+      "tags": [
+        "X",
+        "人物"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "owner_entity_id": "google"
+    },
+    {
+      "id": "x-satyanadella",
+      "name": "Satya Nadella",
+      "kind": "x_search",
+      "config": {
+        "query": "from:satyanadella -filter:replies",
+        "searchType": "Latest",
+        "publisherRole": "person"
+      },
+      "tier": "T1_5",
+      "participation_mode": "editorial",
+      "interval_minutes": 60,
+      "tags": [
+        "X",
+        "人物"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "owner_entity_id": "microsoft"
+    },
+    {
+      "id": "x-jackclarksf",
+      "name": "Jack Clark",
+      "kind": "x_search",
+      "config": {
+        "query": "from:jackclarkSF -filter:replies",
+        "searchType": "Latest",
+        "publisherRole": "person"
+      },
+      "tier": "T1_5",
+      "participation_mode": "editorial",
+      "interval_minutes": 60,
+      "tags": [
+        "X",
+        "人物"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "owner_entity_id": "anthropic"
+    },
+    {
+      "id": "x-elonmusk",
+      "name": "Elon Musk（仅 AI 相关）",
+      "kind": "x_search",
+      "config": {
+        "query": "from:elonmusk -filter:replies (Grok OR xAI OR AI OR Colossus OR Nvidia)",
+        "searchType": "Latest",
+        "publisherRole": "person"
+      },
+      "tier": "T1_5",
+      "participation_mode": "editorial",
+      "interval_minutes": 60,
+      "tags": [
+        "X",
+        "人物"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "owner_entity_id": "xai"
+    },
+    {
+      "id": "x-karpathy",
+      "name": "Andrej Karpathy（X）",
+      "kind": "x_search",
+      "config": {
+        "query": "from:karpathy -filter:replies",
+        "searchType": "Latest"
+      },
+      "tier": "T2",
+      "participation_mode": "editorial",
+      "interval_minutes": 60,
+      "tags": [
+        "X",
+        "人物"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "x-ylecun",
+      "name": "Yann LeCun",
+      "kind": "x_search",
+      "config": {
+        "query": "from:ylecun -filter:replies",
+        "searchType": "Latest"
+      },
+      "tier": "T2",
+      "participation_mode": "editorial",
+      "interval_minutes": 60,
+      "tags": [
+        "X",
+        "人物"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "x-andrewyng",
+      "name": "Andrew Ng",
+      "kind": "x_search",
+      "config": {
+        "query": "from:AndrewYNg -filter:replies",
+        "searchType": "Latest"
+      },
+      "tier": "T2",
+      "participation_mode": "editorial",
+      "interval_minutes": 60,
+      "tags": [
+        "X",
+        "人物"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "x-drjimfan",
+      "name": "Jim Fan",
+      "kind": "x_search",
+      "config": {
+        "query": "from:DrJimFan -filter:replies",
+        "searchType": "Latest"
+      },
+      "tier": "T2",
+      "participation_mode": "editorial",
+      "interval_minutes": 60,
+      "tags": [
+        "X",
+        "人物"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "x-fchollet",
+      "name": "François Chollet",
+      "kind": "x_search",
+      "config": {
+        "query": "from:fchollet -filter:replies",
+        "searchType": "Latest"
+      },
+      "tier": "T2",
+      "participation_mode": "editorial",
+      "interval_minutes": 60,
+      "tags": [
+        "X",
+        "人物"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "x-emollick",
+      "name": "Ethan Mollick（X）",
+      "kind": "x_search",
+      "config": {
+        "query": "from:emollick -filter:replies",
+        "searchType": "Latest"
+      },
+      "tier": "T2",
+      "participation_mode": "editorial",
+      "interval_minutes": 60,
+      "tags": [
+        "X",
+        "人物"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "x-swyx",
+      "name": "swyx",
+      "kind": "x_search",
+      "config": {
+        "query": "from:swyx -filter:replies",
+        "searchType": "Latest"
+      },
+      "tier": "T2",
+      "participation_mode": "editorial",
+      "interval_minutes": 60,
+      "tags": [
+        "X",
+        "人物"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-federal-register-bis",
+      "name": "美国商务部 BIS（联邦公报）",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.federalregister.gov/api/v1/documents.rss?conditions%5Bagencies%5D%5B%5D=industry-and-security-bureau&order=newest",
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "地缘"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-federal-register-ustr",
+      "name": "美国贸易代表办公室 USTR（联邦公报）",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.federalregister.gov/api/v1/documents.rss?conditions%5Bagencies%5D%5B%5D=trade-representative-office-of-united-states&order=newest",
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "地缘"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-cset",
+      "name": "CSET（乔治城大学安全与新兴技术中心）",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://cset.georgetown.edu/feed/",
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T2",
+      "participation_mode": "editorial",
+      "interval_minutes": 180,
+      "tags": [
+        "智库",
+        "地缘"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-chinatalk",
+      "name": "ChinaTalk",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.chinatalk.media/feed",
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T2",
+      "participation_mode": "editorial",
+      "interval_minutes": 180,
+      "tags": [
+        "地缘"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-semianalysis",
+      "name": "SemiAnalysis",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://newsletter.semianalysis.com/feed",
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T2",
+      "participation_mode": "editorial",
+      "interval_minutes": 180,
+      "tags": [
+        "芯片",
+        "地缘"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-pekingnology",
+      "name": "Pekingnology",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.pekingnology.com/feed",
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T2",
+      "participation_mode": "editorial",
+      "interval_minutes": 180,
+      "tags": [
+        "地缘"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false
     }
   ]
 }

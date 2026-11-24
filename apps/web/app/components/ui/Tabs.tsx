@@ -1,8 +1,8 @@
 import { useLayoutEffect, useRef, type ReactNode } from "react";
-import { Link } from "react-router";
 import { IntentLink } from "./IntentLink";
 import { useEntrance } from "../../lib/hydration";
 import { reducedMotion } from "../../lib/motion";
+import { Link } from "../../lib/link";
 
 /** Where each switch's thumb sat when it last left, relative to its track. */
 const thumbs = new Map<string, { left: number; width: number; at: number }>();
@@ -43,6 +43,8 @@ export interface TabItem {
   label: ReactNode;
   /** Link target; tabs without one call onSelect. */
   to?: string;
+  /** Link relationship (e.g. "nofollow" for filtered views crawlers are kept from). */
+  rel?: string;
   /** Prefetch the page when the reader presses the tab (IntentLink). */
   prefetchOnPress?: boolean;
   replace?: boolean;
@@ -52,9 +54,9 @@ export interface TabItem {
 }
 
 const SIZES = {
-  md: "h-11 px-4 text-[14px] lg:h-9",
-  sm: "h-11 px-3.5 text-[13px] lg:h-8",
-  xs: "h-11 px-3 text-[12.5px] lg:h-7",
+  md: "h-11 px-4 text-ui-body-sm lg:h-9",
+  sm: "h-11 px-3.5 text-ui-label lg:h-8",
+  xs: "h-11 px-3 text-ui-caption-lg lg:h-7",
 } as const;
 
 /**
@@ -101,7 +103,7 @@ export function PillTabs({
           const cls = `relative inline-flex shrink-0 select-none items-center justify-center whitespace-nowrap rounded-full font-medium outline-offset-1 transition-colors duration-150 active:scale-[0.98] ${SIZES[size]} ${on ? "text-ink" : "text-ink-3 hover:text-ink"}`;
           const TabLink = t.prefetchOnPress ? IntentLink : Link;
           return t.to ? (
-            <TabLink key={t.key} to={t.to} replace={t.replace} preventScrollReset={!t.resetScroll} aria-current={on ? "page" : undefined} className={cls}>
+            <TabLink key={t.key} to={t.to} rel={t.rel} replace={t.replace} preventScrollReset={!t.resetScroll} aria-current={on ? "page" : undefined} className={cls}>
               {inner}
             </TabLink>
           ) : (

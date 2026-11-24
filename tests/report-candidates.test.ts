@@ -1,8 +1,8 @@
+import { pollFor } from "./poll.ts";
 import { editionAt, gate, tag } from "./setup.ts";
 // A selected item released across the daily edition time must appear in the next issue exactly once.
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
-import { setTimeout as delay } from "node:timers/promises";
 import { closeDb, sql } from "@aihot/backend/db";
 import { upsertMaterial } from "@aihot/backend/content/materials";
 import { stopBoss } from "@aihot/backend/jobs/queue";
@@ -94,11 +94,10 @@ test("reports assign delayed and boundary releases to the period readers first s
 
 /** Observe an actual PostgreSQL lock wait before advancing the clock or releasing the transaction. */
 async function waitForBlocked(blocker: number, operation: Promise<unknown>) {
-  const deadline = performance.now() + 5_000;
-  while (!(await sql`SELECT 1 FROM pg_stat_activity WHERE ${blocker} = ANY(pg_blocking_pids(pid))`)[0]) {
-    if (performance.now() >= deadline) assert.fail("operation did not wait for the held transaction");
-    await Promise.race([operation.then(() => assert.fail("operation finished before the held transaction committed")), delay(10)]);
-  }
+  await Promise.race([
+    pollFor(async () => (await sql`SELECT 1 FROM pg_stat_activity WHERE ${blocker} = ANY(pg_blocking_pids(pid))`)[0], "held transaction to block the operation"),
+    operation.then(() => assert.fail("operation finished before the held transaction committed")),
+  ]);
 }
 
 for (const lock of ["article", "fact seat", "report snapshot"] as const) {
@@ -129,11 +128,11 @@ for (const lock of ["article", "fact seat", "report snapshot"] as const) {
       await holding;
       await publication;
 
-      const [published] = await sql<{ visible_after: Date; visible_at: Date }[]>`
-        SELECT p.visible_after, l.visible_at FROM publications p JOIN selected_ledger l ON l.article_id = p.article_id
+      const [published] = await sql<{ visible_after: Date; changed_at: Date }[]>`
+        SELECT p.visible_after, l.changed_at FROM publications p JOIN selected_ledger l ON l.article_id = p.article_id
         WHERE p.article_id = ${id} ORDER BY l.seq DESC LIMIT 1`;
       assert.equal(published!.visible_after.toISOString(), editionAt("daily", "2020-01-02", 10).toISOString());
-      assert.equal(published!.visible_at.toISOString(), published!.visible_after.toISOString());
+      assert.equal(published!.changed_at.toISOString(), published!.visible_after.toISOString());
       const boundary = editionAt("daily", "2020-01-02");
       assert.equal((await candidates(editionAt("daily", "2020-01-01"), boundary)).some((c) => c.itemId === id), false);
       assert.equal((await candidates(boundary, editionAt("daily", "2020-01-03"))).some((c) => c.itemId === id), true);

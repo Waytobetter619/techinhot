@@ -1,11 +1,10 @@
+import { pollFor } from "./poll.ts";
 // Recovery must finish the same evaluation that failed, and commit the release, queue and audit together.
 import { gate, pointModels, Reply, stub, tag } from "./setup.ts";
 import { analysisStep, SELECTING_SCORE } from "./analysis-steps.ts";
 import assert from "node:assert/strict";
-import { setTimeout as delay } from "node:timers/promises";
 import { after, afterEach, before, test } from "node:test";
 import { closeDb, sql } from "@aihot/backend/db";
-import { config } from "@aihot/backend/config";
 import { groupArticle } from "@aihot/backend/events/group";
 import { upsertMaterial } from "@aihot/backend/content/materials";
 import { rerun } from "@aihot/backend/admin/content";
@@ -52,7 +51,7 @@ afterEach(async () => {
 async function article(name: string) {
   return (await upsertMaterial({ sourceId: SOURCE, url: `https://example.org/${T}/${name}`, title: `AI model ${T} ${name}`,
     bodyText: `AI lab release ${T} ${name}. ` + "The new model includes benchmark and price details. ".repeat(12),
-    bodyStatus: "ok", via: "fetch", backfill: "test fixture", publishedAt: new Date() })).articleId;
+    bodyStatus: "ok", via: "fetch", backfill: "test fixture", publishedAt: new Date(Date.now() - 60_000) })).articleId;
 }
 
 /** Wakes this process's analysis workers to fetch now, instead of waiting out their polling interval. */
@@ -65,11 +64,7 @@ async function wakeAnalysis() {
 const queuedMinuteAgo = () => sql`UPDATE pgboss.job SET start_after = start_after - interval '1 minute' WHERE name = ${QUEUES.analyze} AND state = 'created'`;
 
 async function waitFor(check: () => Promise<boolean>) {
-  const deadline = Date.now() + 15_000;
-  while (!(await check())) {
-    assert.ok(Date.now() < deadline, "queue did not settle");
-    await delay(20);
-  }
+  await pollFor(check, "queue to settle", 15_000);
 }
 
 test("a failed audit rolls back the receipt release and the processing job", async () => {
@@ -194,7 +189,7 @@ test("a late refusal for an old revision preserves the new revision's completed 
   await asked.promise;
   try {
     await upsertMaterial({ sourceId: SOURCE, url: `https://example.org/${T}/revision-race`, title: `Corrected ${T}`,
-      bodyText: "A different corrected article body. ".repeat(30), bodyStatus: "ok", via: "fetch", publishedAt: new Date() });
+      bodyText: "A different corrected article body. ".repeat(30), bodyStatus: "ok", via: "fetch", publishedAt: new Date(Date.now() - 60_000) });
     heldFailure = null;
     original = true;
     assert.equal((await processArticle(id)).state, "block");
@@ -226,30 +221,4 @@ test("historical analysis queues a free identity confirmation behind live news",
   assert.equal(provider.hits(), hits, "historical grouping calls no model");
   const [a] = await sql`SELECT grouping_status FROM articles WHERE id=${id}`;
   assert.equal(a!.grouping_status, "complete");
-});
-
-// Failure mode: a site that collects before its model key arrives, or with MODEL_CALLS_ENABLED=false, spends
-// every retry on "model calls are disabled" (about 14 hours) and its whole backlog ends "failed" for good.
-test("switched-off model calls keep the article waiting without spending its retries", async () => {
-  const id = await article("model-off");
-  config.modelCallsEnabled = false;
-  const hits = provider.hits();
-  try {
-    // More attempts than there are retry intervals: enough to exhaust them if each one counted.
-    for (let i = 0; i < 12; i++) await processArticle(id);
-    const [a] = await sql`SELECT processing_state, processing_attempts, processing_error, processing_retry_at FROM articles WHERE id=${id}`;
-    assert.equal(a!.processing_state, "new", "the article waits; it is not the article that failed");
-    assert.equal(a!.processing_attempts, 0, "nothing was sent, so no retry is spent");
-    assert.match(a!.processing_error!, /MODEL_CALLS_ENABLED=false/);
-    assert.ok(a!.processing_retry_at && new Date(a!.processing_retry_at) > new Date(Date.now() + 30 * 60_000), "it is looked at again later, not spun on every sweep");
-    assert.equal(provider.hits(), hits, "switched-off model calls never reach the provider");
-  } finally {
-    config.modelCallsEnabled = true;
-  }
-  // The same article is processed normally once calls are switched on.
-  await processArticle(id);
-  const [a] = await sql`SELECT processing_state, processing_attempts, processing_error FROM articles WHERE id=${id}`;
-  assert.equal(a!.processing_state, "analyzed");
-  assert.equal(a!.processing_attempts, 0);
-  assert.equal(a!.processing_error, null);
 });

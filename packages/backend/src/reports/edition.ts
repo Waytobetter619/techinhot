@@ -5,8 +5,10 @@
 // with a new fact; an event with an official post and three or more independent participants is
 // carried even when none of its reports was selected; entries rank by importance (score, the day's
 // independent participants, first-hand), and the first one leads. Sections are the industry pack's
-// (industry/taxonomy.ts CATEGORIES).
+// (industry/taxonomy.ts CATEGORIES). A thin issue's highlights are filled from the window's best reports it
+// left out (dailyPicks).
 import { addDays } from "@aihot/contracts/time";
+import { SELECTION } from "@aihot/industry/selection";
 import { CATEGORIES } from "@aihot/industry/taxonomy";
 import { sql } from "../db.ts";
 import { currentSignals } from "../events/hot.ts";
@@ -14,12 +16,25 @@ import { pickRepresentative, representativePriority, REPRESENTATIVE_COLUMNS, typ
 import { factSources } from "../publication/coverage.ts";
 import { evidenceCondition, listedCondition, ownFactEvidenceCondition } from "../publication/scope.ts";
 
+export interface ReportSectionDef { key: string; label: string }
+
+/** Each distinct report section in pack order, keyed by the first immutable category key that owns it. */
+export const SECTIONS: readonly ReportSectionDef[] = (() => {
+  const seen = new Map<string, ReportSectionDef>();
+  for (const c of CATEGORIES) if (!seen.has(c.section)) seen.set(c.section, { key: c.key, label: c.section });
+  return [...seen.values()];
+})();
 /** Each category's section; several categories may share one, in the order the pack lists them. */
 export const SECTION_OF: Record<string, string> = Object.fromEntries(CATEGORIES.map((c) => [c.key, c.section]));
-export const SECTION_ORDER: readonly string[] = [...new Set(CATEGORIES.map((c) => c.section))];
+export const SECTION_ORDER: readonly string[] = SECTIONS.map((s) => s.label);
+export const SECTION_KEY_ORDER: readonly string[] = SECTIONS.map((s) => s.key);
+export const SECTION_KEY_OF: Record<string, string> = Object.fromEntries(
+  CATEGORIES.map((c) => [c.key, SECTIONS.find((s) => s.label === c.section)!.key]),
+);
 /** An item without a category goes into the section of the industry category, else into the last one. */
-const DEFAULT_SECTION = SECTION_OF.industry ?? SECTION_ORDER.at(-1)!;
-export const sectionOf = (category: string | null) => SECTION_OF[category ?? ""] ?? DEFAULT_SECTION;
+const DEFAULT_SECTION_DEF = SECTIONS.find((s) => s.label === SECTION_OF.industry) ?? SECTIONS.at(-1)!;
+export const sectionOf = (category: string | null) => SECTION_OF[category ?? ""] ?? DEFAULT_SECTION_DEF.label;
+export const sectionKeyOf = (category: string | null) => SECTION_KEY_OF[category ?? ""] ?? DEFAULT_SECTION_DEF.key;
 
 /** A daily's size: the entries readers get in full, and the one-line flashes after them. */
 export const MAIN_ENTRIES = 12;
@@ -43,6 +58,8 @@ export interface ReportEntry {
   sourceUrl: string;
   sourceId: string;
   firstParty: boolean;
+  /** Official first-hand maker or spokesperson (representativePriority < 3); replaces role-text checks. */
+  official?: boolean;
   role: string;
   score: number | null;
   publishedAt: string;
@@ -92,7 +109,17 @@ type ReportRow = RepresentativeIdentity & {
 
 const REPORT_FIELDS = sql`p.article_id AS id, p.title, p.summary, p.url, p.category, p.tags, p.score, (s.tier = 'T1') AS first_party, p.body_mode, p.timeline_at,
   ${REPRESENTATIVE_COLUMNS}, s.id AS source_id, s.name AS source_name, s.kind AS source_kind,
-  f.id AS fact_id, f.public_id AS fact_public_id, st.id AS story_id, st.public_id::text AS story_public_id`;
+  f.id AS fact_id, f.public_id AS fact_public_id, live_st.id AS story_id, live_st.public_id::text AS story_public_id`;
+
+/** Resolves f.story_id through any merged_into chain to the surviving live story. */
+const LIVE_STORY_JOIN = sql`LEFT JOIN LATERAL (
+  WITH RECURSIVE chain AS (
+    SELECT id, public_id, merged_into FROM stories WHERE id = f.story_id
+    UNION ALL
+    SELECT s.id, s.public_id, s.merged_into FROM stories s JOIN chain c ON s.id = c.merged_into
+  )
+  SELECT id, public_id FROM chain WHERE merged_into IS NULL LIMIT 1
+) live_st ON f.story_id IS NOT NULL`;
 
 /**
  * The selected reports a period [start, end) carries. Each counts once, in the period readers first saw
@@ -109,7 +136,7 @@ export async function periodReports(start: Date, end: Date): Promise<ReportRow[]
       SELECT ${REPORT_FIELDS}
       FROM publications p JOIN sources s ON s.id = p.source_id
       LEFT JOIN facts f ON f.id = p.fact_id AND ${ownFactEvidenceCondition()}
-      LEFT JOIN stories st ON st.id = f.story_id
+      ${LIVE_STORY_JOIN}
       -- Attribute each item by the later of arrival and release; either range can use its index.
       WHERE p.visibility = 'public' AND p.selected AND NOT p.backfill
         AND (
@@ -128,10 +155,11 @@ function roleOf(kind: string, official: boolean): string {
 }
 
 function reportEntry(r: ReportRow): ReportEntry {
+  const official = representativePriority(r) < 3;
   return {
     itemId: r.id, factId: r.fact_public_id, storyPublicId: r.story_public_id, title: r.title, summary: r.summary ?? "",
-    sourceName: r.source_name, sourceUrl: r.url, sourceId: r.source_id, firstParty: r.first_party,
-    role: roleOf(r.source_kind, representativePriority(r) < 3), score: r.score, publishedAt: r.timeline_at.toISOString(),
+    sourceName: r.source_name, sourceUrl: r.url, sourceId: r.source_id, firstParty: r.first_party, official,
+    role: roleOf(r.source_kind, official), score: r.score, publishedAt: r.timeline_at.toISOString(),
   };
 }
 
@@ -179,7 +207,7 @@ export async function periodEntries(startDate: string, endDate: string): Promise
     SELECT ${REPORT_FIELDS}
     FROM publications p JOIN sources s ON s.id = p.source_id
     LEFT JOIN facts f ON f.id = p.fact_id AND ${ownFactEvidenceCondition()}
-    LEFT JOIN stories st ON st.id = f.story_id
+    ${LIVE_STORY_JOIN}
     WHERE p.article_id = ANY(${[...new Set(carried.map((c) => c.id))]}::text[]) AND p.visibility = 'public' AND p.eligible`;
   const byId = new Map(rows.map((r) => [r.id, r]));
   const events = groupBy(carried.filter((c) => byId.has(c.id)), (c) => {
@@ -203,18 +231,59 @@ export function citedIn(content: Record<string, any>): Array<Record<string, any>
   return [...entries, ...entries.flatMap((e: any) => e.related ?? [])];
 }
 
+/** A report a thin issue's highlights are filled with scored at least what any source needs to be selected. */
+const PICK_FLOOR = Math.min(...Object.values(SELECTION.thresholds));
+
+/**
+ * Reports to fill a thin issue's highlights with (a weekend's issue often carries a single entry): the
+ * window's best scored editorial reports the editors did not select, best first (then the earlier), one per
+ * event, none of an event this issue or the week's issues carried or their highlights showed, and none
+ * scored below PICK_FLOOR. Every selected report is already a candidate of its own issue (periodReports),
+ * which may be the next one; and what highlights showed never keeps a report out of a later issue's body
+ * (citedIn leaves them out): a report confirmed after the cutoff, or an official post on the same news, is
+ * carried in full there. A report withdrawn later stays cited and is shown as withdrawn, as an entry is.
+ */
+export async function dailyPicks(date: string, start: Date, end: Date, issue: EditionEntry[], count: number): Promise<ReportEntry[]> {
+  if (count <= 0) return [];
+  const memory = await dailyMemory(date, true);
+  const cited = issue.flatMap((e) => [e.entry, ...(e.entry.related ?? [])]);
+  const keys = new Set([...memory.keys, ...cited.flatMap((c) => [c.factId, `a:${c.itemId}`]).filter((k): k is string => !!k)]);
+  const storyIds = new Set<number>([...memory.stories.keys(), ...issue.map((e) => e.storyId).filter((id): id is number => id !== null)]);
+  const storyPublicIds = new Set<string>(cited.map((c) => c.storyPublicId).filter((id): id is string => !!id));
+  const rows = await sql<ReportRow[]>`
+    SELECT ${REPORT_FIELDS}
+    FROM publications p JOIN sources s ON s.id = p.source_id
+    LEFT JOIN facts f ON f.id = p.fact_id AND ${ownFactEvidenceCondition()}
+    ${LIVE_STORY_JOIN}
+    WHERE ${listedCondition(end)} AND NOT p.selected AND s.participation_mode = 'editorial' AND NOT p.backfill
+      AND p.timeline_at >= ${start} AND p.timeline_at < ${end} AND p.score >= ${PICK_FLOOR}
+    ORDER BY p.score DESC, p.timeline_at, p.article_id`;
+  const picks: ReportEntry[] = [];
+  const events = new Set<string>();
+  for (const r of rows) {
+    const event = r.story_id === null ? factKeyOf(r) : `s:${r.story_id}`;
+    if (events.has(event) || keys.has(factKeyOf(r)) || keys.has(`a:${r.id}`)) continue;
+    if (r.story_id !== null && (storyIds.has(r.story_id) || (r.story_public_id && storyPublicIds.has(r.story_public_id)))) continue;
+    events.add(event);
+    picks.push(reportEntry(r));
+    if (picks.length === count) break;
+  }
+  return picks;
+}
+
 /**
  * What the issues of the week before `date` carried: their facts and reports, which are not repeated,
- * and their events with the latest issue and headline that covered each. Facts and events are also
- * read from the cited reports' current grouping, so a later merge or regrouping still counts.
+ * and their events with the latest issue and headline that covered each; with `picks`, also what their
+ * highlights were filled with (dailyPicks). Facts and events are also read from the cited reports'
+ * current grouping, so a later merge or regrouping still counts.
  */
-export async function dailyMemory(date: string): Promise<{ keys: Set<string>; stories: Map<number, { key: string; title: string }> }> {
+export async function dailyMemory(date: string, picks = false): Promise<{ keys: Set<string>; stories: Map<number, { key: string; title: string }> }> {
   const issues = await sql<{ key: string; content: Record<string, any> }[]>`
     SELECT key, content FROM reports WHERE kind = 'daily' AND key < ${date} AND key >= ${addDays(date, -MEMORY_DAYS)} ORDER BY key DESC`;
   const keys = new Set<string>();
   const cited = new Map<string, { key: string; title: string }>();
   for (const issue of issues) {
-    for (const it of citedIn(issue.content)) {
+    for (const it of [...citedIn(issue.content), ...(picks ? issue.content.picks ?? [] : [])]) {
       if (it.factId) keys.add(String(it.factId));
       if (!it.itemId) continue;
       keys.add(`a:${it.itemId}`);
@@ -224,8 +293,9 @@ export async function dailyMemory(date: string): Promise<{ keys: Set<string>; st
   const stories = new Map<number, { key: string; title: string }>();
   if (cited.size === 0) return { keys, stories };
   const current = await sql<{ id: string; fact_public_id: string | null; story_id: number | null }[]>`
-    SELECT p.article_id AS id, f.public_id AS fact_public_id, f.story_id FROM publications p
+    SELECT p.article_id AS id, f.public_id AS fact_public_id, live_st.id AS story_id FROM publications p
     LEFT JOIN facts f ON f.id = p.fact_id AND ${ownFactEvidenceCondition()}
+    ${LIVE_STORY_JOIN}
     WHERE p.article_id = ANY(${[...cited.keys()]}::text[])`;
   for (const c of current) {
     if (c.fact_public_id) keys.add(c.fact_public_id);
@@ -264,7 +334,7 @@ async function missedFacts(start: Date, end: Date): Promise<Array<{ key: string;
   const rows = await sql<ReportRow[]>`
     SELECT ${REPORT_FIELDS}
     FROM fact_articles fa JOIN publications p ON p.article_id = fa.article_id JOIN sources s ON s.id = p.source_id
-    JOIN facts f ON f.id = fa.fact_id LEFT JOIN stories st ON st.id = f.story_id
+    JOIN facts f ON f.id = fa.fact_id ${LIVE_STORY_JOIN}
     WHERE fa.fact_id = ANY(${found.map((f) => f.fact_id)}::bigint[]) AND ${evidenceCondition()} AND ${listedCondition(end)}
       AND s.participation_mode = 'editorial' AND s.tier <> 'EXCLUDE_MP' AND NOT p.backfill AND p.timeline_at < ${end}`;
   return [...groupBy(rows, factKeyOf)]

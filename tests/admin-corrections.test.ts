@@ -1,3 +1,4 @@
+import { pollFor } from "./poll.ts";
 import { createHmac } from "node:crypto";
 import { config } from "@aihot/backend/config";
 import { tag } from "./setup.ts";
@@ -23,7 +24,7 @@ if (!ADMIN) registerAdmin(app);
 after(async () => { await app.close(); await stopBoss(); await closeDb(); });
 
 async function article() {
-  return (await upsertMaterial({ sourceId, url: `https://example.com/${tag()}`, title: "审查材料", bodyText: "正文", bodyStatus: "ok", via: "fetch", publishedAt: new Date() })).articleId;
+  return (await upsertMaterial({ sourceId, url: `https://example.com/${tag()}`, title: "审查材料", bodyText: "正文", bodyStatus: "ok", via: "fetch", publishedAt: new Date(Date.now() - 60_000) })).articleId;
 }
 
 test("concurrent source intake creates one source for the same feed", async () => {
@@ -36,12 +37,10 @@ test("concurrent source intake creates one source for the same feed", async () =
   try {
     // Hold inserts until all four requests have reached a lock: reproduce simultaneous clicks,
     // independently of how quickly the database happens to execute their duplicate checks.
-    for (let i = 0; ; i++) {
+    await pollFor(async () => {
       const [waiting] = await sql`SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'`;
-      if (waiting!.n === 4) break;
-      assert.ok(i < 200, "all concurrent requests reached the database");
-      await new Promise((resolve) => setTimeout(resolve, 10));
-    }
+      return waiting!.n === 4;
+    }, "concurrent requests to reach the database lock");
   } finally {
     await blocker`ROLLBACK`;
     blocker.release();
@@ -145,12 +144,9 @@ test("a rejected SEO correction leaves both the decision and public indexing unc
 test("bad admin input is a client error and never starts processing", async () => {
   const token = `admin-session-${T}`;
   const [user] = await sql`INSERT INTO admin_users (display_name) VALUES ('Review') RETURNING id`;
-  const claims = { appId: "test-session-app", unionId: "test-session-user", email: null };
-  process.env.FEISHU_LOGIN_APP_ID = claims.appId;
-  process.env.FEISHU_LOGIN_APP_SECRET = "test-app-secret";
-  config.adminUnionIds = [claims.unionId];
-  const binding = createHmac("sha256", process.env.SESSION_SECRET!).update(JSON.stringify(["admin-session-v1", "feishu", claims])).digest("hex");
-  await sql`INSERT INTO admin_sessions (id_hash, user_id, csrf_token, expires_at, auth_method, auth_binding, auth_claims) VALUES (${sha256(token)}, ${user!.id}, 'review-csrf', now() + interval '1 hour', 'feishu', ${binding}, ${sql.json(claims)})`;
+  config.adminPassword = "admin-corrections-test-password";
+  const binding = createHmac("sha256", process.env.SESSION_SECRET!).update(JSON.stringify(["admin-session-v1", "password", config.adminPassword])).digest("hex");
+  await sql`INSERT INTO admin_sessions (id_hash, user_id, csrf_token, expires_at, auth_method, auth_binding) VALUES (${sha256(token)}, ${user!.id}, 'review-csrf', now() + interval '1 hour', 'password', ${binding})`;
   const headers = { cookie: `aihot_admin=${token}`, "x-csrf-token": "review-csrf", "idempotency-key": `invalid-${T}` };
   const source = await app.inject({ method: "POST", url: "/api/admin/sources", headers, payload: { id: "bad" } });
   assert.equal(source.statusCode, 400);
@@ -160,4 +156,38 @@ test("bad admin input is a client error and never starts processing", async () =
   assert.equal(response.statusCode, 400);
   const [state] = await sql`SELECT processing_state FROM articles WHERE id = ${id}`;
   assert.equal(state!.processing_state, "analyzed");
+});
+
+test("contentChain sees provenance audits, isolates selected deliveries, tag override keeps entity:* and modelsOverview prices retired models by recorded service", async () => {
+  const { contentChain } = await import("@aihot/backend/admin/content");
+  const { modelsOverview } = await import("@aihot/backend/admin/models");
+  const { audit } = await import("@aihot/backend/audit");
+  const id = await article();
+  await sql`INSERT INTO analyses (article_id, input_revision, origin, relevance, summary_zh, tags, subjects, selected)
+            VALUES (${id}, 1, 'rule', 'pass', '摘要', ARRAY['模型发布'], ARRAY['openai'], false)`;
+  await sql`INSERT INTO editorial_overrides (article_id, fields, reason, updated_by)
+            VALUES (${id}, ${sql.json({ tags: ["开源/仓库"] })}, '人工改标签', 'test')`;
+  await publishArticle(id);
+  const [pub] = await sql<{ tags: string[] }[]>`SELECT tags FROM publications WHERE article_id = ${id}`;
+  assert.ok(pub!.tags.includes("开源/仓库") && pub!.tags.includes("entity:openai"), "manual display tags keep entity:* topic membership");
+
+  await audit("system", "article.attribution", `content:${id}`, "provenance", { sourceId: "old" }, { sourceId: "new" });
+  const target = `test-other-delivery-${T}`;
+  await sql`INSERT INTO notify_targets (key, purpose, kind, enabled) VALUES (${target}, 'content', 'log', false)`;
+  await sql`INSERT INTO deliveries (target_key, subject_kind, subject_id, dedupe_key, status)
+            VALUES (${target}, 'other_kind', ${id}, ${`other:${id}`}, 'sent')`;
+  const chain = await contentChain(id);
+  assert.ok(chain!.history.some((h) => h.action === "article.attribution"), "provenance audit is visible on contentChain");
+  assert.equal(chain!.deliveries.length, 0, "unrelated subject_kind deliveries do not leak into contentChain");
+
+  await sql`INSERT INTO service_prices (service, model, currency, input_per_mtok, output_per_mtok)
+            VALUES ('deepseek', ${`retired-${T}`}, 'CNY', 2, 4) ON CONFLICT DO NOTHING`;
+  const [rcpt] = await sql<{ id: number }[]>`INSERT INTO receipts (logical_key, service, purpose, subject, status, request)
+            VALUES (${`retired:${T}`}, 'deepseek', 'summarize_article', ${`article:${id}`}, 'received', ${sql.json({ promptVersion: "v1" })}) RETURNING id`;
+  await sql`INSERT INTO receipt_attempts (receipt_id, attempt, service, status, origin, model, latency_ms, usage)
+            VALUES (${rcpt!.id}, 1, 'deepseek', 'received', 'live', ${`retired-${T}`}, 100, ${sql.json({ prompt_tokens: 1_000_000, completion_tokens: 500_000 })})`;
+  const overview = await modelsOverview(7);
+  const row = overview.capabilities.find((c) => c.key === "summarize")?.usage.find((u) => u.model === `retired-${T}`);
+  assert.equal(row?.service, "deepseek");
+  assert.deepEqual(row?.estimate, { amount: 4, currency: "CNY" });
 });

@@ -10,6 +10,7 @@ import { closeDb, sql } from "@aihot/backend/db";
 import { upsertMaterial } from "@aihot/backend/content/materials";
 import { mergeStories, moveToFact, requestRegroup } from "@aihot/backend/events/corrections";
 import { groupArticle } from "@aihot/backend/events/group";
+import { heatRows } from "@aihot/backend/events/hot";
 import { queueProcessing, settleNonEditorial } from "@aihot/backend/jobs/content";
 import { stopBoss } from "@aihot/backend/jobs/queue";
 import { publishArticle } from "@aihot/backend/publication/publish";
@@ -96,7 +97,7 @@ after(async () => {
 });
 
 test("a discussion post that came before any report is grouped again when a report founds its fact", async () => {
-  const { articleId: postId } = await upsertMaterial({ sourceId: SIGNAL, url: `https://example.com/sig-${T}-post`, title: `AMD to acquire ${TOPIC}`, via: "fetch", publishedAt: new Date() });
+  const { articleId: postId } = await upsertMaterial({ sourceId: SIGNAL, url: `https://example.com/sig-${T}-post`, title: `AMD to acquire ${TOPIC}`, via: "fetch", publishedAt: new Date(Date.now() - 60_000) });
   await queueProcessing(postId);
   const queued = await job(postId);
   assert.deepEqual([queued?.name, queued?.priority, queued?.data.signalOnly], ["events.group", -1, true], "straight to grouping, behind reports");
@@ -118,6 +119,91 @@ test("a discussion post that came before any report is grouped again when a repo
   assert.equal(again.storyId, founded.storyId);
 });
 
+test("a revised discussion post replaces its old story's heat and removes it when no story matches", async () => {
+  const markers = [`VA${T}`, `VB${T}`, `VC${T}`];
+  markers.forEach((m, i) => VECTORS.set(m, direction(80 + i, [1])));
+  const at = new Date(Date.now() - 60_000);
+  const first = await groupArticle(await report("revision-first", { title: `Launch ${markers[0]}`, publishedAt: at }));
+  const second = await groupArticle(await report("revision-second", { title: `Security issue ${markers[1]}`, publishedAt: at }));
+  const material = (marker: string) => ({ sourceId: SIGNAL, url: `https://example.com/sig-${T}-revision`, title: `Discussion ${marker}`, bodyText: `Discussion ${marker}`, bodyStatus: "ok" as const, via: "fetch" as const, publishedAt: at });
+  const { articleId } = await upsertMaterial(material(markers[0]!));
+  await settleNonEditorial(articleId);
+  assert.equal((await groupArticle(articleId, { signalOnly: true })).storyId, first.storyId);
+  const participants = async () => {
+    const rows = await heatRows(new Date(), [], [first.storyId!, second.storyId!]);
+    return [first, second].map((s) => Number(rows.find((r) => Number(r.story_id) === s.storyId)?.participants ?? 0));
+  };
+  assert.deepEqual(await participants(), [2, 1]);
+  assert.equal((await upsertMaterial(material(markers[1]!))).revised, true);
+  await settleNonEditorial(articleId);
+  assert.equal((await groupArticle(articleId, { signalOnly: true })).storyId, second.storyId);
+  assert.deepEqual((await sql`SELECT story_id FROM story_signals WHERE article_id = ${articleId}`).map((r) => Number(r.story_id)), [second.storyId]);
+  assert.deepEqual(await participants(), [1, 2]);
+  assert.equal((await upsertMaterial(material(markers[2]!))).revised, true);
+  await settleNonEditorial(articleId);
+  assert.equal((await groupArticle(articleId, { signalOnly: true })).verdict, "signal-unmatched");
+  assert.equal((await sql`SELECT 1 FROM story_signals WHERE article_id = ${articleId}`).length, 0);
+  assert.deepEqual(await participants(), [1, 1]);
+});
+
+test("a post revised away from its story is matched again when a report of its new subject arrives", async () => {
+  const markers = [`VR${T}`, `VS${T}`];
+  markers.forEach((m, i) => VECTORS.set(m, direction(95 + i, [1])));
+  const at = new Date(Date.now() - 60_000);
+  const first = await groupArticle(await report("rematch-first", { title: `Launch ${markers[0]}`, publishedAt: at }));
+  const material = (marker: string) => ({ sourceId: SIGNAL, url: `https://example.com/sig-${T}-rematch`, title: `Discussion ${marker}`, bodyText: `Discussion ${marker}`, bodyStatus: "ok" as const, via: "fetch" as const, publishedAt: at });
+  const { articleId } = await upsertMaterial(material(markers[0]!));
+  await settleNonEditorial(articleId);
+  assert.equal((await groupArticle(articleId, { signalOnly: true })).storyId, first.storyId);
+  assert.equal((await upsertMaterial(material(markers[1]!))).revised, true);
+  await settleNonEditorial(articleId);
+  assert.equal((await groupArticle(articleId, { signalOnly: true })).verdict, "signal-unmatched");
+  const founded = await groupArticle(await report("rematch-second", { title: `Security issue ${markers[1]}`, publishedAt: at }));
+  assert.equal(founded.rematched, 1, "an earlier attachment no longer holds the post back");
+  assert.equal((await groupArticle(articleId, { signalOnly: true })).storyId, founded.storyId);
+});
+
+test("an earlier no to a fact does not withdraw the attachment to it made since", async () => {
+  const [launch, post] = [`VN${T}`, `VP${T}`];
+  VECTORS.set(launch, direction(100, [1]));
+  VECTORS.set(post, direction(100, [0.8, 0.6]));
+  const at = new Date(Date.now() - 60_000);
+  const { storyId } = await groupArticle(await report("earlier-no", { title: `Launch ${launch}`, publishedAt: at }));
+  const material = (title: string) => ({ sourceId: SIGNAL, url: `https://example.com/sig-${T}-earlier-no-post`, title, bodyText: title, bodyStatus: "ok" as const, via: "fetch" as const, publishedAt: at });
+  const { articleId } = await upsertMaterial(material(`NOPE, first take on ${post}`));
+  await settleNonEditorial(articleId);
+  assert.equal((await groupArticle(articleId, { signalOnly: true })).verdict, "signal-unmatched");
+  const revise = async (title: string) => {
+    assert.equal((await upsertMaterial(material(title))).revised, true);
+    await settleNonEditorial(articleId);
+  };
+  await revise(`Second take on ${post}`);
+  assert.equal((await groupArticle(articleId, { signalOnly: true, regroup: true })).storyId, storyId);
+  await revise(`Third take on ${post}`);
+  assert.equal((await groupArticle(articleId, { signalOnly: true })).storyId, storyId);
+  assert.deepEqual((await sql`SELECT story_id FROM story_signals WHERE article_id = ${articleId}`).map((r) => Number(r.story_id)), [storyId]);
+});
+
+test("a late re-evaluation that finds nothing keeps a post's heat in a story recall can no longer reach", async () => {
+  const markers = [`VL${T}`, `VM${T}`];
+  markers.forEach((m, i) => VECTORS.set(m, direction(90 + i, [1])));
+  const reportId = await report("late-first", { title: `Launch ${markers[0]}` });
+  const { storyId } = await groupArticle(reportId);
+  const material = (marker: string) => ({ sourceId: SIGNAL, url: `https://example.com/sig-${T}-late`, title: `Discussion ${marker}`, bodyText: `Discussion ${marker}`, bodyStatus: "ok" as const, via: "fetch" as const, publishedAt: new Date(Date.now() - 60_000) });
+  const { articleId } = await upsertMaterial(material(markers[0]!));
+  await settleNonEditorial(articleId);
+  assert.equal((await groupArticle(articleId, { signalOnly: true })).storyId, storyId);
+  // A withdrawn report found later stays in the story but is no recall evidence.
+  const withdrawn = await report("late-withdrawn", { title: `Launch ${markers[0]} again` });
+  assert.equal((await groupArticle(withdrawn)).storyId, storyId);
+  await sql`UPDATE publications SET visibility = 'withdrawn' WHERE article_id = ${withdrawn}`;
+  await sql`UPDATE articles SET discovered_at = now() - interval '20 days' WHERE id = ${reportId}`;
+  assert.equal((await upsertMaterial(material(markers[1]!))).revised, true);
+  await settleNonEditorial(articleId);
+  assert.equal((await groupArticle(articleId, { signalOnly: true })).verdict, "signal-unmatched");
+  assert.deepEqual((await sql`SELECT story_id FROM story_signals WHERE article_id = ${articleId}`).map((r) => Number(r.story_id)), [storyId]);
+});
+
 test("history waits behind live work and founds no event; a new source's post from today is news", async () => {
   const old = await report("old", { title: `旧闻 ${T}`, backfill: "first-import", publishedAt: new Date(Date.now() - 30 * 86_400_000) });
   await queueProcessing(old, { step: "analyze" });
@@ -135,10 +221,11 @@ test("history waits behind live work and founds no event; a new source's post fr
 test("a discussion post that quotes a post not yet collected joins its story when the original arrives", async () => {
   // Dan Shipper's "SONNET 5.5 IS OUT!" quoted Anthropic's post a minute before it was collected; the
   // original then joined the fact a report had already founded (same-fact: no new fact, no rematch).
-  const tweetId = `9${Date.now()}`;
+  const tweetId = "99000000000007";
+  const postIdForFixture = "19000000000007";
   const { articleId: postId } = await upsertMaterial({
-    sourceId: SIGNAL, url: `https://x.com/danshipper/status/1${Date.now()}`, title: `SONNET IS OUT! ${ALONE}`, via: "fetch", publishedAt: new Date(),
-    xPost: { tweetId: `1${Date.now()}`, authorName: "Dan", handle: "danshipper", text: "SONNET IS OUT!", quoted: { authorName: "Anthropic", handle: "AnthropicAI", text: "Introducing", url: `https://x.com/AnthropicAI/status/${tweetId}` } },
+    sourceId: SIGNAL, url: `https://x.com/danshipper/status/${postIdForFixture}`, title: `SONNET IS OUT! ${ALONE}`, via: "fetch", publishedAt: new Date(Date.now() - 60_000),
+    xPost: { tweetId: postIdForFixture, authorName: "Dan", handle: "danshipper", text: "SONNET IS OUT!", quoted: { authorName: "Anthropic", handle: "AnthropicAI", text: "Introducing", url: `https://x.com/AnthropicAI/status/${tweetId}` } },
   });
   assert.deepEqual(await settleNonEditorial(postId), { group: true });
   assert.equal((await groupArticle(postId, { signalOnly: true })).verdict, "signal-unmatched");
@@ -146,7 +233,7 @@ test("a discussion post that quotes a post not yet collected joins its story whe
   const first = await groupArticle(await report("quoted-first", { title: `Anthropic 发布 ${TOPIC} Sonnet` }));
   const { articleId: originalId } = await upsertMaterial({
     sourceId: EDITORIAL, url: `https://x.com/AnthropicAI/status/${tweetId}`, title: `Introducing ${TOPIC} Sonnet`, bodyText: "Introducing.", bodyStatus: "ok",
-    via: "fetch", publishedAt: new Date(), xPost: { tweetId, authorName: "Anthropic", handle: "AnthropicAI", text: `Introducing ${TOPIC} Sonnet` },
+    via: "fetch", publishedAt: new Date(Date.now() - 60_000), xPost: { tweetId, authorName: "Anthropic", handle: "AnthropicAI", text: `Introducing ${TOPIC} Sonnet` },
   });
   await sql`INSERT INTO analyses (article_id, input_revision, origin, relevance, category, title_zh, summary_zh, score, selected, output)
             VALUES (${originalId}, 1, 'rule', 'pass', 'ai-models', ${`Anthropic 发布 ${TOPIC} Sonnet`}, '摘要', 80, false, ${sql.json({ fact: { title: "Sonnet" } })})`;

@@ -94,8 +94,9 @@ test("a failed recovery probe opens the circuit again without a new batch of pri
 });
 
 test("a timed-out primary keeps its unknown receipt after the backup succeeds, and nothing asks anyone to release it", async () => {
-  primaryAnswer = async () => { await new Promise(resolve => setTimeout(resolve, 100)); return answer("too-late"); };
-  const result = await chatJson({ ...request("timeout"), timeoutMs: 30 });
+  // The timeout is the backup's too: at 30 ms a busy CI runner's backup timed out as well and the test failed.
+  primaryAnswer = () => new Promise(() => {});
+  const result = await chatJson({ ...request("timeout"), timeoutMs: 300 });
   assert.equal(result.model, "qwen3.8-flash");
   const [original] = await sql`SELECT id, status, request, cost FROM receipts WHERE subject = ${request("timeout").subject} AND service = 'deepseek'`;
   assert.equal(original!.status, "unknown"); assert.equal(original!.cost, null);
@@ -112,7 +113,7 @@ test("a timed-out primary keeps its unknown receipt after the backup succeeds, a
 });
 
 test("a timeout at both providers stops and repeated work cannot buy a third request", async () => {
-  primaryAnswer = backupAnswer = async () => { await new Promise(resolve => setTimeout(resolve, 100)); return answer("too-late"); };
+  primaryAnswer = backupAnswer = () => new Promise(() => {});
   const opts = { ...request("both-timeout"), timeoutMs: 30 };
   await assert.rejects(chatJson(opts), ReceiptUnknownError);
   const calls = [primary.hits(), backup.hits()];

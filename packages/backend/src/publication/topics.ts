@@ -78,6 +78,20 @@ export function topicLinks(slugs: string[]): TopicLink[] {
   return slugs.map((s) => findTopic(s)).filter((t): t is Topic => !!t).map((t) => ({ slug: t.slug, name: t.name }));
 }
 
+/** The tags readers see that are a topic's own: a direction's or a form's, and the tag cards show for a company (never its subject tag). */
+const TAG_TOPIC = new Map(TOPICS.flatMap((t) => {
+  const shown = t.entityId ? [ENTITIES[t.entityId]?.displayTag ?? null] : t.tags;
+  return shown.flatMap((tag) => (tag ? [[tag, t.slug] as const] : []));
+}));
+
+/** Of `tags`, each that is a topic's own, with that topic's slug: the topic's page covers what the tag names. */
+export function tagTopics(tags: string[]): Record<string, string> {
+  return Object.fromEntries(tags.flatMap((tag) => {
+    const slug = TAG_TOPIC.get(tag);
+    return slug ? [[tag, slug]] : [];
+  }));
+}
+
 /** Stable browse links in the same order as the topic directory, without its counts or modules. */
 export function topicBrowseLinks() {
   return TOPICS.map(({ slug, name, group }) => ({ slug, name, group }));
@@ -263,7 +277,7 @@ function summarize(t: Topic, seats: TopicMember[], now: Date, brands: Map<string
     total: seats.length,
     recent,
     indexable: isIndexable(seats.length, recent),
-    latest: latest ? { title: latest.title, at: latest.at.toISOString() } : null,
+    latest: latest ? { id: latest.id, title: latest.title, at: latest.at.toISOString() } : null,
   };
 }
 
@@ -343,10 +357,12 @@ export async function loadTopicPage(slug: string, page: number, now?: Date): Pro
     currentSeats(recheck, at, [topic]),
   ]);
   const groupName = TOPIC_GROUPS.find((g) => g.key === topic.group)?.name ?? "";
+  const items = rows.map(toFeedItemSummary);
   return {
     topic: { ...summarize(topic, seats, index.at, brands, live), groupName, poolTotal: pool },
     modules: Object.fromEntries(parts.map((part) => [part.name, part.part(live)])),
-    items: rows.map(toFeedItemSummary),
+    items,
+    tagTopics: tagTopics([...new Set(items.flatMap((i) => i.tags))]),
     page,
     pageCount,
     pageSize: TOPIC_PAGE_SIZE,

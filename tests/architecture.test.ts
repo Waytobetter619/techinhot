@@ -4,10 +4,32 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { assertNoViolations } from "./source-checks.ts";
+import { presentationAssertions, rawLoaderPaths } from "./lesson-checks.ts";
+import { clockViolationsByFile } from "./test-clock.ts";
 import { after, test } from "node:test";
+import { fontSizeViolations } from "./font-size.ts";
+import { routerLinkViolations, webTextViolations } from "./web-text.ts";
 import { closeDb, sql } from "@aihot/backend/db";
 
 after(closeDb);
+
+test("test fixtures and identities do not depend on the wall clock", () => {
+  assertNoViolations(clockViolationsByFile());
+});
+
+test("page loaders identify document and data requests by the same pathname", async () => {
+  const { pagePathname } = await import("../apps/web/app/lib/api.server.ts");
+  for (const [document, data] of [["/", "/_.data"], ["/example", "/example.data"], ["/example/2026-11", "/example/2026-11.data"]]) {
+    for (const path of [document, data]) assert.equal(pagePathname(new Request(`https://example.org${path}?page=2`)), document);
+  }
+  const found = rawLoaderPaths();
+  assert.deepEqual(found, [], found.join("\n"));
+});
+
+test("browser assertions describe visible behavior", () => {
+  assertNoViolations(presentationAssertions());
+});
 
 const ROOT = path.resolve(import.meta.dirname, "..");
 const BACKEND = "packages/backend/src";
@@ -82,6 +104,11 @@ const OWNERS: Record<string, string> = {
   story_digests: "events/", grouping_decisions: "events/", grouping_overrides: "events/",
   audit_log: "audit.ts",
   feedback_submission_state: "operations/feedback.ts",
+  reader_previewers: "../../../modules/accounts/backend/",
+  reader_sync_usage: "../../../modules/accounts/backend/",
+  reader_accounts: "../../../modules/accounts/backend/", reader_logins: "../../../modules/accounts/backend/",
+  reader_sessions: "../../../modules/accounts/backend/", reader_codes: "../../../modules/accounts/backend/",
+  reader_code_sends: "../../../modules/accounts/backend/", reader_data: "../../../modules/accounts/backend/",
 };
 
 test("the tables that carry a rule are written only by the code that owns it", () => {
@@ -103,6 +130,31 @@ test("the public scope and the composite rule are spelled once, in publication/s
     .filter(({ text }) => /(?:=|<>|DISTINCT FROM)\s*'composite'|visible_after <= \$\{/i.test(text))
     .map(({ file }) => file);
   assert.deepEqual(found, [], "use the predicates of publication/scope.ts");
+});
+
+test("public article lists share their fields and browse predicate", () => {
+  const found: string[] = [];
+  for (const { file, text } of [...sources(BACKEND), ...sources("apps/api/src"), ...modules()]) {
+    // A SELECT can follow a CTE or contain an optional SQL fragment. Inspect each field list separately.
+    for (const match of text.matchAll(/(?:\bSELECT\s+|sql`)([^;`]*?)\bFROM\b|(?:\bSELECT\s+|sql`)([^;`]+?)`/gi)) {
+      const projection = match[1] ?? match[2]!;
+      if (/\bp\.article_id\s+AS\s+id\b/i.test(projection) && ["p.title", "p.summary", "p.url", "p.category", "p.published_at", "s.name"].every(c => projection.includes(c))
+        && !(file === `${BACKEND}/publication/items.ts` && text.slice(0, match.index).endsWith("PUBLIC_ITEM_COLUMNS = "))) {
+        found.push(`${file}:${text.slice(0, match.index).split("\n").length} 请引用 publication/items.ts 的 PUBLIC_ITEM_COLUMNS`);
+      }
+    }
+    if (file !== `${BACKEND}/publication/scope.ts` && /\bp\.score\s*(?:>=|>)\s*\$\{SELECTION\.browseFloor\}/.test(text)) {
+      found.push(`${file} 请使用 publication/scope.ts 的 browsedCondition`);
+    }
+  }
+  assert.deepEqual(found, [], found.join("\n"));
+});
+
+test("WeChat post identity is decoded only by lib/url.ts", () => {
+  const duplicates = [...sources(BACKEND), ...modules()].filter(({ file, text }) => file !== `${BACKEND}/lib/url.ts`
+    && /(?:searchParams\.(?:get|set)\(\s*["']__biz["']|\[\s*["']__biz["']\s*,\s*["']mid["']\s*,\s*["']idx["'])/.test(text));
+  assert.deepEqual(duplicates.map(({ file }) => file), [],
+    "使用 wechatPostUrl 读取公众号文章编号，使用 materialIdentityForUrl 查历史签名或短链；采集列表和入库统一用 resolveMaterialIdentity");
 });
 
 // Nothing kept that nothing uses. Stored state and settings outlive the code that used them, and an
@@ -174,7 +226,6 @@ const convertsBeijingTime = (line: string) =>
 const CONVERTS_BEIJING_TIME: Record<string, string> = {
   "packages/contracts/src/time.ts": "the conversions themselves",
   "packages/backend/src/editorial/analyze.ts": "the score input keeps the form its prompt was tuned on (whole seconds without .000)",
-  "packages/backend/src/editorial/writing.ts": "a beijingDate written out, left to the next change of editorial/",
   "site/changelog/FeatureRelease.tsx": "a changelog entry's Beijing date and time with its zone, to the minute, in dateTime",
   "clients/watchdog/watchdog.mjs": "installed as one file away from the repository, so it cannot import time.ts",
   "clients/mp-watch/articles.ts": "installed away from the repository with only its module's contracts, so it cannot import time.ts",
@@ -214,6 +265,12 @@ const webLines = () => [...sources("apps/web/app", WEB_CODE), ...moduleWeb(WEB_C
     .map((line, i) => ({ file, at: `${file}:${i + 1}`, line: line.replace(/\/\*.*?\*\//g, "").replace(/(^|\s)\/\/.*$/, "") }))
     .filter(({ line }) => !/^\s*(\/\/|\/\*|\*)/.test(line)));
 
+test("navigation visibility is defined in shell/nav.ts", () => {
+  const outside = webLines().filter(({ file, line }) => file !== "apps/web/app/components/shell/nav.ts"
+    && /\b(?:NAV\.hidden|inNav\s*\()/.test(line)).map(({ at }) => at);
+  assert.deepEqual(outside, [], "请从 shell/nav.ts 引用导航项的可见状态，需要新的入口时在那里按站点设置定义一次");
+});
+
 // Corners come from the radius scale in app.css (mark 5, control 8, tile 10, card 12, panel 14, sheet 16
 // pixels) or are pills (full); none takes a corner away. Before the scale, 77 hand-written radii in 12
 // sizes from 4 to 20 pixels gave the same kind of box different corners. A radius worked out from a
@@ -252,10 +309,7 @@ test("scripts read the reduced-motion preference only through lib/motion.ts", ()
   assert.deepEqual(found, [], "use reducedMotion() or scrollBehavior() from lib/motion.ts");
 });
 
-// Pages are prefetched only when the reader presses a link (IntentLink). React Router's own prefetch runs
-// on hover, focus, render or viewport; the phone tab bar kept it after every other link had moved to
-// presses, so a narrow desktop window downloaded a tab's page whenever the pointer crossed it.
-test("a gray page is the admin's alone: its loader goes through grayGet and answers with GRAY_HEADERS", async () => {
+test("a gray page is only for previewers: its loader goes through grayGet and answers with GRAY_HEADERS", async () => {
   const { MODULES } = await import("@aihot/site/modules");
   const gray = MODULES.flatMap((m) => (m.pages ?? []).flatMap((p) => ("layout" in p ? p.pages : [p])).filter((p) => p.gray).map((p) => `modules/${m.name}/${p.file}`));
   for (const file of gray) {
@@ -264,10 +318,43 @@ test("a gray page is the admin's alone: its loader goes through grayGet and answ
   }
 });
 
+// Pages are prefetched only when the reader presses a link (IntentLink). React Router's own prefetch runs
+// on hover, focus, render or viewport; the phone tab bar kept it after every other link had moved to
+// presses, so a narrow desktop window downloaded a tab's page whenever the pointer crossed it.
 test("pages are prefetched only through IntentLink", () => {
   const found = webLines()
     .filter(({ file, line }) => file !== "apps/web/app/components/ui/IntentLink.tsx"
       && /\bprefetch\s*=|\bprefetch\s*:\s*["'`]|PrefetchPageLinks|rel=["']prefetch/.test(line))
     .map(({ at }) => at);
   assert.deepEqual(found, [], "link with IntentLink (in PillTabs, prefetchOnPress), which prefetches when the reader presses");
+});
+
+test("admin page loaders use adminPageGet and GRAY_HEADERS", async () => {
+  const { MODULES } = await import("@aihot/site/modules");
+  const pages = MODULES.flatMap((m) => (m.pages ?? []).flatMap((p) => ("layout" in p ? p.pages : [p])).filter((p) => p.admin).map((p) => `modules/${m.name}/${p.file}`));
+  for (const file of pages) {
+    const text = readFileSync(path.join(ROOT, file), "utf8");
+    assert.ok(/\badminPageGet\b/.test(text) && /\bGRAY_HEADERS\b/.test(text), `${file} must use adminPageGet and GRAY_HEADERS`);
+  }
+});
+
+// Animations use Presence.tsx (CSS keyframes) or the Web Animations API, not a runtime animation library.
+test("web code does not import motion or framer-motion", () => {
+  const found = violations([...sources("apps/web"), ...moduleWeb(), ...sources("site")], (_file, spec) => /^(?:motion|framer-motion)(?:$|\/)/.test(spec));
+  assert.deepEqual(found, [], "animate with Presence.tsx, CSS keyframes or the Web Animations API instead of motion");
+});
+
+test("web font sizes use the design scale", () => {
+  assertNoViolations(fontSizeViolations());
+});
+
+// The English edition (/en/…): reader-facing text is written in both languages where it is used, so a page
+// never shows Chinese to an English reader or loses its English when the Chinese is edited (lib/i18n.ts).
+// Pages without an English edition are listed in web-text.ts CHINESE_ONLY with the reason.
+test("reader-facing web text has its English beside it", () => {
+  assertNoViolations(webTextViolations());
+});
+
+test("site links keep the page's language", () => {
+  assertNoViolations(routerLinkViolations());
 });

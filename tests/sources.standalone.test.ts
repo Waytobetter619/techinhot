@@ -58,6 +58,18 @@ const pages: Record<string, () => string> = {
   "/large/post": () => article("LFM3", `Benchmarks for the new models. ${"Each row compares the same task. ".repeat(12)}</p><table><tr><th>Benchmark</th><th>LFM3</th></tr><tr><td><p>LiveClaw</p></td><td><p>45.60</p></td></tr></table><p>`)
     .replace("</body>", `<script>${"x".repeat(9 * 1024 * 1024)}</script></body>`),
   "/en/items.json": () => JSON.stringify([{ title: "Improved token efficiency", url: `${site}/en/post` }]),
+  "/date-post": () => `<html><head><meta name="date" content="2026-09-11T19:58:33Z"></head><body><article><a href="/date-post">A real article</a><span title="Unix: 1789171113866">Sep 11, 2026</span></article></body></html>`,
+  "/date-modified": () => `<meta property="article:modified_time" content="2026-10-14T00:00:00Z"><time itemprop="dateModified" datetime="2026-10-14T00:00:00Z">Updated today</time>`,
+  "/date-unlabelled": () => `<time datetime="2026-10-14T00:00:00Z">2026-10-14</time>`,
+  "/date-published": () => `<time itemprop="datePublished" datetime="2020-02-15T00:00:00Z">Published February 15, 2020</time>`,
+  // A search API that answers 200 with a failure envelope: the reason is in message, and data is empty.
+  "/error-envelope.json": () => JSON.stringify({ code: "200", success: false, message: "缺少必填参数", data: {} }),
+  // The same failure under a field name no convention covers: the keys still show where the reason is.
+  "/odd-envelope.json": () => JSON.stringify({ code: 500, errmsg: "参数错误", result: {} }),
+  // The failure envelope most APIs use: data is null, so the path stops at a layer with no keys.
+  "/null-envelope.json": () => JSON.stringify({ code: 1, msg: "token 已过期", data: null }),
+  // An items path that points at an object, not an array.
+  "/object-items.json": () => JSON.stringify({ total: 2, rows: [{ title: "A" }], items: { a: 1, b: 2 } }),
 };
 function article(title: string, text: string) {
   return `<html><head><title>${title}</title><meta property="article:published_time" content="2026-09-23T12:00:00Z"></head><body><article><h1>${title}</h1><p>${text}</p></article></body></html>`;
@@ -125,18 +137,45 @@ test("posts addressed by a query on the listing's path are posts, its pages and 
   assert.equal(fromHtml('<a href="https://www.example.org/">Home on www</a>', "https://example.org/", source({ url: "https://example.org/" })).length, 1);
 });
 
-test("promotions a feed rotates inside its posts are left out of the body", () => {
+test("promotions a feed rotates inside its posts are left out of the body and media", async () => {
   // Microsoft Research's feed puts a different podcast or product promotion into each post on every load.
   const promo = (label: string, name: string) =>
     `<div class="border-bottom border-top mt-5 mb-5 msr-promo text-center alignwide" data-bi-aN="promo">` +
     `<p class="msr-promo__label text-uppercase"><span>${label}</span></p><div class="row"><div class="msr-promo__content">` +
-    `<h2 class="h4">${name}</h2><p>Join Microsoft researchers.</p><a href="https://example.org/podcast">Listen now</a></div></div></div>`;
-  const post = (p: string) => `<p>Skala is now available in the tools scientists use.</p>${p}<p>From community release to native integration.</p>`;
+    `<img src="https://example.org/${name}.jpg"><h2 class="h4">${name}</h2><p>Join Microsoft researchers.</p><a href="https://example.org/podcast">Listen now</a></div></div></div>`;
+  const post = (p: string) => `<p>Skala is now available in the tools scientists use.</p><img src="/chart.png">${p}<p>From community release to native integration.</p><img data-src="/detail.png">`;
   const a = sanitizeBody(post(promo("PODCAST SERIES", "Ideas")), "https://example.org/post");
   const b = sanitizeBody(post(promo("", "Foundry Labs")), "https://example.org/post");
   assert.equal(a, b, "the same post whichever promotion it carried");
   assert.ok(!/PODCAST SERIES|Ideas|Foundry Labs|Listen now/.test(a));
   assert.ok(a.includes("native integration"), "the post's own text stays");
+  for (const name of ["Ideas", "Foundry Labs"]) {
+    const html = post(promo("PODCAST SERIES", name));
+    pages["/promo.xml"] = () => `<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><item><title>Research</title><link>https://example.org/post</link><enclosure type="image/jpeg" url="https://example.org/cover.jpg"/><content:encoded><![CDATA[${html}]]></content:encoded></item></channel></rss>`;
+    pages["/promo.atom"] = () => `<feed xmlns="http://www.w3.org/2005/Atom"><entry><title>Research</title><link href="https://example.org/post"/><content type="html"><![CDATA[${html}]]></content></entry></feed>`;
+    for (const path of ["/promo.xml", "/promo.atom"]) {
+      const [item] = (await fetchRss({ id: "test-feed", config: { feedUrl: site + path, summaryIsBody: true }, participation_mode: "editorial" } as never)).candidates;
+      assert.equal(item!.bodyHtml, a);
+      assert.deepEqual(item!.media, [
+        ...(path === "/promo.xml" ? [{ kind: "image", url: "https://example.org/cover.jpg" }] : []),
+        { kind: "image", url: "https://example.org/chart.png" },
+        { kind: "image", url: "https://example.org/detail.png" },
+      ]);
+    }
+  }
+});
+
+test("related story cards inside feed content do not change the article body or media", async () => {
+  const body = '<p>Seven new models are available.</p><img src="/chart.png">';
+  for (const recommendation of ["Model announcement", "Keynote transcript"]) {
+    const html = `${body}<section><h2>Related Stories</h2><div><article><h3><a href="/recommended">${recommendation}</a></h3><img src="/${recommendation}.png"></article></div></section><p>Published on the official blog.</p>`;
+    pages["/related.xml"] = () => `<rss xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><item><title>Seven models</title><link>https://example.org/post</link><content:encoded><![CDATA[${html}]]></content:encoded></item></channel></rss>`;
+    const [item] = (await fetchRss({ id: "test-feed", config: { feedUrl: site + "/related.xml", summaryIsBody: true }, participation_mode: "editorial" } as never)).candidates;
+    assert.equal(item!.bodyText, "Seven new models are available. Published on the official blog.");
+    assert.deepEqual(item!.media, [{ kind: "image", url: "https://example.org/chart.png" }]);
+  }
+  const authored = "<section><h2>Related work</h2><p>We compare earlier research.</p></section>";
+  assert.match(sanitizeBody(authored), /We compare earlier research/);
 });
 
 test("a listing that links other articles in its teasers takes only the links that begin a line", () => {
@@ -258,6 +297,18 @@ test("dates in yyyymmdd and in JSON-LD are read", async () => {
   assert.equal(got.publicationTime, "2026-09-24");
 });
 
+test("an items path that is not an array names the layer it stopped at, that layer's keys, and the API's reason", async () => {
+  const items = (path: string, file: string) => fetchJsonList({ id: "test-json", config: { url: `${site}/${file}`, itemsPath: path, titlePaths: ["title"], urlTemplate: "{raw:url}" } } as never);
+  await assert.rejects(items("data.items", "error-envelope.json"),
+    /items path data\.items did not resolve to an array: found nothing at data \(keys: none\); upstream said: 缺少必填参数/);
+  await assert.rejects(items("data.rows", "odd-envelope.json"),
+    /found nothing at \(root\) \(keys: code, errmsg, result\)/, "a reason under an uncommon field is still visible as a key");
+  await assert.rejects(items("items", "object-items.json"),
+    /found an object with keys a, b/);
+  await assert.rejects(items("data.items", "null-envelope.json"),
+    /items path data\.items did not resolve to an array: found nothing at data \(null\); upstream said: token 已过期/);
+});
+
 test("a source's language reaches its listing, detail page and article body, which stay in that language", async () => {
   const EN = "en-US,en;q=0.9";
   const sent = (path: string) => languages.filter((hit) => hit.path === path).at(-1)?.language;
@@ -296,4 +347,50 @@ test("a source's language is an Accept-Language value, refused by kinds that rea
     }
   }
   for (const kind of ["x_search", "mp_account", "external"] as const) assert.deepEqual(unsupportedConfig(kind, { acceptLanguage: "en" }), ["acceptLanguage"], kind);
+});
+
+const mdSource = source({ url: "https://publisher.example/blog", allowUrlPrefixes: ["https://publisher.example/blog/"] });
+const readRepeated = (labels: string[]) => fromMarkdown(labels.map(label => `[${label}](https://publisher.example/blog/new-release)`).join("\n\n"), "https://publisher.example", mdSource);
+
+test("a repeated article takes its actual headline after an earlier call to action", () => {
+  assert.deepEqual(readRepeated(["Read more", "A new model release", "Read more"]), [{ url: "https://publisher.example/blog/new-release", title: "A new model release" }]);
+});
+
+test("a clean headline replaces a repeated card label that swallowed its whole summary", () => {
+  assert.equal(readRepeated(["An overlong card label with article description. ".repeat(4), "A concise actual headline"])[0]!.title, "A concise actual headline");
+});
+
+test("the first clean headline stays stable and a lone call to action can still be enriched from its detail page", () => {
+  assert.equal(readRepeated(["A clean actual headline", "Another title for the same story", "Read more"])[0]!.title, "A clean actual headline");
+  assert.equal(readRepeated(["Read more"])[0]!.title, "Read more");
+});
+
+test("parentheses in card image URLs cannot enter the headline or make it change with an asset deployment", () => {
+  const headline = "Hallo, Deutschland! Mistral Opens German Hub in Munich";
+  const card = (deployment: string) => `[![Image 5](https://publisher.example/_astro/Linkedin_Mistral02%20(1)_3Uubi.webp?dpl=${deployment}) ![Image 6](https://publisher.example/_astro/Linkedin_Mistral02%20(1)_3Uubi.webp?dpl=${deployment}) Company ## ${headline} September 28, 2026 By Mistral](https://publisher.example/blog/new-release)`;
+  const expected = [{ url: "https://publisher.example/blog/new-release", title: `Company ${headline} September 28, 2026 By Mistral` }];
+  for (const deployment of ["first", "second"]) assert.deepEqual(fromMarkdown(card(deployment), "https://publisher.example", mdSource), expected);
+  assert.deepEqual(fromMarkdown(`[![Image](https://publisher.example/a_(b_(c)).webp)](https://publisher.example/blog/image-only)\n${card("third")}`, "https://publisher.example", mdSource), expected);
+});
+
+test("a listing uses the visible date when its tooltip is not a publication date", () => {
+  const items = fromHtml(pages["/date-post"]!(), site, source({ url: site, itemSelector: "article", publishedAtSelector: "span[title^='Unix:']", publishedAtUtcOffset: "+00:00" }));
+  assert.equal(items[0]!.publishedAt?.toISOString(), "2026-09-11T00:00:00.000Z");
+});
+
+test("a detail date selector reads meta content and an invalid tooltip does not mask visible text", async () => {
+  for (const [publishedAtSelector, expected] of [["meta[name='date']", "2026-09-11T19:58:33.000Z"], ["span", "2026-09-11T00:00:00.000Z"]]) {
+    const item = await fetchDetail(site + "/date-post", source({ detail: { publishedAtSelector, publishedAtAuthoritative: true, publishedAtUtcOffset: "+00:00" } }), { date: true, title: false, summary: false });
+    assert.equal(item.publishedAt?.toISOString(), expected);
+  }
+});
+
+test("generic detail metadata does not promote modified or unlabelled time elements to publication", async () => {
+  const detailSource = source({ detail: { maxFetches: 1 } });
+  for (const path of ["/date-modified", "/date-unlabelled"]) {
+    const detail = await fetchDetail(site + path, detailSource, { date: true, title: false, summary: false });
+    assert.equal(detail.publishedAt, null, path);
+  }
+  const published = await fetchDetail(site + "/date-published", detailSource, { date: true, title: false, summary: false });
+  assert.equal(published.publishedAt?.toISOString(), "2020-02-15T00:00:00.000Z");
 });

@@ -16,7 +16,7 @@ import { chatJson } from "../providers/llm.ts";
 import { completeReceipt } from "../providers/receipts.ts";
 import { shutdownSignal } from "../jobs/queue.ts";
 import { emit } from "../modules.ts";
-import { arrangeDaily, candidates, dailyEdition, periodEntries, sectionOf, SECTION_ORDER, type Candidate, type EditionEntry } from "./edition.ts";
+import { arrangeDaily, candidates, dailyEdition, dailyPicks, periodEntries, sectionKeyOf, SECTIONS, type Candidate, type EditionEntry } from "./edition.ts";
 
 export const REPORT_VERSION = promptVersion("report-period", "report-period-sections", "report-period-no-sections");
 
@@ -50,10 +50,16 @@ async function savedReport(kind: ReportKind, key: string) {
  * it is. With a reason (an explicit regeneration) the issue is replaced and the edition it replaces is
  * kept as a revision. Says whether the issue was written.
  */
-async function saveReport(kind: ReportKind, key: string, start: Date, end: Date, content: Record<string, unknown>, reason: string | undefined, model: string | null, receiptIds: number[]): Promise<boolean> {
+async function saveReport(kind: ReportKind, key: string, start: Date, end: Date, content: Record<string, unknown>, reason: string | undefined, receiptIds: number[]): Promise<boolean> {
   return sql.begin(async (tx) => {
-    const insert = async () => (await tx`INSERT INTO reports (kind, key, window_start, window_end, content, generated_at, model, origin)
-      VALUES (${kind}, ${key}, ${start}, ${end}, ${tx.json(content as never)}, now(), ${model}, 'model') ON CONFLICT (kind, key) DO NOTHING`).count > 0;
+    // Serialize issue_number allocation per report kind so concurrent compositions never collide.
+    const insert = async () => {
+      await tx`SELECT pg_advisory_xact_lock(hashtext(${`report_issue_number:${kind}`}))`;
+      const [next] = await tx<{ n: number }[]>`
+        SELECT (greatest(coalesce(max(issue_number), 0), count(*)::int) + 1)::int AS n FROM reports WHERE kind = ${kind}`;
+      return (await tx`INSERT INTO reports (kind, key, issue_number, window_start, window_end, content, generated_at)
+        VALUES (${kind}, ${key}, ${next!.n}, ${start}, ${end}, ${tx.json(content as never)}, now()) ON CONFLICT (kind, key) DO NOTHING`).count > 0;
+    };
     let written: boolean;
     if (reason === undefined) written = await insert();
     else {
@@ -63,7 +69,7 @@ async function saveReport(kind: ReportKind, key: string, start: Date, end: Date,
         await tx`INSERT INTO report_revisions (report_id, revision, content, generated_at, reason)
                  VALUES (${existing.id}, ${existing.revision}, ${tx.json(existing.content as never)}, ${existing.generated_at}, ${reason}) ON CONFLICT DO NOTHING`;
         await tx`UPDATE reports SET content = ${tx.json(content as never)}, window_start = ${start}, window_end = ${end}, generated_at = now(),
-                   model = ${model}, revision = revision + 1, origin = 'model', updated_at = now() WHERE id = ${existing.id}`;
+                   revision = revision + 1, updated_at = now() WHERE id = ${existing.id}`;
         written = true;
       } else written = await insert();
     }
@@ -80,11 +86,15 @@ function windowPoint(at: Date): string {
   return `${Number(day.slice(5, 7))} 月 ${Number(day.slice(8, 10))} 日 ${beijingTime(at)}`;
 }
 
+/** The highlights a daily's front page lists after its lead (今日看点). */
+const DAILY_HIGHLIGHTS = 3;
+
 /**
  * Daily report for Beijing date D covers the 24 hours up to the site's edition time on D (EDITION_TIMES).
- * Its most important entry leads, in its own words, and the next three are today's highlights. A window
- * the editors judged with nothing new in it still has its issue: no entries, and a lead that says so
- * (REPORTS.quiet).
+ * Its most important entry leads, in its own words, and the next three are today's highlights; a thin issue
+ * (a weekend's often carries a single entry) fills the rest with the window's best reports it left out
+ * (`picks`, dailyPicks), which are neither entries nor counted in its metrics. A window the editors judged
+ * with nothing new in it still has its issue: no entries, no highlights, and a lead that says so (REPORTS.quiet).
  */
 export async function composeDaily(date: string, reason?: string): Promise<{ key: string; entries: number }> {
   const previous = await savedReport("daily", date);
@@ -96,15 +106,18 @@ export async function composeDaily(date: string, reason?: string): Promise<{ key
   if (edition.entries.length === 0 && edition.stats.judgedReports === 0) throw new Error(`daily ${date}: nothing judged in its window`);
   const issue = arrangeDaily(edition.entries);
   const [lead, ...rest] = issue.main;
+  const highlights = rest.slice(0, DAILY_HIGHLIGHTS).map((e) => e.entry.itemId);
+  const picks = lead ? await dailyPicks(date, start, end, [...issue.main, ...issue.flashes], DAILY_HIGHLIGHTS - highlights.length) : [];
   const content = {
     date,
     lead: lead
       ? { title: lead.entry.title, leadParagraph: lead.entry.summary }
       : { title: REPORTS.quiet.title, leadParagraph: REPORTS.quiet.paragraph.replace("{start}", windowPoint(start)).replace("{end}", windowPoint(end)) },
     leadItemId: lead?.entry.itemId ?? null,
-    highlights: rest.slice(0, 3).map((e) => e.entry.itemId),
-    sections: SECTION_ORDER
-      .map((label) => ({ label, items: issue.main.filter((e) => sectionOf(e.category) === label).map((e) => e.entry) }))
+    highlights: [...highlights, ...picks.map((p) => p.itemId)],
+    ...(picks.length ? { picks } : {}),
+    sections: SECTIONS
+      .map((s) => ({ key: s.key, label: s.label, items: issue.main.filter((e) => sectionKeyOf(e.category) === s.key).map((e) => e.entry) }))
       .filter((s) => s.items.length > 0),
     flashes: issue.flashes.map((e) => e.entry),
     metrics: dailyMetrics(issue.main),
@@ -112,7 +125,7 @@ export async function composeDaily(date: string, reason?: string): Promise<{ key
     windowEnd: end.toISOString(),
     generator: { version: REPORT_VERSION, ...edition.stats, ...issue.stats },
   };
-  await saveReport("daily", date, start, end, content, reason, null, []);
+  await saveReport("daily", date, start, end, content, reason, []);
   return { key: date, entries: issue.main.length };
 }
 
@@ -210,8 +223,8 @@ async function composePeriod(kind: "weekly" | "monthly", key: string, startDate:
     throw new Error(`${kind} ${key}: no daily entries in the period`);
   }
   const selected = await candidates(start, end);
-  const groups = SECTION_ORDER
-    .map((label) => ({ label, items: top.filter((e) => sectionOf(e.category) === label) }))
+  const groups = SECTIONS
+    .map((s) => ({ key: s.key, label: s.label, items: top.filter((e) => sectionKeyOf(e.category) === s.key) }))
     .filter((g) => g.items.length > 0);
   const corpus = [`${startDate} ${endDateInclusive}`, ...top.map((e) => `${e.title} ${e.summary}`)].join("\n");
   const model = await modelFor("report");
@@ -246,12 +259,12 @@ async function composePeriod(kind: "weekly" | "monthly", key: string, startDate:
     leadItemId: lead.itemId,
     highlights: top.slice(1, 4).map((e) => e.itemId),
     overview,
-    themes: groups.map((g) => ({ heading: g.label, summary: intro(g), storyRefs: g.items.map(({ category: _c, factKey: _f, ...e }) => e) })),
+    themes: groups.map((g) => ({ key: g.key, heading: g.label, summary: intro(g), storyRefs: g.items.map(({ category: _c, factKey: _f, ...e }) => e) })),
     storyOrder: top.map((e) => e.itemId),
     metrics: { totalStories: top.length, selectedCount: selected.length, reportsCovered: issues },
     generator: { version: REPORT_VERSION, model, written: overview !== null },
   };
-  await saveReport(kind, key, start, end, content, reason, model, receiptId === null ? [] : [receiptId]);
+  await saveReport(kind, key, start, end, content, reason, receiptId === null ? [] : [receiptId]);
   return { key, entries: top.length };
 }
 
