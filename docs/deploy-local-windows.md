@@ -45,6 +45,8 @@ powershell -ExecutionPolicy Bypass -File scripts/local/stop-all.ps1
 
 | 事项 | 做法 |
 |---|---|
+| 看状态 | `powershell -ExecutionPolicy Bypass -File scripts/local/status.ps1`：四个进程是否在跑、接口健康、网页响应、数据库 |
+| 只重启某几个进程 | 改了 `site/`、`industry/` 并重新构建网页后：`powershell -ExecutionPolicy Bypass -File scripts/local/restart-apps.ps1`（默认重启 api、worker、web；`-Names feeder` 只重启推送器；`-DryRun` 先看会停哪些进程）。不动数据库 |
 | 看日志 | `runtime/logs/api.log`、`worker.log`、`web.log`、`feeder.log`、`pg.log` |
 | 填模型 key | 编辑 `.env` → `stop-all` → `start-all`（三个进程都读 `.env`，重启生效） |
 | 调 Techin 口径 | `.env` 的 `TECHIN_*` 变量（白名单、每轮上限等，见 `scripts/techin-feeder/README.md`） |
