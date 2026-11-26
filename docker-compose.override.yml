@@ -1,0 +1,18 @@
+# TechinHOT 自己加的服务：自建 RSSHub，把 B站 UP 主、小红书博主等没有 RSS 的账号变成订阅源。
+# docker compose 会自动叠加这个文件，命令不用改。说明见 docs/rsshub.md。
+#
+# RSSHub 只在 Docker 内网里提供服务（没有映射到服务器端口），信源地址写 http://rsshub:1200/...
+# 并在 .env 里设 PRIVATE_FEED_HOSTS=rsshub。账号 Cookie 写在 .env.rsshub（不进 Git）。
+services:
+  rsshub:
+    image: diygod/rsshub:latest
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      CACHE_TYPE: memory
+      # 同一路由 30 分钟内重复请求直接用缓存，减少对 B站、小红书的请求次数。
+      CACHE_EXPIRE: "1800"
+    env_file:
+      - path: .env.rsshub
+        required: false
+    mem_limit: 512m

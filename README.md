@@ -12,6 +12,8 @@
 | 重点人物言论 | X 账号（`x_search` 信源，需要 SocialData）：Altman、Hassabis、Karpathy、LeCun……，以及 Karpathy、Zvi 等人的博客 |
 | 科技地缘与政策 | 美国联邦公报里的 BIS（实体清单、出口管制）与 USTR 文件，欧盟委员会，CSET、ChinaTalk、SemiAnalysis 等 |
 
+B站 UP 主、小红书博主这类没有 RSS 的账号，经自带的 RSSHub 转成订阅源，见 [用自建 RSSHub 订阅 B站、小红书博主](docs/rsshub.md)。
+
 示范信源在 `industry/sources.json`（首次启动导入），之后在后台“信源”页增删。X 的查询支持关键词，比如 `from:elonmusk -filter:replies (Grok OR xAI)` 只收某人谈某事的帖子。
 
 ## 部署
