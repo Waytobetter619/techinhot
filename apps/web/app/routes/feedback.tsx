@@ -3,7 +3,8 @@ import { useLocation, useSearchParams } from "react-router";
 import { SITE } from "@aihot/site";
 import { ENGLISH } from "@aihot/contracts/english";
 import type { Route } from "./+types/feedback";
-import { Presence } from "../components/ui/Presence";
+import { Collapse } from "../components/ui/Presence";
+import { scrollBehavior, useSwapped } from "../lib/motion";
 import { edgeTtl } from "../lib/api.server";
 import { pageMeta } from "../lib/seo";
 import { KEYS, lastPage, readJson, writeRaw } from "../lib/local-state";
@@ -146,7 +147,7 @@ export default function FeedbackPage() {
   // The guide comes with the button's navigation, which the server never sees: a page the server drew starts with
   // the site's own words, and turns to the guide once hydrated. Guides are written in Chinese only (their modules'
   // pages have no English edition), so English pages keep the site's own words.
-  const { state: navigation, pathname, search } = useLocation();
+  const { state: navigation, pathname, search, key: visit } = useLocation();
   const navigate = useNavigate();
   const [hydrated, setHydrated] = useState(isHydrated);
   useEffect(() => setHydrated(true), []);
@@ -175,10 +176,34 @@ export default function FeedbackPage() {
     } else if (saved) setDraft((d) => ({ ...saved, pageUrl: d.pageUrl || from || saved.pageUrl }));
     else setDraft((d) => ({ ...d, email: prefilled.current, pageUrl: from ?? d.pageUrl }));
   }, []);
+  // Saved a moment after typing stops, and at once when the reader leaves within that moment.
+  const unsaved = useRef<{ draft: Draft | null } | null>(null);
   useEffect(() => {
-    const t = setTimeout(() => writeDraft(draft.content || (draft.email && draft.email !== prefilled.current) ? draft : null), 400);
+    const value = draft.content || (draft.email && draft.email !== prefilled.current) ? draft : null;
+    unsaved.current = { draft: value };
+    const t = setTimeout(() => {
+      writeDraft(value);
+      unsaved.current = null;
+    }, 400);
     return () => clearTimeout(t);
   }, [draft]);
+  useEffect(() => {
+    const flush = () => {
+      if (unsaved.current) writeDraft(unsaved.current.draft);
+      unsaved.current = null;
+    };
+    // Leaving for another page of the site, or the browser closing, going back or reloading the page.
+    window.addEventListener("pagehide", flush);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      flush();
+    };
+  }, []);
+  // 反馈 pressed again after sending opens an empty form for the next one.
+  const sentOn = useRef<string | null>(null);
+  useEffect(() => {
+    if (state.kind === "done" && sentOn.current !== null && sentOn.current !== visit) setState({ kind: "idle" });
+  }, [visit]);
 
   useEffect(() => {
     if (!shot) return;
@@ -218,7 +243,10 @@ export default function FeedbackPage() {
       const body = await res.json().catch(() => ({}));
       if (!res.ok) return setState({ kind: "error", message: t(refusal(body)) });
       writeDraft(null);
+      sentOn.current = visit;
       setState({ kind: "done", id: body.id });
+      // The thanks takes the form's place at the top of the page; a reader who sent from further down is taken to it.
+      window.scrollTo({ top: 0, behavior: scrollBehavior() });
       setDraft({ content: "", email: prefilled.current, pageUrl: "" });
       setShot(null);
     } catch {
@@ -226,25 +254,35 @@ export default function FeedbackPage() {
     }
   };
 
+  // A picture removed: the place to add one fades back in where it was. (Above the thanks, which returns early.)
+  const shotSwapped = useSwapped(shot ? "shot" : "none");
+
   if (state.kind === "done") {
+    // Back to where the reader was before coming here, when the site knows it.
+    const before = lastPage();
     return (
+      <>
+      {/* The bar stays: sending does not take the reader out of the page. A bar of its own, so it follows the
+          thanks' heading rather than the form's that has gone. */}
+      <PhoneBar key="done" back={BACK} title={t("反馈", "Feedback")} />
       <ReadingLayout>
-        <div className="card px-6 py-14 text-center">
+        <div className="anim-fade-in card px-6 py-14 text-center">
           <div className="anim-pop-in mx-auto flex size-14 items-center justify-center rounded-full bg-accent text-accent-contrast">
             <IconCheck size={26} />
           </div>
-          <h1 className="mt-6 text-ui-heading-lg-sm font-semibold text-ink">{t("收到了，谢谢你", "Got it. Thank you")}</h1>
+          <h1 data-page-title="" className="mt-6 text-ui-heading-lg-sm font-semibold text-ink">{t("收到了，谢谢你", "Got it. Thank you")}</h1>
           <p className="mt-2 text-ui-body-sm text-ink-3">
             {t(
               <>反馈编号 <span className="mono font-semibold text-ink">#{state.id}</span>，需要回复时我们会引用这个编号。</>,
               <>Your feedback number is <span className="mono font-semibold text-ink">#{state.id}</span>. We'll mention it if we reply.</>,
             )}
           </p>
-          <Link to="/" className="mt-8 inline-flex h-10 items-center rounded-full bg-ink px-6 text-ui-body-sm font-medium text-bg transition-opacity hover:opacity-90">
-            {t("回到精选", "Back to Top Picks")}
+          <Link to={before ?? "/"} className="mt-8 inline-flex h-11 items-center rounded-full bg-ink px-6 text-ui-body-sm font-medium text-bg transition-opacity hover:opacity-90 lg:h-10 touch:h-11">
+            {before ? t("回到刚才的页面", "Back to where you were") : t("回到精选", "Back to Top Picks")}
           </Link>
         </div>
       </ReadingLayout>
+      </>
     );
   }
 
@@ -253,7 +291,7 @@ export default function FeedbackPage() {
   const canSend = draft.content.trim().length >= 2 && state.kind !== "sending";
   return (
     <>
-    <PhoneBar back={BACK} title={t("意见反馈", "Feedback")} />
+    <PhoneBar back={BACK} title={t("反馈", "Feedback")} />
     <ReadingLayout aside={<FeedbackAside tips={guide?.tips ?? TIPS.map((tip) => t(tip))} />}>
       <header>
         <h1 data-page-title="" className="text-ui-heading-lg font-semibold leading-[1.3] text-ink">{guide?.title ?? t("说说你的想法", "Tell us what you think")}</h1>
@@ -309,14 +347,15 @@ export default function FeedbackPage() {
             <span className={label}>
               {t(<>截图 <span className="font-normal text-ink-4">（选填）</span></>, <>Screenshot <span className="font-normal text-ink-4">(optional)</span></>)}
             </span>
+            {/* The picture and the place to add one are the same height, so choosing or removing it moves nothing below. */}
             {shot ? (
-              <div className="flex items-center gap-4 well rounded-card p-3">
+              <div className="anim-fade-in flex min-h-[90px] items-center gap-4 well rounded-card p-3">
                 <img src={shot.url} alt={t("截图预览", "Screenshot preview")} className="h-16 w-24 shrink-0 rounded-control border border-line bg-surface object-cover" />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-ui-label font-medium text-ink-2">{shot.file.name}</div>
                   <div className="mono mt-0.5 text-ui-caption-md text-ink-4">{(shot.file.size / 1024 / 1024).toFixed(2)} MB</div>
                 </div>
-                <button type="button" aria-label={t("移除截图", "Remove screenshot")} onClick={() => setShot(null)} className="grid size-8 shrink-0 place-items-center rounded-full text-ink-4 transition-colors hover:bg-surface hover:text-ink">
+                <button type="button" aria-label={t("移除截图", "Remove screenshot")} onClick={() => setShot(null)} className="grid size-11 shrink-0 place-items-center rounded-full text-ink-4 transition-colors hover:bg-surface hover:text-ink lg:size-8 touch:size-11">
                   <IconClose size={15} />
                 </button>
               </div>
@@ -324,26 +363,30 @@ export default function FeedbackPage() {
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
-                className={`group flex w-full items-center gap-3.5 rounded-card border border-dashed px-4 py-3.5 text-left transition-colors ${dragging ? "border-accent bg-accent-softer" : "border-line-strong hover:border-ink-4 hover:bg-bg-sunk/60"}`}
+                className={`group flex min-h-[90px] w-full items-center gap-3.5 rounded-card border border-dashed px-4 py-3.5 text-left transition-colors ${shotSwapped ? "anim-fade-in" : ""} ${dragging ? "border-accent bg-accent-softer" : "border-line-strong hover:border-ink-4 hover:bg-bg-sunk/60"}`}
               >
                 <span className="grid size-10 shrink-0 place-items-center well rounded-tile text-ink-3 transition-colors group-hover:text-accent">
                   <IconImage size={19} />
                 </span>
                 <span className="min-w-0">
                   <span className="block text-ui-label-lg font-semibold text-ink-2">{t("添加一张问题截图", "Add a screenshot of the problem")}</span>
-                  <span className="mt-0.5 block text-ui-caption leading-relaxed text-ink-4">{t("粘贴或拖到这里也可以 · 请先遮盖敏感信息；PNG、JPEG 或 WebP，原图不超过 5 MB", "You can also paste or drop it here · Cover anything sensitive first. PNG, JPEG or WebP, up to 5 MB")}</span>
+                  <span className="mt-0.5 block text-ui-caption leading-relaxed text-ink-4">{/* Pasting and dropping are a computer's ways: phones pick a photo. */}
+                    <span className="hidden lg:inline">{t("粘贴或拖到这里也可以 · ", "You can also paste or drop it here · ")}</span>
+                    {t("请先遮盖敏感信息；PNG、JPEG 或 WebP，原图不超过 5 MB", "Cover anything sensitive first. PNG, JPEG or WebP, up to 5 MB")}</span>
                 </span>
               </button>
             )}
-            <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={(e) => pick(e.target.files?.[0])} />
+            <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ""; }} />
           </div>
-
-          <Presence show={state.kind === "error"} enter="anim-notice-in" exit="anim-fade-out" duration={160}>
+        </div>
+        {/* Outside the spaced column, so the gap above it opens with it instead of appearing at once. */}
+        <Collapse open={state.kind === "error"}>
+          <div className="px-5 pb-5 sm:px-6">
             <p role="alert" className="rounded-tile bg-hot-soft px-3.5 py-2.5 text-ui-label text-hot">
               {state.kind === "error" ? state.message : ""}
             </p>
-          </Presence>
-        </div>
+          </div>
+        </Collapse>
 
         <div className="flex flex-col-reverse gap-4 border-t border-line-soft bg-bg-sunk/50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 dark:bg-bg-muted/30">
           <p className="text-ui-caption leading-relaxed text-ink-4 sm:max-w-[400px]">
@@ -369,10 +412,17 @@ export default function FeedbackPage() {
           <button
             type="submit"
             disabled={!canSend}
-            className="inline-flex h-10 shrink-0 items-center justify-center gap-2 self-start rounded-full bg-accent px-6 text-ui-body-sm font-medium text-accent-contrast transition-[background-color,opacity] hover:bg-accent-ink disabled:bg-line-strong disabled:text-ink-4 sm:self-auto"
+            aria-busy={state.kind === "sending" || undefined}
+            className={`press inline-flex h-11 shrink-0 items-center justify-center self-start rounded-full px-6 text-ui-body-sm font-medium lg:h-10 touch:h-11 sm:self-auto ${state.kind === "sending" ? "bg-accent text-accent-contrast opacity-80" : "bg-accent text-accent-contrast hover:bg-accent-ink disabled:bg-line-strong disabled:text-ink-4"}`}
           >
-            {state.kind === "sending" && <RingMark className="size-4" spinning />}
-            {t("发送反馈", "Send feedback")}
+            {/* Both labels share one cell, so the button keeps its width while it sends. */}
+            <span className="grid justify-items-center">
+              <span aria-hidden={state.kind === "sending" || undefined} className={`[grid-area:1/1] transition-opacity ${state.kind === "sending" ? "opacity-0" : ""}`}>{t("发送反馈", "Send feedback")}</span>
+              <span aria-hidden={state.kind !== "sending" || undefined} className={`[grid-area:1/1] inline-flex items-center gap-2 transition-opacity ${state.kind === "sending" ? "" : "opacity-0"}`}>
+                <RingMark className="size-4" spinning={state.kind === "sending"} />
+                {t("发送中…", "Sending…")}
+              </span>
+            </span>
           </button>
         </div>
       </form>

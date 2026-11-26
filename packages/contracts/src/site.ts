@@ -478,6 +478,9 @@ export interface StoryFollowupsResponse { items: StoryFollowup[]; more: boolean 
 export interface ItemAvailability {
   status: "public" | "summary-only" | "unavailable";
   sourceName?: string;
+  /** The current public title and summary in the requested language. */
+  title?: string;
+  summary?: string | null;
 }
 
 /** An issue in the archive and the calendar, numbered in its whole series; closed daily months omit their titles. */

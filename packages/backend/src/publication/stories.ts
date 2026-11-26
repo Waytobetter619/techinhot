@@ -10,7 +10,7 @@ import { relatedEvidence, RELATED_MIN_REPORTS } from "../events/related.ts";
 import { pickRepresentative, REPRESENTATIVE_COLUMNS, type RepresentativeIdentity } from "./representative.ts";
 import { compositeCondition, evidenceCondition, listedCondition, storyReportCondition } from "./scope.ts";
 import { publicSourceName } from "./rules.ts";
-import { latestHotRanking, rankingExtras } from "./hot.ts";
+import { latestHotRanking, rankingParticipants } from "./hot.ts";
 import { storyTexts } from "./story-text.ts";
 import { topicsOfStory } from "./topics.ts";
 import { mentionsIn } from "./mentions.ts";
@@ -94,7 +94,7 @@ function reportView(r: ReportRow): StoryReportView {
   };
 }
 
-/** The story's reports newest first, its developments, and its latest and first non-mention reports. */
+/** The story's public heading, its reports newest first, and its developments. */
 async function storyContent(storyId: number, now: Date) {
   const [s] = await sql<{ public_id: string; title: string }[]>`SELECT public_id::text, title FROM stories WHERE id = ${storyId}`;
   if (!s) return null;
@@ -103,10 +103,13 @@ async function storyContent(storyId: number, now: Date) {
   reports.sort((a, b) => b.at.getTime() - a.at.getTime() || a.id.localeCompare(b.id));
 
   const primaryReports = reports.filter((r) => r.role !== "mention");
-  const byFact = new Map<number, ReportRow[]>();
-  for (const r of primaryReports) byFact.set(r.fact_id, [...(byFact.get(r.fact_id) ?? []), r]);
-  const facts = await sql<{ id: number; public_id: string; title: string }[]>`
-    SELECT id, public_id, title FROM facts WHERE story_id = ${storyId}`;
+  const latestReport = primaryReports[0];
+  if (!latestReport) return null;
+  const byFact = Map.groupBy(primaryReports, (report) => report.fact_id);
+  const [facts, texts] = await Promise.all([
+    sql<{ id: number; public_id: string; title: string }[]>`SELECT id, public_id, title FROM facts WHERE story_id = ${storyId}`,
+    storyTexts([storyId], now),
+  ]);
   const developments = facts
     .filter((f) => byFact.has(f.id))
     .map((f) => {
@@ -118,10 +121,30 @@ async function storyContent(storyId: number, now: Date) {
     })
     .sort((a, b) => Date.parse(b.firstReportAt) - Date.parse(a.firstReportAt));
 
-  const latestReport = primaryReports[0];
-  if (!latestReport) return null;
   const firstReportAt = primaryReports[primaryReports.length - 1]!.at;
-  return { s, reports, primaryReports, developments, latestReport, firstReportAt };
+  const text = texts.get(storyId)!;
+  // Historical stories without listed evidence retain their latest readable report.
+  const latest = text.latest ?? latestReport;
+  const latestAt = latest.at;
+  // Without a digest or a summary of its own, the story opens with its first development's representative report.
+  const origin = developments[developments.length - 1]?.representative;
+  const excerpt = !text.digest && !text.summary && origin?.summary ? { itemId: origin.id, text: origin.summary, sourceId: origin.source_id, sourceName: publicSourceName(origin.source_name) } : null;
+  const head = {
+    publicId: s.public_id,
+    title: s.title,
+    status: storyStatusFor(latestAt, now.getTime()),
+    reportCount: reports.length,
+    sourceCount: new Set(reports.map((r) => r.source_id)).size,
+    firstReportAt: firstReportAt.toISOString(),
+    latestAt: latestAt.toISOString(),
+    digest: text.digest,
+    digestUpdatedAt: text.digestUpdatedAt?.toISOString() ?? null,
+    summary: text.summary,
+    excerpt,
+    latest: latest.title,
+    latestReport: { id: latest.id },
+  };
+  return { head, reports, developments };
 }
 
 async function relatedStories(storyId: number, now: Date) {
@@ -140,10 +163,21 @@ async function relatedStories(storyId: number, now: Date) {
     ) ORDER BY st.latest_at DESC NULLS LAST, st.id DESC LIMIT 8`;
 }
 
-export async function loadStoryDetail(storyId: number, now = new Date()): Promise<StoryDetail | null> {
+async function storyRank(storyId: number): Promise<number | null> {
+  const ranking = await latestHotRanking();
+  return ranking?.entries.find((entry) => entry.storyId === storyId)?.rank ?? null;
+}
+
+/** The public fields the share image draws, from the same reports and ranking as the story page. */
+export async function loadStoryShare(storyId: number, now = new Date()) {
+  const content = await storyContent(storyId, now);
+  return content && { ...content.head, rank: await storyRank(storyId) };
+}
+
+export async function loadStoryDetail(storyId: number, now = new Date(), knownRank?: number): Promise<StoryDetail | null> {
   const content = await storyContent(storyId, now);
   if (!content) return null;
-  const { s, reports, developments, latestReport, firstReportAt } = content;
+  const { head, reports, developments } = content;
   const [why] = await sql<{ p48: number; p6: number; r24: number }[]>`
     WITH cs AS (SELECT * FROM ${currentSignals()} c WHERE story_id = ${storyId} AND observed_at <= ${now})
     SELECT count(DISTINCT participant_key) FILTER (WHERE observed_at > ${now}::timestamptz - interval '48 hours') AS p48,
@@ -151,8 +185,7 @@ export async function loadStoryDetail(storyId: number, now = new Date()): Promis
              AND participant_key NOT IN (SELECT participant_key FROM cs x WHERE x.observed_at <= ${now}::timestamptz - interval '6 hours')) AS p6,
            count(*) FILTER (WHERE kind = 'editorial' AND observed_at > ${now}::timestamptz - interval '24 hours') AS r24
     FROM cs`;
-  const ranking = await latestHotRanking();
-  const entry = ranking?.entries.find((e) => e.storyId === storyId) ?? null;
+  const rank = knownRank ?? await storyRank(storyId);
   // Only hours observed in full are drawn (the chart leaves a gap otherwise), over one comparable group.
   const heat = await heatSeries(storyId, now);
   // Complete when none of the sources behind the last 48 hours' participants is behind on collection.
@@ -161,34 +194,15 @@ export async function loadStoryDetail(storyId: number, now = new Date()): Promis
     ? await sql<{ n: number }[]>`SELECT count(*)::int AS n FROM ${currentSignals()} cs WHERE story_id = ${storyId} AND source_id = ANY(${behind}::text[])
                                   AND observed_at > ${now}::timestamptz - interval '48 hours' AND observed_at <= ${now}`
     : [{ n: 0 }];
-  const [related, topics, texts] = await Promise.all([relatedStories(storyId, now), topicsOfStory(storyId, now), storyTexts([storyId], now)]);
-  const text = texts.get(storyId)!;
-  // Historical stories without listed evidence retain their latest readable report.
-  const latest = text.latest ?? latestReport;
-  const latestAt = latest.at;
-  // Without a digest or a summary of its own, the story opens with its first development's representative report.
-  const origin = developments[developments.length - 1]?.representative;
-  const excerpt = !text.digest && !text.summary && origin?.summary ? { itemId: origin.id, text: origin.summary, sourceId: origin.source_id, sourceName: publicSourceName(origin.source_name) } : null;
+  const [related, topics] = await Promise.all([relatedStories(storyId, now), topicsOfStory(storyId, now)]);
   return {
-    publicId: s.public_id,
-    title: s.title,
-    status: storyStatusFor(latestAt, now.getTime()),
-    reportCount: reports.length,
-    sourceCount: new Set(reports.map((r) => r.source_id)).size,
-    firstReportAt: firstReportAt.toISOString(),
-    latestAt: latestAt.toISOString(),
-    digest: text.digest,
-    digestUpdatedAt: text.digestUpdatedAt?.toISOString() ?? null,
-    summary: text.summary,
-    excerpt,
-    latest: latest.title,
-    latestReport: { id: latest.id },
+    ...head,
     whyHot: {
       participants48h: Number(why?.p48 ?? 0),
       newParticipants6h: Number(why?.p6 ?? 0),
       recentReports24h: Number(why?.r24 ?? 0),
       observationComplete: !partial?.n,
-      rank: entry?.rank ?? null,
+      rank,
     },
     developments: developments.map((d) => ({ ...d, representative: reportView(d.representative) })),
     officialReports: reports.filter((r) => r.role !== "mention" && r.first_party).slice(0, 12).map(reportView),
@@ -196,7 +210,7 @@ export async function loadStoryDetail(storyId: number, now = new Date()): Promis
     heat: heat.map((h): HeatPoint => ({ hour: h.hour.toISOString(), heat: Number(h.heat), participants: h.participants })),
     related: related.map((r) => ({ publicId: r.public_id, title: r.title, relation: r.relation })),
     topics,
-    mentions: await mentionsIn([text.digest ?? text.summary ?? excerpt?.text]),
+    mentions: await mentionsIn([head.digest ?? head.summary ?? head.excerpt?.text]),
   };
 }
 
@@ -242,17 +256,27 @@ async function queryHotCovers({ entries }: HotRanking) {
   return covers;
 }
 
-export async function loadHot(): Promise<HotResponse> {
-  const ranking = await latestHotRanking();
+/** The card clips its text to a few lines; complete public words belong to the event page. */
+export function cardText(text: string | null, max = 480): string | null {
+  const chars = text ? Array.from(text) : null;
+  return chars && chars.length > max ? chars.slice(0, max).join("") + "…" : text;
+}
+
+const hotTexts = shared((ranking: HotRanking) => String(ranking.id), (ranking) => storyTexts(ranking.entries.map((e) => e.storyId)));
+
+/** `clip`: English pages clip after translating (publication/english.ts hot). */
+export async function loadHot(clip: (text: string | null) => string | null = cardText, knownRanking?: HotRanking): Promise<HotResponse> {
+  const ranking = knownRanking ?? await latestHotRanking();
   if (!ranking) return { computedAt: null, windowHours: 48, entries: [] };
   const at = new Date(ranking.computedAt);
-  const [sparks, covers, extras] = await Promise.all([
+  const [sparks, covers, participants, texts] = await Promise.all([
     sparklines(
       ranking.entries.map((e) => e.storyId),
       at,
     ),
     hotCovers(ranking),
-    rankingExtras(ranking),
+    rankingParticipants(ranking),
+    hotTexts(ranking),
   ]);
   return {
     computedAt: ranking.computedAt,
@@ -260,9 +284,7 @@ export async function loadHot(): Promise<HotResponse> {
     entries: ranking.entries.map((e) => {
       const picture = covers.get(e.storyId);
       const coverUrl = picture ? proxiedImage(picture.url, "full") : null;
-      const text = extras.text(e);
-      // The card clips its text to a few lines; complete public words belong to the event page.
-      const summary = text.summary ? Array.from(text.summary) : null;
+      const text = texts.get(e.storyId);
       return {
         rank: e.rank,
         story: { publicId: e.storyPublicId, title: e.title },
@@ -273,10 +295,10 @@ export async function loadHot(): Promise<HotResponse> {
         participantCount: e.participantCount,
         sourceCount: e.sourceCount,
         sourceNames: [...new Set(e.sourceNames.map(publicSourceName))],
-        participants: extras.participants(e),
+        participants: participants(e),
         spark: sparks.get(e.storyId) ?? [],
-        summary: summary && summary.length > 480 ? summary.slice(0, 480).join('') + '…' : text.summary,
-        latest: text.latest,
+        summary: clip(text?.digest ?? text?.summary ?? null),
+        latest: text?.latest?.title ?? null,
         cover: picture && coverUrl ? { url: coverUrl, srcSet: proxiedImageSet(picture.url, "hero") ?? undefined, width: picture.width, height: picture.height } : null,
       };
     }),
@@ -314,11 +336,7 @@ export async function v1Story(storyId: number) {
   const now = new Date();
   const content = await storyContent(storyId, now);
   if (!content) return null;
-  const { s, reports, latestReport, firstReportAt } = content;
-  // The latest development and digest follow the same evidence as the website.
-  const text = (await storyTexts([storyId], now)).get(storyId)!;
-  const latest = text.latest ?? latestReport;
-  const latestAt = latest.at;
+  const { head, reports } = content;
   const neighbors = (await relatedStories(storyId, now)).map((r) => {
     const links = { aihot: storyUrl(r.public_id), api: v1StoryApiUrl(r.public_id) };
     return { publicId: r.public_id, title: r.title, relation: r.relation, links };
@@ -326,17 +344,17 @@ export async function v1Story(storyId: number) {
   return {
     schemaVersion: 1 as const,
     story: {
-      publicId: s.public_id,
-      title: s.title,
-      status: storyStatusFor(latestAt, now.getTime()) === "settled" ? ("settled" as const) : ("active" as const),
-      sourceCount: new Set(reports.map((r) => r.source_id)).size,
-      reportCount: reports.length,
-      firstReportAt: firstReportAt.toISOString(),
-      latestAt: latestAt.toISOString(),
-      latest: latest.title,
-      digest: text.digest,
-      digestUpdatedAt: text.digestUpdatedAt?.toISOString() ?? null,
-      links: { aihot: storyUrl(s.public_id) },
+      publicId: head.publicId,
+      title: head.title,
+      status: head.status === "settled" ? ("settled" as const) : ("active" as const),
+      sourceCount: head.sourceCount,
+      reportCount: head.reportCount,
+      firstReportAt: head.firstReportAt,
+      latestAt: head.latestAt,
+      latest: head.latest,
+      digest: head.digest,
+      digestUpdatedAt: head.digestUpdatedAt,
+      links: { aihot: storyUrl(head.publicId) },
       reports: reports.slice(0, 50).map((r) => ({
         id: r.id,
         title: r.title,

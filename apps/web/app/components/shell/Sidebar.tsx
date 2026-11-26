@@ -4,7 +4,7 @@ import { IntentLink } from "../ui/IntentLink";
 import { useContainedScroll } from "../ui/Page";
 import { SITE } from "@aihot/site";
 import { RingMark, Wordmark } from "@aihot/site/brand/Logo.tsx";
-import { useChangelogSeen } from "../../lib/local-state";
+import { getReadIds, setChangelogSeen, useChangelogSeen } from "../../lib/local-state";
 import { activeSidebarItem, rail, railIsActive, sidebar, type NavItem } from "./nav";
 import { useScreen } from "./screens";
 import { MoreMenu } from "./MoreMenu";
@@ -13,14 +13,21 @@ import { IconGithub } from "../icons";
 import { Link } from "../../lib/link";
 import { pagePath, useLocale, useT } from "../../lib/i18n";
 
-/** True while the changelog has an entry newer than the one this reader last opened; never on English pages, which have no changelog. */
+/**
+ * True while the changelog has an entry newer than the one this reader last opened. A first visit (nothing read in
+ * this browser yet) counts from now: everything is new to a first-time reader, so the dot would only say "unread"
+ * about the site itself; it lights for the updates that come after. A returning reader who never opened the
+ * changelog still sees it.
+ */
 export function useChangelogDot(latestVersion: string | null): boolean {
   const seen = useChangelogSeen();
-  const english = useLocale() === "en";
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
-  if (!mounted || !latestVersion || english) return false;
-  return !seen || seen < latestVersion;
+  useEffect(() => {
+    if (mounted && latestVersion && !seen && getReadIds().length === 0) setChangelogSeen(latestVersion);
+  }, [mounted, latestVersion, seen]);
+  if (!mounted || !latestVersion) return false;
+  return seen ? seen < latestVersion : getReadIds().length > 0;
 }
 
 function SideLink({ item, dot, active }: { item: NavItem; dot: boolean; active: boolean }) {
@@ -30,7 +37,7 @@ function SideLink({ item, dot, active }: { item: NavItem; dot: boolean; active: 
     <IntentLink
       to={item.to}
       aria-current={active ? "page" : undefined}
-      className={`flex h-10 items-center gap-2.5 rounded-control px-2.5 text-ui-body-sm transition-colors duration-150 touch:h-11 ${
+      className={`flex h-10 items-center gap-2.5 rounded-control px-2.5 text-ui-body-sm transition-colors touch:h-11 ${
         active ? "bg-accent/10 font-semibold text-ink dark:bg-accent-soft" : "font-medium text-ink-3 hover:bg-bg-sunk hover:text-ink"
       }`}
     >
@@ -68,7 +75,7 @@ function Rail({ dot }: { dot: boolean }) {
               key={tab.key}
               to={tab.to}
               aria-current={on ? "page" : undefined}
-              className={`relative flex h-14 shrink-0 flex-col items-center justify-center gap-[3px] rounded-control text-ui-caption-sm transition-colors duration-150 short:h-12 ${
+              className={`relative flex h-14 shrink-0 flex-col items-center justify-center gap-[3px] rounded-control text-ui-caption-sm transition-colors short:h-12 ${
                 on ? "bg-accent/10 font-semibold text-ink dark:bg-accent-soft" : "font-medium text-ink-3 hover:bg-bg-sunk hover:text-ink"
               }`}
             >

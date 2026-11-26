@@ -14,10 +14,11 @@ import { pageMeta } from "../lib/seo";
 import { useStarred } from "../lib/local-state";
 import { FontSelect } from "../components/shell/FontSelect";
 import { ThemeSwitch } from "../components/shell/ThemeSwitch";
+import { LanguageSwitch } from "../components/shell/LanguageSwitch";
 import { Filings } from "../components/shell/Filings";
-import { IconBookmark, IconChevronRight, IconGrid, IconHeart, IconMessage, IconMoon, IconPlug, IconSparkles } from "../components/icons";
+import { IconBookmark, IconChevronRight, IconGlobe, IconGrid, IconHeart, IconMessage, IconMoon, IconPlug, IconSparkles } from "../components/icons";
 import { Link } from "../lib/link";
-import { hasEnglish, L, localeOf, translator, useLocale, useT, type Locale, type Text } from "../lib/i18n";
+import { feedPath, hasEnglish, L, localeOf, translator, useLocale, useT, type Locale, type Text } from "../lib/i18n";
 
 export const handle: Screen = { tab: "me", name: L("我的", "Me") };
 
@@ -80,6 +81,7 @@ function RowLink({ row, dot = false }: { row: Row; dot?: boolean }) {
 
 export default function MorePage() {
   const t = useT();
+  const locale = useLocale();
   const root = useRouteLoaderData<typeof rootLoader>("root");
   const changelogDot = useChangelogDot(root?.changelogVersion ?? null);
   const starred = useStarred();
@@ -100,15 +102,24 @@ export default function MorePage() {
               <IconMoon size={20} />
             </span>
             <span className="flex-1">{t("外观", "Appearance")}</span>
-            <ThemeSwitch className="w-[126px]" />
+            <ThemeSwitch className="w-[138px]" />
           </li>
           <li className="flex min-h-[56px] items-center gap-3 px-4 text-ui-body-lg font-medium text-ink">
             <span className="w-5 text-center text-ink-3" aria-hidden="true">Aa</span>
             <span className="flex-1">{t("字体", "Font")}</span>
             <FontSelect />
           </li>
+          {ENGLISH && (
+            <li className="flex min-h-[56px] items-center gap-3 px-4 text-ui-body-lg font-medium text-ink">
+              <span className="text-ink-3">
+                <IconGlobe size={20} />
+              </span>
+              <span className="flex-1">{t("语言", "Language")}</span>
+              <LanguageSwitch page="/more" className="w-[148px]" />
+            </li>
+          )}
         </Group>
-        <Group title={t("工具与入口", "Tools")}>
+        <Group title={t("工具", "Tools")}>
           {tools().map((r) => (
             <RowLink key={r.to} row={r} />
           ))}
@@ -116,14 +127,14 @@ export default function MorePage() {
         <Group title={t("关于", "About")}>
           <RowLink row={{ to: "/about", label: L(`关于 ${SITE.name}`, `About ${SITE.name}`), icon: <IconHeart size={20} /> }} />
           <RowLink row={{ to: "/changelog", label: L("更新日志", "Changelog"), icon: <IconSparkles size={20} /> }} dot={changelogDot} />
-          <RowLink row={{ to: "/feedback", label: L("意见反馈", "Feedback"), icon: <IconMessage size={20} /> }} />
+          <RowLink row={{ to: "/feedback", label: L("反馈", "Feedback"), icon: <IconMessage size={20} /> }} />
         </Group>
       </div>
       <div className="mt-6 flex flex-wrap justify-center gap-x-4 gap-y-1 text-ui-caption leading-[2] text-ink-4">
         {/* The terms and the privacy notice have no English edition: English links to the Chinese pages. */}
         {t(<Link viewTransition to="/terms" className="hover:text-ink-2">{POLICY.terms.name}</Link>, <a href="/terms" className="hover:text-ink-2">{ENGLISH?.policyLinks.terms ?? POLICY.terms.name}</a>)}
         {t(<Link viewTransition to="/privacy" className="hover:text-ink-2">隐私说明</Link>, <a href="/privacy" className="hover:text-ink-2">{ENGLISH?.policyLinks.privacy ?? "Privacy"}</a>)}
-        <a href="/feed.xml" className="hover:text-ink-2">RSS</a>
+        <a href={feedPath("/feed.xml", locale)} className="hover:text-ink-2">RSS</a>
         {SITE.github && <a href={SITE.github} target="_blank" rel="noopener noreferrer" className="hover:text-ink-2">{t("GitHub 开源", "Open source on GitHub")}</a>}
         {SITE.poweredBy && <a href={SITE.poweredBy.url} target="_blank" rel="noopener" className="hover:text-ink-2">{t(<>由 {SITE.poweredBy.name} 驱动</>, <>Powered by {SITE.poweredBy.name}</>)}</a>}
         <Filings className="hover:text-ink-2" badgeSize={13} />

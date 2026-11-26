@@ -9,8 +9,9 @@ import type { MentionTarget } from "@aihot/contracts/mentions";
 import type { Brand } from "@aihot/contracts/site";
 import type { Db } from "./db.ts";
 import type { QueueOptions } from "./jobs/queue.ts";
-import type { Finding } from "./notify/feishu.ts";
+import type { Finding, FollowUp } from "./notify/feishu.ts";
 import type { ContentPart } from "./providers/llm.ts";
+import type { WantedText } from "./publication/english.ts";
 import type { Topic, TopicMember } from "./publication/topics.ts";
 
 /** A cron schedule (Asia/Shanghai), recorded in job_runs like the engine's (apps/worker/src/schedules.ts). */
@@ -104,6 +105,8 @@ export interface SitemapEntry {
   lastmod?: Date | null;
   changefreq?: string;
   priority?: number;
+  /** Set false while content needs translation. Only registered English pages are listed. */
+  english?: boolean;
 }
 
 /**
@@ -188,8 +191,8 @@ export interface ServerModule {
   };
   llms?: () => Promise<LlmsLines> | LlmsLines;
   sitemap?: {
-    /** After the stories. */
-    entries?: () => Promise<SitemapEntry[]>;
+    /** The XML lists URLs and dates. Change notifications also need content revisions. */
+    entries?: (withRevisions: boolean) => Promise<SitemapEntry[]>;
   };
   models?: Record<string, ModelStep>;
   /** Paid services it supplies, named in provider-access and budget alerts (operations/alerts.ts). */
@@ -201,6 +204,11 @@ export interface ServerModule {
   /** Its share of the daily retention run (operations/retention.ts): what it deleted or aggregated. */
   retention?: (now: Date) => Promise<Record<string, unknown>>;
   on?: Partial<EngineHooks>;
+  /**
+   * The Chinese its English answers show, for the worker to translate (editorial/english.ts; publication/english.ts
+   * textsIn gathers them through the answers' own overlays). Called every few minutes: keep it cheap when nothing changed.
+   */
+  english?: () => Promise<WantedText[]>;
   /** Topic pages (publication/topics.ts). */
   topics?: {
     /**
@@ -242,7 +250,7 @@ export interface ServerModule {
   /** Job queues of its own (jobs/queue.ts). */
   queues?: ModuleQueue[];
   /** Follow-ups (level later), after the engine's (operations/alerts.ts). */
-  followUps?: (now: number) => Promise<Finding[]>;
+  followUps?: (now: number) => Promise<FollowUp[]>;
   /** Reminders for the person behind a JSON request (RequestNotices). */
   notices?: Partial<RequestNotices>;
   /** More keys a feedback sender is known by; a ban under any of them holds (operations/feedback.ts). */
@@ -328,6 +336,8 @@ export interface EditorialStoryDigestReviewInput {
 
 export interface EditorialEventCopyInput {
   title: string;
+  /** The member report's title and summary, to disambiguate a shorter event title. */
+  reportContext?: string;
   fallbackTitle?: string | null;
   conditions?: string | null;
   subject?: string | null;
@@ -352,7 +362,7 @@ export interface EditorialPolicy {
   reviewTranslation?: (input: EditorialTranslationReviewInput) => Promise<{ allow: boolean; reason?: string; receiptIds?: number[] }>;
   /** Reviews a generated event title and digest before saving (events/digest.ts). */
   reviewStoryDigest?: (input: EditorialStoryDigestReviewInput) => Promise<{ title: string; digest: string; receiptIds?: number[] } | null>;
-  /** Sanitizes stored fact and story copy when a report is grouped, revised or overridden (events/group.ts). */
+  /** Sanitizes stored fact and story copy when a report is grouped, revised or overridden. */
   sanitizeEventCopy?: (input: EditorialEventCopyInput) => EditorialEventCopyOutcome;
 }
 

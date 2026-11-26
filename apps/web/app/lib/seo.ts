@@ -7,8 +7,8 @@ import {
 } from "@aihot/contracts/site";
 import { isCategoryKey, isChannelKey, sectionLabelIn, topicName } from "@aihot/contracts/taxonomy";
 import { SITE, subjectAfter, withSubject } from "@aihot/site";
-import { ENGLISH } from "@aihot/contracts/english";
-import { localizePath, translator, type Locale, type Text } from "./i18n.ts";
+import { ENGLISH, WAITING_ENGLISH_SECONDS, needsEnglish } from "@aihot/contracts/english";
+import { feedPath, hasEnglish, localizePath, ogPath, translator, type Locale, type Text } from "./i18n.ts";
 
 /**
  * The site's address: SITE_URL while rendering on the server (what crawlers and share previews read),
@@ -79,6 +79,20 @@ export function filterParams(f: TimelineFilters) {
   return { channel: f.channel === "all" ? null : f.channel, category: f.category, tag: f.tag };
 }
 
+/** What a search started from a feed keeps of it: its 一手 / category filter (精选, 全部动态 and the phone search alike). */
+export function filterKeep(f: Pick<TimelineFilters, "channel" | "category">): Record<string, string | null> {
+  return { channel: f.channel === "all" ? null : f.channel, category: f.category };
+}
+
+/** Links in shared feed HTML carry only the destination's filters. Pagination starts over unless requested. */
+export function feedListPath(base: string, params: URLSearchParams, changes: Partial<Record<"q" | "tab" | "page" | "tag" | "category" | "channel", string | number | null>>) {
+  const q = base === "/all" ? params.get("q")?.trim().slice(0, 200) : null;
+  return listPath(base, {
+    ...filterParams(readFilters(params)), q, tab: q && params.get("tab") === "relevance" ? "relevance" : null,
+    ...changes,
+  });
+}
+
 /** Filter combinations are browsing views; the unfiltered feed and its archive pages remain indexable. */
 export function hasFeedFilters(filters: TimelineFilters | undefined): boolean {
   return !!filters && (filters.channel !== "all" || !!filters.category || !!filters.tag);
@@ -89,6 +103,15 @@ export function titled(title: string): string {
   return `${title} · ${SITE.name}`;
 }
 
+/** The temporary noindex ends when the English title arrives. */
+function waitingForTitle(locale: Locale, title?: string | null) {
+  return locale === "en" && needsEnglish(title);
+}
+
+export function titleCacheSeconds(seconds: number, locale: Locale, indexableTitle: string | null) {
+  return waitingForTitle(locale, indexableTitle) ? Math.min(seconds, WAITING_ENGLISH_SECONDS) : seconds;
+}
+
 export function pageMeta(input: PageMetaInput): MetaDescriptor[] {
   const base = siteUrl();
   const english = input.locale === "en" ? ENGLISH : null;
@@ -96,7 +119,7 @@ export function pageMeta(input: PageMetaInput): MetaDescriptor[] {
   const title = input.title ? (input.rawTitle ? input.title : titled(input.title)) : home;
   const description = input.description ?? english?.description ?? SITE_DESCRIPTION;
   const url = address(input.path, input.locale);
-  const image = input.image ? (input.image.startsWith("http") ? input.image : `${base}${input.image}`) : `${base}/og/site.png`;
+  const image = input.image?.startsWith("http") ? input.image : `${base}${ogPath(input.image || "/og/site.png", input.locale)}`;
   const tags: MetaDescriptor[] = [
     { title },
     { name: "description", content: description },
@@ -117,8 +140,19 @@ export function pageMeta(input: PageMetaInput): MetaDescriptor[] {
   ];
   // The Markdown versions are the Chinese pages'.
   if (input.markdown && input.locale === "zh") tags.push({ tagName: "link", rel: "alternate", type: "text/markdown", href: `${base}${input.markdown}` });
-  if (input.noindex) tags.push({ name: "robots", content: input.nofollow ? "noindex, nofollow" : "noindex, follow" });
+  // An English page whose own title is still Chinese (its words not translated yet) stays out of search until they are.
+  const noindex = input.noindex || waitingForTitle(input.locale, input.title);
+  if (noindex) tags.push({ name: "robots", content: input.nofollow ? "noindex, nofollow" : "noindex, follow" });
   else {
+    // A page in both languages names both, the Chinese as the default, so search engines show readers their own.
+    if (ENGLISH && hasEnglish(input.path.split(/[?#]/)[0]!)) {
+      const zh = address(input.path, "zh");
+      tags.push(
+        { tagName: "link", rel: "alternate", hrefLang: SITE.locale, href: zh },
+        { tagName: "link", rel: "alternate", hrefLang: "en", href: address(input.path, "en") },
+        { tagName: "link", rel: "alternate", hrefLang: "x-default", href: zh },
+      );
+    }
     // Search results and Discover may show an indexable page's picture large, as they do for news sites.
     tags.push({ name: "robots", content: "max-image-preview:large" });
     if (input.googleNoindex) tags.push({ name: "googlebot", content: "noindex" });
@@ -211,11 +245,11 @@ export function siteLd(locale: Locale) {
       creator: orgRef(),
       publisher: orgRef(),
       distribution: [
-        { "@type": "DataDownload", name: t("精选 RSS", "Top Picks RSS"), encodingFormat: "application/rss+xml", contentUrl: `${base}/feed.xml` },
-        { "@type": "DataDownload", name: t("全部动态 RSS", `All ${SITE.subject} News RSS`), encodingFormat: "application/rss+xml", contentUrl: `${base}/feed/all.xml` },
-        { "@type": "DataDownload", name: t(`${withSubject("日报")} RSS`, `${SITE.subject} Daily RSS`), encodingFormat: "application/rss+xml", contentUrl: `${base}/feed/daily.xml` },
-        { "@type": "DataDownload", name: t(`${withSubject("周报")} RSS`, `${SITE.subject} Weekly RSS`), encodingFormat: "application/rss+xml", contentUrl: `${base}/feed/weekly.xml` },
-        { "@type": "DataDownload", name: t(`${withSubject("月报")} RSS`, `${SITE.subject} Monthly RSS`), encodingFormat: "application/rss+xml", contentUrl: `${base}/feed/monthly.xml` },
+        { "@type": "DataDownload", name: t("精选 RSS", "Top Picks RSS"), encodingFormat: "application/rss+xml", contentUrl: `${base}${feedPath("/feed.xml", locale)}` },
+        { "@type": "DataDownload", name: t("全部动态 RSS", `All ${SITE.subject} News RSS`), encodingFormat: "application/rss+xml", contentUrl: `${base}${feedPath("/feed/all.xml", locale)}` },
+        { "@type": "DataDownload", name: t(`${withSubject("日报")} RSS`, `${SITE.subject} Daily RSS`), encodingFormat: "application/rss+xml", contentUrl: `${base}${feedPath("/feed/daily.xml", locale)}` },
+        { "@type": "DataDownload", name: t(`${withSubject("周报")} RSS`, `${SITE.subject} Weekly RSS`), encodingFormat: "application/rss+xml", contentUrl: `${base}${feedPath("/feed/weekly.xml", locale)}` },
+        { "@type": "DataDownload", name: t(`${withSubject("月报")} RSS`, `${SITE.subject} Monthly RSS`), encodingFormat: "application/rss+xml", contentUrl: `${base}${feedPath("/feed/monthly.xml", locale)}` },
         { "@type": "DataDownload", name: t("公开 API v1", "Public API v1"), encodingFormat: "application/json", contentUrl: `${base}/api/v1/items` },
         { "@type": "DataDownload", name: "OpenAPI", encodingFormat: "application/json", contentUrl: `${base}/openapi-v1.json` },
       ],
@@ -256,7 +290,7 @@ export function articleLd(input: { locale: Locale; path: string; headline: strin
     inLanguage: inLanguage(input.locale),
     ...(input.publishedAt ? { datePublished: input.publishedAt } : {}),
     ...(input.modifiedAt ? { dateModified: input.modifiedAt } : {}),
-    ...(input.image ? { image: new URL(input.image, base).href } : {}),
+    ...(input.image ? { image: new URL(ogPath(input.image, input.locale), base).href } : {}),
     ...(input.section?.length ? { articleSection: input.section } : {}),
     isAccessibleForFree: true,
     author: siteOrganization(),
@@ -282,8 +316,11 @@ export function archiveLd(path: string, name: string, entries: Array<{ path: str
 export function reportTitle(report: ReportDetail, locale: Locale): string {
   // Without a lead, the first highlight the issue carries as an entry heads it; the reports a thin daily's
   // highlights were filled with are not its news.
-  const entries = new Set(report.sections.flatMap((s) => s.items.map((i) => i.itemId)));
-  const lead = report.lead?.title.trim() || report.highlights.find((item) => item.available && entries.has(item.itemId))?.title.trim();
+  let lead = report.lead?.title.trim();
+  if (!lead) {
+    const entries = new Set(report.sections.flatMap((s) => s.items.map((i) => i.itemId)));
+    lead = report.highlights.find((item) => item.available && entries.has(item.itemId))?.title.trim();
+  }
   const t = translator(locale);
   const name = t(
     `${withSubject(REPORT_NAMES[report.kind])}｜${reportDateLabel(report.kind, report.key)}`,
@@ -349,7 +386,7 @@ export function storyLd(story: StoryDetail, locale: Locale) {
     url,
     name: story.title,
     ...(description ? { description } : {}),
-    image: `${base}/og/stories/${story.publicId}.png`,
+    image: `${base}${ogPath(`/og/stories/${story.publicId}.png`, locale)}`,
     inLanguage: inLanguage(locale),
     isPartOf: websiteRef(locale),
     publisher: siteOrganization(),

@@ -1,14 +1,13 @@
-// Production SSR with a local health stub. Failure case: machine entry points for weekly and monthly
-// reports exist but cannot be found from the access page.
+// Weekly and monthly reports must be discoverable from each machine access panel.
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
 import * as cheerio from 'cheerio';
+import { ENGLISH } from '@aihot/contracts/english';
 import { MCP_TOOL_NAMES } from '@aihot/contracts/mcp';
 import { fakeApi, startWebServer, type WebServer } from './web-server.ts';
 
 let web: WebServer;
-const api = fakeApi((url) => (url.pathname === '/api/health' ? { ok: true } : undefined));
-before(async () => { web = await startWebServer(api); });
+before(async () => { web = await startWebServer(fakeApi()); });
 after(() => web.stop());
 
 for (const [tab, names] of [
@@ -23,3 +22,22 @@ for (const [tab, names] of [
     for (const name of names) assert.ok(panel.includes(name), `${tab} panel omits ${name}`);
   });
 }
+
+test('English pages offer the English feeds: the RSS panel, every category row and the page head', { skip: ENGLISH === null }, async () => {
+  const response = await fetch(`${web.origin}/en/agent?tab=rss`);
+  assert.equal(response.status, 200, web.logs());
+  const $ = cheerio.load(await response.text());
+  const feeds = $('#agent-panel code').map((_, el) => $(el).text()).get().filter((text) => text.includes('/feed'));
+  assert.ok(feeds.some((a) => a.endsWith('/en/feed.xml')) && feeds.some((a) => a.includes('/en/feed/full/category/')), feeds.join(' '));
+  assert.deepEqual(feeds.filter((a) => !a.includes('/en/feed')), [], 'a feed address on an English page is an English feed');
+  assert.equal($('link[rel="alternate"][type="application/rss+xml"]').attr('href'), '/en/feed.xml');
+});
+
+test('the English Agent page sends agents to the English guide and tells them how to ask MCP in English', { skip: ENGLISH === null }, async () => {
+  const response = await fetch(`${web.origin}/en/agent`);
+  assert.equal(response.status, 200, web.logs());
+  const $ = cheerio.load(await response.text());
+  assert.ok($('a[href="/api/v1/agent?lang=en"]').length > 0 && $('a[href="/api/v1/agent"]').length === 0, 'every guide link on it is the English guide');
+  const mcp = cheerio.load(await (await fetch(`${web.origin}/en/agent?tab=mcp`)).text())('#agent-panel').text();
+  assert.ok(mcp.includes('with lang "en"') && !mcp.includes('returns its summaries in Chinese'), mcp.slice(0, 300));
+});

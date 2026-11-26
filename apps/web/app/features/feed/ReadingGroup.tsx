@@ -12,10 +12,10 @@ import { isReload } from "../../lib/restore";
 import { listPath, filterParams } from "../../lib/seo";
 import { sessionCache } from "../../lib/session-cache";
 import { Link } from "../../lib/link";
-import { useLocale, useT, type Translate } from "../../lib/i18n";
+import { apiIn, useLocale, useT, type Locale, type Translate } from "../../lib/i18n";
 
-const reportsUrl = (factId: string, filters: TimelineFilters | undefined) =>
-  listPath(`/api/site/groups/${encodeURIComponent(factId)}/reports`, filters ? filterParams(filters) : {});
+const reportsUrl = (factId: string, filters: TimelineFilters | undefined, locale: Locale) =>
+  listPath(apiIn(`/groups/${encodeURIComponent(factId)}/reports`, locale), filters ? filterParams(filters) : {});
 
 const labelOf = (group: GroupInfo, t: Translate) => {
   const others = group.additionalSourceCount;
@@ -79,7 +79,7 @@ function Toggle({ open, onToggle, children }: { open: boolean; onToggle: () => v
       className="relative z-10 inline-flex items-center gap-0.5 text-ink-4 transition-colors hover:text-accent text-ui-caption-lg"
     >
       {children}
-      <IconChevronDown size={13} className={`transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+      <IconChevronDown size={13} className={`turn ${open ? "rotate-180" : ""}`} />
     </button>
   );
 }
@@ -92,10 +92,36 @@ function Panel({ open, children }: { open: boolean; children: ReactNode }) {
   );
 }
 
-function LoadState({ loading, error, onRetry, empty }: { loading: boolean; error: boolean; onRetry: () => void; empty: boolean }) {
+/**
+ * While the reports load, placeholder rows of the same height as the rows they stand for, as many as there are
+ * (up to six), so the panel opens to about its final size and the reports land in place.
+ */
+function LoadState({ loading, error, onRetry, empty, rows, tall = false }: { loading: boolean; error: boolean; onRetry: () => void; empty: boolean; rows: number; tall?: boolean }) {
   const t = useT();
-  if (loading && empty) return <div className="space-y-2 py-1">{[0, 1].map((i) => <div key={i} className="skeleton h-4" />)}</div>;
-  if (error) return <button type="button" onClick={onRetry} className="min-h-11 py-1 text-ui-caption-lg text-hot lg:min-h-0">{t("暂时无法加载，点此重试", "Couldn't load. Try again")}</button>;
+  const n = Array.from({ length: Math.max(1, Math.min(6, rows)) }, (_, i) => i);
+  if (loading && empty) {
+    return tall ? (
+      <ul aria-hidden="true" className="divide-y divide-line-soft">
+        {n.map((i) => (
+          <li key={i} className="py-3">
+            <span className="skeleton block w-28 text-ui-caption-lg">&nbsp;</span>
+            <span className="skeleton mt-1.5 block text-ui-body leading-[1.3]">&nbsp;</span>
+            <span className="skeleton mt-1 block w-2/3 text-ui-body leading-[1.3]">&nbsp;</span>
+          </li>
+        ))}
+      </ul>
+    ) : (
+      <ul aria-hidden="true">
+        {n.map((i) => (
+          <li key={i} className="flex items-baseline gap-2 py-1.5 text-ui-label">
+            <span className="skeleton w-[108px] shrink-0">&nbsp;</span>
+            <span className="skeleton min-w-0 flex-1">&nbsp;</span>
+          </li>
+        ))}
+      </ul>
+    );
+  }
+  if (error) return <button type="button" onClick={onRetry} className="min-h-11 py-1 text-ui-caption-lg text-hot lg:min-h-0">{t("加载失败，重试", "Couldn't load. Retry")}</button>;
   return null;
 }
 
@@ -105,7 +131,7 @@ export function GroupSources({ group, filters, parentId }: { group: GroupInfo; f
   const key = `${group.factId}|${parentId}`;
   const saved = openGroups.peek(entry)?.groups[key];
   const [open, setOpen] = useState(saved !== undefined);
-  const reports = useReports(reportsUrl(group.factId, filters), saved);
+  const reports = useReports(reportsUrl(group.factId, filters, useLocale()), saved);
   // Back in this history entry, an open group comes back open and is read once more; so after the browser
   // reloaded the page on back/forward (never on a reader's reload, which asks for a fresh list).
   useEffect(() => {
@@ -138,18 +164,18 @@ export function GroupSources({ group, filters, parentId }: { group: GroupInfo; f
       <Panel open={open}>
         <ul className="divide-y divide-line-soft">
           {others.map((r) => (
-            <li key={r.id} className="flex items-baseline gap-2 py-1.5 text-ui-label">
+            <li key={r.id} className="anim-fade-in flex items-baseline gap-2 py-1.5 text-ui-label">
               <span className="w-[108px] shrink-0 truncate text-ink-4">{r.source.name}</span>
-              <Link viewTransition to={`/items/${r.id}`} className={`min-w-0 flex-1 truncate hover:text-accent ${readTone(read.has(r.id), "text-ink-2")}`}>
+              <Link viewTransition to={`/items/${r.id}`} className={`min-w-0 flex-1 truncate transition-colors hover:text-accent ${readTone(read.has(r.id), "text-ink-2")}`}>
                 {r.title}
               </Link>
-              <a href={r.originalUrl} target="_blank" rel="noopener noreferrer" aria-label={t("打开原文", "Open original")} className="shrink-0 text-ink-4 hover:text-accent">
+              <a href={r.originalUrl} target="_blank" rel="noopener noreferrer" aria-label={t("打开原文", "Open original")} className="shrink-0 text-ink-4 transition-colors hover:text-accent">
                 <IconArrowUpRight size={13} />
               </a>
             </li>
           ))}
         </ul>
-        <LoadState loading={reports.loading} error={reports.error} empty={others.length === 0} onRetry={() => reports.load()} />
+        <LoadState loading={reports.loading} error={reports.error} empty={others.length === 0} onRetry={() => reports.load()} rows={group.additionalSourceCount} />
       </Panel>
     </div>
   );
@@ -189,7 +215,7 @@ function GroupSheet({ open, onClose, group, filters, parentId }: {
   filters?: TimelineFilters;
   parentId: string;
 }) {
-  const reports = useReports(reportsUrl(group.factId, filters));
+  const reports = useReports(reportsUrl(group.factId, filters, useLocale()));
   useEffect(() => {
     if (open && !reports.reports && !reports.loading && !reports.error) void reports.load();
   }, [open]);
@@ -202,7 +228,7 @@ function GroupSheet({ open, onClose, group, filters, parentId }: {
       <div className="px-5">
         <ul className="divide-y divide-line-soft">
           {others.map((r) => (
-            <li key={r.id} className="flex items-start gap-2 py-3">
+            <li key={r.id} className="anim-fade-in flex items-start gap-2 py-3">
               <Link viewTransition to={`/items/${r.id}`} className="min-w-0 flex-1 active:opacity-60">
                 <span className="block text-ui-caption-lg text-ink-4">
                   {r.source.name} · <span className="num">{monthDayTime(r.timelineAt, locale)}</span>
@@ -216,7 +242,7 @@ function GroupSheet({ open, onClose, group, filters, parentId }: {
           ))}
         </ul>
         <div className="py-2">
-          <LoadState loading={reports.loading} error={reports.error} empty={others.length === 0} onRetry={() => reports.load()} />
+          <LoadState loading={reports.loading} error={reports.error} empty={others.length === 0} onRetry={() => reports.load()} rows={group.additionalSourceCount} tall />
         </div>
       </div>
     </Sheet>

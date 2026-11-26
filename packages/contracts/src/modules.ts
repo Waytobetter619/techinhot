@@ -36,6 +36,8 @@ export interface ModuleLayout {
 export interface ModuleDeclaration {
   /** Its folder under modules/. */
   name: string;
+  /** Publish this module’s public pages and their redirects in both languages. */
+  en?: true;
   /** Public pages, beside the engine's. */
   pages?: Array<ModulePage | ModuleLayout>;
   /** Matched after the engine's redirects, in this order. */

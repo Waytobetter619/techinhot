@@ -1,7 +1,7 @@
 import {
-  isRouteErrorResponse, Links, Meta, Outlet, Scripts, ScrollRestoration, useLoaderData, useLocation, useNavigation, useRouteError, useRouteLoaderData, type ShouldRevalidateFunction,
+  isRouteErrorResponse, Links, Meta, Outlet, Scripts, ScrollRestoration, useLoaderData, useLocation, useNavigation, useRevalidator, useRouteError, useRouteLoaderData, type ShouldRevalidateFunction,
 } from "react-router";
-import type { SiteMeta } from "@aihot/contracts/site";
+import { latestVersion } from "../../../site/changelog.json";
 import { SITE } from "@aihot/site";
 import { RingMark } from "@aihot/site/brand/Logo.tsx";
 import { useEffect, useState, type ReactNode } from "react";
@@ -11,16 +11,18 @@ import { Sidebar } from "./components/shell/Sidebar";
 import { TabBar } from "./components/shell/TabBar";
 import { PullToRefresh } from "./components/shell/PullToRefresh";
 import { usePageTransition } from "./components/shell/transitions";
+import { useDisclosureMotion } from "./lib/disclosure";
 import { SearchOverlay } from "./features/search/SearchOverlay";
-import { BackToTop, NavigationProgress } from "./components/shell/Chrome";
+import { BackToTop, NavigationProgress, refreshAsked } from "./components/shell/Chrome";
+import { EnglishHint } from "./components/shell/EnglishHint";
 import { buttonClass } from "./components/ui/Controls";
 import { rememberPage, APPEARANCE_BOOT_SCRIPT, useAppearanceSync } from "./lib/local-state";
-import { apiGet } from "./lib/api.server";
+import { documentRead } from "./lib/api.server";
 import { useHydratedFlag } from "./lib/hydration";
 import { titled } from "./lib/seo";
 import { webModules } from "./site-modules";
 import { Link } from "./lib/link";
-import { localeOf, localizePath, translator, useLocale, useT } from "./lib/i18n";
+import { feedPath, localeOf, translator, useLocale, useT } from "./lib/i18n";
 
 export const links: Route.LinksFunction = () => [
   { rel: "icon", href: "/favicon.ico", sizes: "any" },
@@ -30,17 +32,12 @@ export const links: Route.LinksFunction = () => [
 ];
 
 /** The release rendering this document: once a newer one is deployed, a render error reloads the page (entry.client). */
-export async function loader({ request }: Route.LoaderArgs) {
-  const release = process.env.AIHOT_RELEASE ?? null;
-  try {
-    const meta = await apiGet<SiteMeta>("/api/site/meta", {
-      headers: Object.assign({}, ...webModules().map((m) => m.root?.documentHeaders?.(request) ?? {})),
-      signal: request.signal,
-    });
-    return { ...meta, release };
-  } catch {
-    return { changelogVersion: null, release };
+export function loader({ request, context }: Route.LoaderArgs) {
+  for (const m of webModules()) {
+    const headers = m.root?.documentHeaders?.(request);
+    if (headers) context.set(documentRead, { ...context.get(documentRead), ...headers });
   }
+  return { changelogVersion: latestVersion, release: process.env.AIHOT_RELEASE ?? null };
 }
 
 export const shouldRevalidate: ShouldRevalidateFunction = () => false;
@@ -63,7 +60,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         {webModules().map((m) => m.root?.bootScript && <script key={m.name} dangerouslySetInnerHTML={{ __html: m.root.bootScript }} />)}
         <Meta />
         <Links />
-        <link rel="alternate" type="application/rss+xml" title={t(`${SITE.name} — 精选`, `${SITE.name} — Top Picks`)} href={localizePath("/feed.xml", locale)} />
+        <link rel="alternate" type="application/rss+xml" title={t(`${SITE.name} — 精选`, `${SITE.name} — Top Picks`)} href={feedPath("/feed.xml", locale)} />
       </head>
       <body>
         {children}
@@ -85,6 +82,8 @@ export function meta({ error, location }: Route.MetaArgs) {
 /** Sidebar, main column and phone tab bar around a page (or an error). */
 function SiteShell({ changelogVersion, children }: { changelogVersion: string | null; children: ReactNode }) {
   const navigation = useNavigation();
+  const revalidator = useRevalidator();
+  const asked = revalidator.state === "loading" && refreshAsked.current;
   const t = useT();
   // The phone search and pull-to-refresh are client-side, mounted once the page is interactive.
   const [interactive, setInteractive] = useState(false);
@@ -93,7 +92,7 @@ function SiteShell({ changelogVersion, children }: { changelogVersion: string | 
     // The desktop shell also opens on large phones held sideways, where the notch takes a side: the whole
     // shell keeps clear of it (the phone shell does so through its gutters).
     <div className="flex min-h-dvh lg:pl-[env(safe-area-inset-left)] lg:pr-[env(safe-area-inset-right)]">
-      <NavigationProgress active={navigation.state === "loading"} />
+      <NavigationProgress active={navigation.state === "loading" || asked} immediate={asked} />
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[70] focus:rounded-control focus:bg-surface focus:px-3 focus:py-2">
         {t("跳到正文", "Skip to content")}
       </a>
@@ -110,6 +109,7 @@ function SiteShell({ changelogVersion, children }: { changelogVersion: string | 
       {interactive && <SearchOverlay />}
       {interactive && <PullToRefresh />}
       <BackToTop />
+      <EnglishHint />
     </div>
   );
 }
@@ -121,6 +121,7 @@ export default function App() {
   const { pathname, search } = useLocation();
   useEffect(() => rememberPage(pathname + search), [pathname, search]);
   usePageTransition();
+  useDisclosureMotion();
   // iOS Safari only shows :active (pressed) styles once the document listens for touches.
   useEffect(() => {
     const noop = () => {};

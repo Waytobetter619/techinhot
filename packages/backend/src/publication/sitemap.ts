@@ -1,10 +1,15 @@
 // Sitemap from the same public metadata as pages: /sitemap.xml is an index of one file per section, so
-// Search Console reports indexing section by section, plus a news section of the last 48 hours. Process
+// Search Console reports indexing section by section, plus a news section of the last 48 hours. On a site with
+// an English edition, every page that has one is listed again at /en<path>, in sections of their own (en-…): an
+// article or event once its title is in English (until then its English page stays out of search). Process
 // and HTTP caches share one five-minute deadline; a saved copy may bridge a restart only for the remainder
 // of that original lifetime.
 import { mkdir, readFile, stat, utimes, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { REPORT_NAMES, reportDateLabel, STORY_INDEX_MIN_SOURCES, type ReportKind } from "@aihot/contracts/site";
+import { ENGLISH, needsEnglish } from "@aihot/contracts/english";
+import { hasEnglish } from "@aihot/contracts/reader-pages";
+import { inLanguage, localeOf, pagePath } from "@aihot/contracts/i18n";
 import { ABOUT, ACCESS, AGENT, POLICY, SITE, withSubject } from "@aihot/site";
 import { config, REPO_ROOT } from "../config.ts";
 import { sha256, stableJson } from "../lib/ids.ts";
@@ -16,6 +21,7 @@ import { shared } from "../lib/cache.ts";
 import { escapeXml } from "../lib/text.ts";
 import { siteUrl } from "./links.ts";
 import { evidenceCondition, listedCondition, selectedCondition, storyReportCondition } from "./scope.ts";
+import { usableCopy } from "./english.ts";
 import { issueLead, unavailableHeadlineIds } from "./reports.ts";
 import { storyTexts } from "./story-text.ts";
 import { topicPageCounts } from "./topics.ts";
@@ -40,8 +46,32 @@ interface SitemapDocument { files: Record<string, string>; expiresAt: number }
 
 let lastGood: SitemapDocument | null = null;
 
-/** `newsAt`: the page's own date, which puts it in the news section while recent (and dates it there only). */
-type Entry = SitemapEntry & { section?: string; newsAt?: Date | null; newsTitle?: string | null };
+/**
+ * `newsAt`: the page's own date, which puts it in the news section while recent (and dates it there only).
+ * `englishTitle`: an article's or event's title in English, which its English address's identity follows.
+ */
+type Entry = SitemapEntry & { section?: string; newsAt?: Date | null; newsTitle?: string | null; englishTitle?: string | null };
+
+/** A title's English when it is ready (publication/english.ts), for the English addresses of articles and events. */
+const englishTitle = (title: ReturnType<typeof sql>) => ENGLISH
+  ? sql`(SELECT c.en FROM english_copy c WHERE c.zh_hash = encode(sha256(convert_to(${title}, 'UTF8')), 'hex') AND c.en IS NOT NULL AND ${usableCopy})`
+  : sql`NULL::text`;
+
+/** Whether a page with this title reads in English: its title has no Chinese, or has its English. */
+const readsInEnglish = (title: string, english: string | null) => !needsEnglish(title) || !!english;
+
+/** The English addresses of the pages that have one: the same page and identity, in sections of their own. */
+function inEnglish(entries: Entry[], revisions: boolean): Entry[] {
+  if (!ENGLISH) return [];
+  return entries.filter((e) => e.english !== false && hasEnglish(e.loc)).map((e) => ({
+    loc: inLanguage(e.loc, "en"),
+    revision: !revisions || e.revision === undefined ? undefined : sha256(stableJson([e.revision, e.englishTitle ?? null])),
+    lastmod: e.lastmod,
+    changefreq: e.changefreq,
+    priority: e.priority,
+    ...(e.section ? { section: `en-${e.section}` } : {}),
+  }));
+}
 
 /**
  * One inventory for XML discovery and change notifications. A sitemap bounds what it advertises;
@@ -51,25 +81,28 @@ type Entry = SitemapEntry & { section?: string; newsAt?: Date | null; newsTitle?
  */
 export async function loadDiscoveryEntries(at = new Date(), limits?: { urls: number }): Promise<Entry[]> {
   const entries: Entry[] = [];
+  const revisionColumn = (value: ReturnType<typeof sql>) => limits ? sql`` : sql`, ${value} AS revision`;
   const [activity] = limits ? [] : await sql<{ selected: string | null; listed: string | null }[]>`
     SELECT md5(string_agg(p.article_id || ':' || p.revision::text, ',' ORDER BY p.timeline_at DESC, p.article_id)
              FILTER (WHERE ${selectedCondition(at)})) AS selected,
            md5(string_agg(p.article_id || ':' || p.revision::text, ',' ORDER BY p.timeline_at DESC, p.article_id)
              FILTER (WHERE ${listedCondition(at)})) AS listed
     FROM publications p WHERE ${listedCondition(at)}`;
-  const reports = await sql<{ kind: ReportKind; key: string; t: Date | null; changed: Date; revision: string }[]>`
+  const reports = await sql<{ kind: ReportKind; key: string; t: Date | null; changed: Date; revision?: string }[]>`
     SELECT r.kind, r.key,
       CASE WHEN citations.revision IS NULL THEN greatest(r.updated_at, r.generated_at) END AS t,
-      greatest(r.updated_at, r.generated_at) AS changed,
-      md5(concat_ws('|', r.revision::text, r.updated_at::text, citations.revision)) AS revision
+      greatest(r.updated_at, r.generated_at) AS changed
+      ${revisionColumn(sql`md5(concat_ws('|', r.revision::text, r.updated_at::text, citations.revision))`)}
     FROM reports r LEFT JOIN LATERAL (
-      SELECT md5(string_agg(p.article_id || ':' || p.revision::text || ':' || (${listedCondition(at)})::text,
-          ',' ORDER BY p.article_id)) AS revision
+      SELECT ${limits ? sql`1` : sql`md5(string_agg(p.article_id || ':' || p.revision::text || ':' || (${listedCondition(at)})::text,
+          ',' ORDER BY p.article_id))`} AS revision
       FROM publications p WHERE p.article_id IN (
         SELECT value #>> '{}' FROM jsonb_path_query(r.content, '$.**.itemId') AS cited(value))
+      ${limits ? sql`LIMIT 1` : sql``}
     ) citations ON true ORDER BY r.kind, r.key DESC`;
-  const reportRevision = (kind: string) => sha256(stableJson(reports.filter((r) => r.kind === kind)));
+  const reportRevision = (kind: string) => limits ? undefined : sha256(stableJson(reports.filter((r) => r.kind === kind)));
   const topics = await topicPageCounts(at, !limits);
+  // The terms and the privacy notice are in Chinese only.
   entries.push(
     { loc: "/", revision: activity?.selected ?? "", changefreq: "hourly", priority: 1 },
     { loc: "/all", revision: activity?.listed ?? "", changefreq: "hourly", priority: 0.9 },
@@ -78,12 +111,12 @@ export async function loadDiscoveryEntries(at = new Date(), limits?: { urls: num
     { loc: "/daily/archive", revision: reportRevision("daily"), changefreq: "daily", priority: 0.7 },
     { loc: "/weekly", revision: reportRevision("weekly"), changefreq: "weekly", priority: 0.7 },
     { loc: "/monthly", revision: reportRevision("monthly"), changefreq: "monthly", priority: 0.6 },
-    { loc: "/topics", revision: sha256(stableJson(topics)), changefreq: "daily", priority: 0.7 },
-    { loc: "/agent", revision: sha256(stableJson([SITE, ACCESS, AGENT])), changefreq: "weekly", priority: 0.7 },
-    { loc: "/about", revision: sha256(stableJson(ABOUT)), changefreq: "monthly", priority: 0.5 },
-    { loc: "/terms", revision: sha256(stableJson([POLICY.terms, await readFile(path.join(REPO_ROOT, "site/pages/terms.md"), "utf8")])), changefreq: "monthly", priority: 0.4 },
-    { loc: "/privacy", revision: sha256(stableJson([POLICY.privacy, await readFile(path.join(REPO_ROOT, "site/pages/privacy.md"), "utf8")])), changefreq: "monthly", priority: 0.4 },
-    { loc: "/changelog", revision: sha256(stableJson(loadChangelog())), changefreq: "weekly", priority: 0.5 },
+    { loc: "/topics", revision: limits ? undefined : sha256(stableJson(topics)), changefreq: "daily", priority: 0.7 },
+    { loc: "/agent", revision: limits ? undefined : sha256(stableJson([SITE, ACCESS, AGENT])), changefreq: "weekly", priority: 0.7 },
+    { loc: "/about", revision: limits ? undefined : sha256(stableJson(ABOUT)), changefreq: "monthly", priority: 0.5 },
+    { loc: "/terms", revision: limits ? undefined : sha256(stableJson([POLICY.terms, await readFile(path.join(REPO_ROOT, "site/pages/terms.md"), "utf8")])), changefreq: "monthly", priority: 0.4 },
+    { loc: "/privacy", revision: limits ? undefined : sha256(stableJson([POLICY.privacy, await readFile(path.join(REPO_ROOT, "site/pages/privacy.md"), "utf8")])), changefreq: "monthly", priority: 0.4 },
+    { loc: "/changelog", revision: limits ? undefined : sha256(stableJson(loadChangelog())), changefreq: "weekly", priority: 0.5 },
   );
   // Resolve visible headlines only for reports inside the news window so withdrawn leads never leak into news.xml.
   const recentReportHeads = new Map<string, string>();
@@ -118,12 +151,13 @@ export async function loadDiscoveryEntries(at = new Date(), limits?: { urls: num
   // single-source clusters are noindex everywhere, so neither the sitemap nor notifications list them. Its
   // identity follows current readable reports as well as the digest, so a correction or regrouping is visible
   // even when latest_at does not advance.
-  const stories = await sql<{ id: number; public_id: string; title: string; revision: string }[]>`
-    SELECT st.id, st.public_id::text, st.title, md5(concat_ws('|', st.title, st.summary, st.digest, st.digest_updated_at::text,
-      st.version::text, members.revision)) AS revision
+  const stories = await sql<{ id: number; public_id: string; title: string; revision?: string; en_title: string | null }[]>`
+    SELECT st.id, st.public_id::text, st.title, ${englishTitle(sql`st.title`)} AS en_title
+      ${revisionColumn(sql`md5(concat_ws('|', st.title, st.summary, st.digest, st.digest_updated_at::text, st.version::text, members.revision))`)}
     FROM stories st JOIN LATERAL (
-      SELECT md5(string_agg(concat_ws(':', p.article_id, p.revision::text, fa.role, f.updated_at::text, p.source_id, regexp_replace(s.name, '（[^（）]*）', '', 'g')),
-        ',' ORDER BY p.article_id, f.id)) AS revision, count(DISTINCT p.source_id) AS sources
+      SELECT count(DISTINCT p.source_id) AS sources
+        ${revisionColumn(sql`md5(string_agg(concat_ws(':', p.article_id, p.revision::text, fa.role, f.updated_at::text, p.source_id, regexp_replace(s.name, '（[^（）]*）', '', 'g')),
+          ',' ORDER BY p.article_id, f.id))`)}
       FROM facts f JOIN fact_articles fa ON fa.fact_id = f.id JOIN publications p ON p.article_id = fa.article_id
       JOIN sources s ON s.id = p.source_id
       WHERE f.story_id = st.id AND ${storyReportCondition(at)}
@@ -140,33 +174,39 @@ export async function loadDiscoveryEntries(at = new Date(), limits?: { urls: num
     const text = texts?.get(Number(s.id));
     const dates = [text?.latest?.at, text?.digestUpdatedAt].filter((d): d is Date => !!d);
     const lastmod = dates.length ? new Date(Math.max(...dates.map(Number))) : null;
-    entries.push({ loc: `/story/${s.public_id}`, lastmod, newsAt: lastmod, newsTitle: limits ? s.title : undefined, revision: s.revision, changefreq: "daily", priority: 0.5 });
+    entries.push({ loc: `/story/${s.public_id}`, lastmod, newsAt: lastmod, newsTitle: limits ? s.title : undefined, revision: s.revision, changefreq: "daily", priority: 0.5,
+      english: readsInEnglish(s.title, s.en_title), englishTitle: s.en_title });
   }
-  for (const m of serverModules()) if (m.sitemap?.entries) entries.push(...(await m.sitemap.entries()).map((e) => ({ ...e, section: m.name })));
+  for (const m of serverModules()) if (m.sitemap?.entries) entries.push(...(await m.sitemap.entries(!limits)).map((e) => ({ ...e, section: m.name })));
   // Material/translation timestamps can also record a retry or a state repair. Hash the content;
   // without a dedicated public modification clock, omitting lastmod is more accurate than guessing.
   // A selection's release is the one date of its own, and it dates the page only in the news section.
   // Thin pages, and articles whose event page stands for them, stay out of the sitemap but not out of
   // notifications: other engines index them.
-  const items = await sql<{ id: string; title: string; revision: string; released: Date | null }[]>`
-    SELECT p.article_id AS id, p.title,
-      md5(concat_ws('|', p.revision::text, a.content_hash, a.cover::text, tr.title, tr.body_html, tr.body_text, tr.complete::text, qt.text_zh,
-        p.source_id, regexp_replace(s.name, '（[^（）]*）', '', 'g'), s.icon_url, st.public_id::text, st.title)) AS revision,
+  const items = await sql<{ id: string; title: string; revision?: string; released: Date | null; en_title: string | null }[]>`
+    SELECT p.article_id AS id, p.title, ${englishTitle(sql`p.title`)} AS en_title,
       CASE WHEN p.selected THEN p.visible_after END AS released
+      ${revisionColumn(sql`md5(concat_ws('|', p.revision::text, a.content_hash, a.cover::text, tr.title, tr.body_html, tr.body_text, tr.complete::text, qt.text_zh,
+        p.source_id, regexp_replace(s.name, '（[^（）]*）', '', 'g'), s.icon_url, st.public_id::text, st.title))`)}
     ${ITEM_FROM}
     WHERE ${storyReportCondition(at)} AND p.indexable ${limits ? sql`AND NOT ${thinPageCondition()} AND NOT ${eventPageCondition(at)}` : sql``}
     ORDER BY p.timeline_at DESC, p.article_id DESC ${limits ? sql`LIMIT ${Math.max(0, limits.urls - entries.length)}` : sql``}`;
-  for (const it of items) entries.push({ loc: `/items/${it.id}`, newsAt: it.released, newsTitle: limits ? it.title : undefined, revision: it.revision, changefreq: "monthly", priority: 0.5 });
-  return limits ? entries.slice(0, limits.urls) : entries;
+  for (const it of items) {
+    entries.push({ loc: `/items/${it.id}`, newsAt: it.released, newsTitle: limits ? it.title : undefined, revision: it.revision, changefreq: "monthly", priority: 0.5,
+      english: readsInEnglish(it.title, it.en_title), englishTitle: it.en_title });
+  }
+  // The English addresses come on top of the Chinese ones' limit, each language within its own.
+  const chinese = limits ? entries.slice(0, limits.urls) : entries;
+  return [...chinese, ...inEnglish(chinese, !limits)];
 }
 
 function sectionOf(e: Entry): string {
   if (e.section) return e.section;
-  if (e.loc.startsWith("/story/")) return "stories";
-  if (e.loc.startsWith("/items/")) return "items";
-  if (/^\/topics(\/|$)/.test(e.loc)) return "topics";
-  if (/^\/(daily|weekly|monthly)(\/|$)/.test(e.loc)) return "reports";
-  return "pages";
+  const english = localeOf(e.loc) === "en";
+  const loc = english ? pagePath(e.loc) : e.loc;
+  const section = loc.startsWith("/story/") ? "stories" : loc.startsWith("/items/") ? "items" : /^\/topics(\/|$)/.test(loc) ? "topics"
+    : /^\/(daily|weekly|monthly)(\/|$)/.test(loc) ? "reports" : "pages";
+  return english ? `en-${section}` : section;
 }
 
 function urlset(entries: Entry[]): string {

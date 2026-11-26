@@ -3,7 +3,7 @@
 // Storage failures degrade silently.
 import { useEffect, useSyncExternalStore } from "react";
 import { beijingDate } from "@aihot/contracts/time";
-import { L, type Phrase } from "./i18n.ts";
+import { L, pagePath, type Phrase } from "./i18n.ts";
 
 export const KEYS = {
   starred: "aihot-starred-items",
@@ -14,6 +14,7 @@ export const KEYS = {
   changelogSeen: "aihot-changelog-seen-version",
   feedbackDraft: "aihot-feedback-draft-v1",
   recentSearches: "aihot-recent-searches",
+  englishHint: "aihot-english-hint-dismissed",
 } as const;
 
 const STARRED_LIMIT = 500;
@@ -133,13 +134,6 @@ function invalidate(key: string) {
   emit(key);
 }
 
-// Another tab may have written since this tab cached its snapshots (its storage event can still be on
-// the way): every edit reads fresh values first.
-function editLocalData<T>(change: () => T): T {
-  cache.clear();
-  return change();
-}
-
 // starred
 function isStarredItem(v: unknown): v is LocalStarredItem {
   if (!v || typeof v !== "object") return false;
@@ -189,15 +183,15 @@ function isStarred(id: string): boolean {
 }
 
 export function toggleStar(item: Omit<LocalStarredItem, "savedAt">): boolean {
-  return editLocalData(() => {
-    if (starredUnreadable()) return false;
-    const list = getStarred();
-    const exists = list.some((s) => s.id === item.id);
-    const next = exists ? list.filter((s) => s.id !== item.id) : [{ ...item, savedAt: new Date().toISOString() }, ...list].slice(0, (list.length > STARRED_LIMIT ? list.length + 1 : STARRED_LIMIT));
-    const saved = writeRaw(KEYS.starred, JSON.stringify(next));
-    invalidate(KEYS.starred);
-    return saved && !exists;
-  });
+  if (starredUnreadable()) return false;
+  // Read this key again before editing: a different tab's storage event can still be on its way.
+  cache.delete(KEYS.starred);
+  const list = getStarred();
+  const exists = list.some((s) => s.id === item.id);
+  const next = exists ? list.filter((s) => s.id !== item.id) : [{ ...item, savedAt: new Date().toISOString() }, ...list].slice(0, (list.length > STARRED_LIMIT ? list.length + 1 : STARRED_LIMIT));
+  const saved = writeRaw(KEYS.starred, JSON.stringify(next));
+  invalidate(KEYS.starred);
+  return saved && !exists;
 }
 
 /** Calls `listener` whenever the stars change, in this tab or another, for code outside React (a sync). */
@@ -206,19 +200,31 @@ export const watchStarred = (listener: () => void) => subscribeStarred(listener)
 /** Stores this list as the stars, newest first; false when nothing was saved. */
 // Account merges can exceed the ordinary 500-item local window; never trim an imported account snapshot.
 export function replaceStarred(items: LocalStarredItem[]): boolean {
-  return editLocalData(() => {
-    const saved = writeRaw(KEYS.starred, JSON.stringify(items));
-    invalidate(KEYS.starred);
-    return saved;
-  });
+  const saved = writeRaw(KEYS.starred, JSON.stringify(items));
+  invalidate(KEYS.starred);
+  return saved;
 }
 
 export function removeStar(id: string) {
-  editLocalData(() => {
-    if (starredUnreadable()) return;
-    writeRaw(KEYS.starred, JSON.stringify(getStarred().filter((s) => s.id !== id)));
-    invalidate(KEYS.starred);
-  });
+  if (starredUnreadable()) return;
+  cache.delete(KEYS.starred);
+  writeRaw(KEYS.starred, JSON.stringify(getStarred().filter((s) => s.id !== id)));
+  invalidate(KEYS.starred);
+}
+
+/** Puts back a star just removed (收藏 page), as it was: its own savedAt, at its place among the newer and older ones. */
+export function restoreStar(item: LocalStarredItem): boolean {
+  if (starredUnreadable()) return false;
+  cache.delete(KEYS.starred);
+  const list = getStarred();
+  if (list.some((s) => s.id === item.id)) return true;
+  // Full again since it was taken out (an import filled the place): it stays out, as a new star would not fit either.
+  if (list.length >= STARRED_LIMIT) return false;
+  const at = list.findIndex((s) => s.savedAt < item.savedAt);
+  const next = at < 0 ? [...list, item] : [...list.slice(0, at), item, ...list.slice(at)];
+  const saved = writeRaw(KEYS.starred, JSON.stringify(next));
+  invalidate(KEYS.starred);
+  return saved;
 }
 
 // read items (LRU, newest first)
@@ -240,14 +246,13 @@ function getReadSet(): Set<string> {
 }
 
 export function markRead(id: string) {
-  editLocalData(() => {
-    if (!ID_PATTERN.test(id)) return;
-    const ids = getReadIds();
-    if (ids[0] === id) return;
-    const next = [id, ...ids.filter((v) => v !== id)].slice(0, READ_LIMIT);
-    writeRaw(KEYS.read, JSON.stringify(next));
-    invalidate(KEYS.read);
-  });
+  if (!ID_PATTERN.test(id)) return;
+  cache.delete(KEYS.read);
+  const ids = getReadIds();
+  if (ids[0] === id) return;
+  const next = [id, ...ids.filter((v) => v !== id)].slice(0, READ_LIMIT);
+  writeRaw(KEYS.read, JSON.stringify(next));
+  invalidate(KEYS.read);
 }
 
 // Keep a reader's filter choice independently of a particular list's saved scroll position.
@@ -388,11 +393,11 @@ export function clearRecentSearches() {
 
 // the page the reader was on (feedback records where a problem was seen)
 const LAST_PAGE_KEY = "aihot:last-page";
-const NOT_A_PLACE = /^\/(feedback|more)(\/|$)|^\/admin(\/|$)/;
+const NOT_A_PLACE = /^\/(feedback|more|admin)([/?#]|$)/;
 
-/** Called on every in-site navigation: remembers the latest real page, never feedback, "更多" or the admin. */
+/** Called on every in-site navigation: remembers the latest real page, never feedback, "更多" or the admin, in either language. */
 export function rememberPage(path: string) {
-  if (!NOT_A_PLACE.test(path)) writeRaw(LAST_PAGE_KEY, path, "session");
+  if (!NOT_A_PLACE.test(pagePath(path))) writeRaw(LAST_PAGE_KEY, path, "session");
 }
 
 export function lastPage(): string | null {
@@ -436,15 +441,15 @@ export class ImportError extends Error {
 
 /** Merge: existing stars are not overwritten, read ids are unioned, appearance only if unset. */
 export function importBundle(text: string): ImportReport {
-  if (text.length > IMPORT_MAX_CHARS) throw new ImportError(L("文件过大（上限 2,000,000 字符）", "The file is too large (max 2,000,000 characters)."));
+  if (text.length > IMPORT_MAX_CHARS) throw new ImportError(L("文件太大，导入不了。", "This file is too large to import."));
   let data: unknown;
   try {
     data = JSON.parse(text);
   } catch {
-    throw new ImportError(L("不是有效的 JSON 文件", "This isn't a valid JSON file."));
+    throw new ImportError(L("打不开这个文件。请选之前从收藏页导出的备份文件。", "Couldn't open this file. Choose a backup you exported from Saved."));
   }
   const d = data as Partial<ExportBundle>;
-  if (!d || typeof d !== "object" || d.version !== 1) throw new ImportError(L("文件格式不对（需要 version: 1）", "Wrong file format (it needs version: 1)."));
+  if (!d || typeof d !== "object" || d.version !== 1) throw new ImportError(L("这不是收藏备份文件。请选之前从收藏页导出的那个文件。", "This isn't a Saved backup. Choose the file you exported from Saved."));
   return mergeLocalData({
     starred: Array.isArray(d.starred) ? d.starred : [],
     read: Array.isArray(d.read) ? d.read : [],
@@ -465,49 +470,48 @@ function starredUnreadable(): boolean {
 }
 
 function mergeLocalData(incoming: { starred: unknown[]; read: unknown[]; theme: unknown; font?: unknown }): ImportReport {
-  return editLocalData(() => {
-    // The reader's own data stays recoverable (export it, or fix it) rather than replaced by the import.
-    if (starredUnreadable()) throw new ImportError(L("这台设备上已有的收藏数据无法读取，为避免覆盖，这次没有导入。", "Couldn't read the saved items on this device. Nothing was imported so your data isn't overwritten."));
-    const current = getStarred();
-    const have = new Set(current.map((s) => s.id));
-    const additions: LocalStarredItem[] = [];
-    let starredSkipped = 0;
-    for (const s of incoming.starred) {
-      if (!isStarredItem(s)) { starredSkipped++; continue; }
-      if (have.has(s.id)) continue;
-      have.add(s.id);
-      additions.push(normalizeStarred(s as unknown as Record<string, unknown>));
-    }
-    const room = Math.max(0, STARRED_LIMIT - current.length);
-    const accepted = additions.slice(0, room);
-    starredSkipped += additions.length - accepted.length;
-    const mergedStarred = [...current, ...accepted].sort((a, b) => Date.parse(b.savedAt) - Date.parse(a.savedAt));
-    // An import is reported only after it was written; a failure here leaves the browser as it was.
-    if (!writeRaw(KEYS.starred, JSON.stringify(mergedStarred))) throw new ImportError(L("浏览器存储已满或不可用，这次没有导入任何内容。", "Browser storage is full or unavailable, so nothing was imported."));
+  // The reader's own data stays recoverable (export it, or fix it) rather than replaced by the import.
+  if (starredUnreadable()) throw new ImportError(L("这台设备上已有的收藏数据无法读取，为避免覆盖，这次没有导入。", "Couldn't read the saved items on this device. Nothing was imported so your data isn't overwritten."));
+  cache.clear();
+  const current = getStarred();
+  const have = new Set(current.map((s) => s.id));
+  const additions: LocalStarredItem[] = [];
+  let starredSkipped = 0;
+  for (const s of incoming.starred) {
+    if (!isStarredItem(s)) { starredSkipped++; continue; }
+    if (have.has(s.id)) continue;
+    have.add(s.id);
+    additions.push(normalizeStarred(s as unknown as Record<string, unknown>));
+  }
+  const room = Math.max(0, STARRED_LIMIT - current.length);
+  const accepted = additions.slice(0, room);
+  starredSkipped += additions.length - accepted.length;
+  const mergedStarred = [...current, ...accepted].sort((a, b) => Date.parse(b.savedAt) - Date.parse(a.savedAt));
+  // An import is reported only after it was written; a failure here leaves the browser as it was.
+  if (!writeRaw(KEYS.starred, JSON.stringify(mergedStarred))) throw new ImportError(L("浏览器存储已满或不可用，这次没有导入任何内容。", "Browser storage is full or unavailable, so nothing was imported."));
 
-    const readIds = getReadIds();
-    const readHave = new Set(readIds);
-    const readAdditions: string[] = [];
-    let readSkipped = 0;
-    for (const id of incoming.read) {
-      if (typeof id !== "string" || !ID_PATTERN.test(id)) { readSkipped++; continue; }
-      if (readHave.has(id)) continue;
-      readHave.add(id);
-      readAdditions.push(id);
-    }
-    const readRoom = Math.max(0, READ_LIMIT - readIds.length);
-    readSkipped += Math.max(0, readAdditions.length - readRoom);
-    const readFailed = !writeRaw(KEYS.read, JSON.stringify([...readIds, ...readAdditions.slice(0, readRoom)]));
+  const readIds = getReadIds();
+  const readHave = new Set(readIds);
+  const readAdditions: string[] = [];
+  let readSkipped = 0;
+  for (const id of incoming.read) {
+    if (typeof id !== "string" || !ID_PATTERN.test(id)) { readSkipped++; continue; }
+    if (readHave.has(id)) continue;
+    readHave.add(id);
+    readAdditions.push(id);
+  }
+  const readRoom = Math.max(0, READ_LIMIT - readIds.length);
+  readSkipped += Math.max(0, readAdditions.length - readRoom);
+  const readFailed = !writeRaw(KEYS.read, JSON.stringify([...readIds, ...readAdditions.slice(0, readRoom)]));
 
-    let themeApplied = false;
-    if (!getThemePreference() && (incoming.theme === "light" || incoming.theme === "dark")) {
-      themeApplied = writeRaw(KEYS.theme, incoming.theme);
-    }
-    const fontApplied = !getFontPreference() && incoming.font === "browser" && writeRaw(KEYS.font, "browser");
-    cache.clear();
-    emit();
-    return { starredAdded: accepted.length, starredSkipped, readAdded: readFailed ? 0 : Math.min(readAdditions.length, readRoom), readSkipped, themeApplied, fontApplied, readFailed };
-  });
+  let themeApplied = false;
+  if (!getThemePreference() && (incoming.theme === "light" || incoming.theme === "dark")) {
+    themeApplied = writeRaw(KEYS.theme, incoming.theme);
+  }
+  const fontApplied = !getFontPreference() && incoming.font === "browser" && writeRaw(KEYS.font, "browser");
+  cache.clear();
+  emit();
+  return { starredAdded: accepted.length, starredSkipped, readAdded: readFailed ? 0 : Math.min(readAdditions.length, readRoom), readSkipped, themeApplied, fontApplied, readFailed };
 }
 
 /** Imports from elsewhere (the site's modules') merge through the same path. */

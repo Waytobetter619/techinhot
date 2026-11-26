@@ -4,6 +4,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import Fastify from "fastify";
 import { sendPageMarkdown } from "../apps/api/src/http/respond.ts";
+import { ENGLISH } from "@aihot/contracts/english";
+import { SITE } from "@aihot/site";
 import { pageMeta, siteUrl } from "../apps/web/app/lib/seo.ts";
 
 test("Markdown responses carry canonical/noindex, ETag/304 and HEAD without an attachment", async (t) => {
@@ -35,12 +37,33 @@ test("pageMeta advertises only an explicitly supplied Markdown representation", 
   assert.ok(!pageMeta({ locale: "en", path: "/hot", markdown: "/hot.md" }).some(markdown));
 });
 
-test("an English page names its English address and language", () => {
-  const tags = pageMeta({ locale: "en", path: "/hot" });
+test("a published page names its own address and language", () => {
+  const locale = ENGLISH ? "en" : "zh";
+  const url = siteUrl() + (ENGLISH ? "/en/hot" : "/hot");
+  const tags = pageMeta({ locale, path: "/hot" });
   const find = (key: string, value: string) => tags.find((tag) => (tag as Record<string, unknown>)[key] === value) as Record<string, string> | undefined;
-  assert.equal(find("rel", "canonical")?.href, `${siteUrl()}/en/hot`);
-  assert.equal(find("property", "og:url")?.content, `${siteUrl()}/en/hot`);
-  assert.equal(find("property", "og:locale")?.content, "en_US");
+  assert.equal(find("rel", "canonical")?.href, url);
+  assert.equal(find("property", "og:url")?.content, url);
+  assert.equal(find("property", "og:locale")?.content, ENGLISH ? "en_US" : SITE.locale.replace("-", "_"));
   // A page without an English edition keeps its one address.
-  assert.equal((pageMeta({ locale: "en", path: "/changelog" }).find((tag) => (tag as Record<string, unknown>).rel === "canonical") as Record<string, string>).href, `${siteUrl()}/changelog`);
+  assert.equal((pageMeta({ locale: "en", path: "/privacy" }).find((tag) => (tag as Record<string, unknown>).rel === "canonical") as Record<string, string>).href, `${siteUrl()}/privacy`);
+});
+
+test("a page in both languages names both for search engines; an English page still in Chinese stays out of search", () => {
+  type Tag = Record<string, string>;
+  const alternates = (tags: object[]) => (tags as Tag[]).filter((tag) => tag.rel === "alternate" && tag.hrefLang).map((tag) => `${tag.hrefLang} ${tag.href}`);
+  const robots = (tags: object[]) => (tags as Tag[]).find((tag) => tag.name === "robots")?.content;
+  if (!ENGLISH) {
+    assert.deepEqual(alternates(pageMeta({ locale: "zh", path: "/hot" })), [], "a site without an English edition names no other language");
+    return;
+  }
+  const both = [`${SITE.locale} ${siteUrl()}/hot`, `en ${siteUrl()}/en/hot`, `x-default ${siteUrl()}/hot`];
+  for (const locale of ["zh", "en"] as const) assert.deepEqual(alternates(pageMeta({ locale, path: "/hot", title: "Trending" })), both, locale);
+  assert.deepEqual(alternates(pageMeta({ locale: "zh", path: "/privacy" })), [], "a page with no English edition names none");
+  assert.deepEqual(alternates(pageMeta({ locale: "zh", path: "/hot", noindex: true })), [], "a page out of search names none");
+  const untranslated = pageMeta({ locale: "en", path: "/items/abc", title: "还没翻译的标题" });
+  assert.match(robots(untranslated) ?? "", /^noindex/, "its words are not translated yet");
+  assert.deepEqual(alternates(untranslated), []);
+  assert.doesNotMatch(robots(pageMeta({ locale: "en", path: "/items/abc", title: "A translated title" })) ?? "", /noindex/);
+  assert.doesNotMatch(robots(pageMeta({ locale: "zh", path: "/items/abc", title: "中文标题" })) ?? "", /noindex/, "the Chinese page is not affected");
 });

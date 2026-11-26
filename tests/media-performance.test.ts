@@ -7,6 +7,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import sharp from "sharp";
+import { ENGLISH } from "@aihot/contracts/english";
 import { SITE } from "@aihot/site";
 
 const dir = await mkdtemp(path.join(tmpdir(), "aihot-media-test-"));
@@ -14,8 +15,9 @@ process.env.AIHOT_DATA_DIR = dir;
 process.env.ALLOW_PRIVATE_NETWORK_FETCH = "true";
 process.env.MODEL_CALLS_ENABLED = "false";
 const { produceImage } = await import("@aihot/backend/media/images");
-const { renderOg, ogEtag, fallbackFontFiles, FALLBACK_FONTS, OG_TEMPLATE_VERSION } = await import("@aihot/backend/media/og");
-const { posterEtag, renderPoster, POSTER_TEMPLATE_VERSION } = await import("@aihot/backend/media/poster");
+const { renderOg, ogEtag, fallbackFontFiles, FALLBACK_FONTS, OG_TEMPLATE_VERSION, ENGLISH_LAYOUT_VERSION, ASCII_WIDTHS, cardText, ems, fitLines, plainEnglish, wrapLines } = await import("@aihot/backend/media/og");
+const { REPO_ROOT } = await import("@aihot/backend/config");
+const { posterEtag, posterText, renderPoster, POSTER_TEMPLATE_VERSION } = await import("@aihot/backend/media/poster");
 const { xView } = await import("@aihot/backend/publication/items");
 
 let imageHits = 0;
@@ -207,11 +209,68 @@ test("share images take added fonts only from <name>-400/-700.ttf beside Noto Sa
   assert.deepEqual(fallbackFontFiles(["LICENSE", "noto-sans-sc-400.ttf", "noto-sans-sc-700.ttf"]), []);
 });
 
+test("English cards measure Latin type by the font's own widths", async () => {
+  // opentype.js (a development dependency) ships no types.
+  type Font = { unitsPerEm: number; charToGlyph(ch: string): { advanceWidth?: number } };
+  const opentype = (await import("opentype.js" as string)).default as { parse(data: ArrayBuffer): Font };
+  for (const weight of [400, 700] as const) {
+    const file = await readFile(path.join(REPO_ROOT, `assets/og-fonts/noto-sans-sc-${weight}.ttf`));
+    const font = opentype.parse(file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength) as ArrayBuffer);
+    const widths = Array.from({ length: 95 }, (_, i) => Math.round((font.charToGlyph(String.fromCharCode(0x20 + i)).advanceWidth ?? 0) / font.unitsPerEm * 1000));
+    assert.deepEqual(ASCII_WIDTHS[weight], widths, `ASCII_WIDTHS[${weight}] in media/og.ts: read it again from assets/og-fonts/noto-sans-sc-${weight}.ttf`);
+  }
+});
+
+test("English cards break between words and cut with an ellipsis, in marks the font sets well", () => {
+  assert.equal(plainEnglish("Anthropic’s “Claude” – Pokémon  "), `Anthropic's "Claude" - Pokemon`);
+  const room = ems("one two three");
+  const cut = fitLines("one two three four five six seven eight nine ten", room, 2);
+  assert.equal(cut, "one two three four five six…");
+  assert.ok(wrapLines(cut, room).length <= 2);
+  assert.equal(fitLines("one two", room, 1), "one two", "what fits is left whole");
+  assert.equal(plainEnglish("가나 ガ"), "가나 ガ", "letters of other scripts come back whole");
+  // A word wider than a line (a commit hash, an address) is broken where the cards break it, and cut inside if need be.
+  const hash = "3f9a8c1d2e7b6a5f4c3d2e1f0a9b8c7d6e5f4a3b";
+  const lines = wrapLines(`reverts ${hash} today`, room);
+  assert.ok(lines.length > 2 && lines.every((line) => ems(line) <= room) && lines.join("").replace(/ /g, "") === `reverts${hash}today`, lines.join(" | "));
+  const cutHash = fitLines(`reverts ${hash} today`, room, 2);
+  assert.ok(cutHash.endsWith("…") && wrapLines(cutHash, room).length <= 2 && `reverts ${hash}`.startsWith(cutHash.slice(0, -1)), cutHash);
+  // The ellipsis takes letters from such a word, not the word's whole line: what fits of it stays.
+  const url = "https://git.example.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=3f9a8c1d2e7b6a5f4c3d";
+  const cutUrl = fitLines(`See ${url} for details`, room, 2);
+  assert.ok(cutUrl.endsWith("…") && wrapLines(cutUrl, room).length <= 2 && cutUrl.length > "See https://git".length && `See ${url}`.startsWith(cutUrl.slice(0, -1)), cutUrl);
+});
+
+test("an English card or poster whose words are still Chinese is cut as Chinese, never left whole", () => {
+  const [title, summary] = ["中".repeat(90), "文".repeat(200)];
+  const card = cardText({ kicker: "Model Releases", title, subtitle: summary, meta: "Source · November 24, 2026", badge: { value: "88", label: "AI score" }, lang: "en" });
+  assert.deepEqual([[...card.title].length, [...card.subtitle!].length, card.titleSize], [64, 26, 50]);
+  const english = cardText({ kicker: "Model Releases", title: "word ".repeat(40), subtitle: "word ".repeat(80), meta: "Source", lang: "en" });
+  assert.ok(english.title.endsWith("…") && english.subtitle!.endsWith("…"), "English is cut between words");
+  const poster = posterText({ url: "https://example.test/en/items/a", kicker: "Research", title, summary, source: "来源名", date: "November 24, 2026", score: 88, lang: "en" });
+  assert.deepEqual([[...poster.title].length, [...poster.summary!].length, poster.source], [72, 120, "Source: 来源名"]);
+});
+
+// A site without an English edition draws no English poster (its tagline has no English).
+test("everything an English poster says is English; a Chinese one says what it always did", { skip: ENGLISH === null }, () => {
+  const base = { url: "https://example.test/items/a", kicker: "Research", title: "A small model matches big ones", summary: "It was trained on proofs it wrote.", source: "Example", date: "November 24, 2026", score: 88 };
+  const english = posterText({ ...base, lang: "en" });
+  assert.ok(english.english && english.scan === "Scan to read" && english.score === "Top Pick · AI score 88" && english.footer.startsWith(`${SITE.name} · `));
+  assert.doesNotMatch(JSON.stringify(english), /[\u3400-\u9fff]/, "no Chinese anywhere on it");
+  const chinese = posterText({ ...base, kicker: "研究", title: "小模型追平大模型", summary: "它用自己写的证明训练。" });
+  assert.deepEqual([chinese.english, chinese.scan, chinese.score, chinese.footer], [false, "长按识别二维码", "精选 · 88 分", `${SITE.name} · ${SITE.tagline}`]);
+});
+
 test("without added fonts, share images and posters keep their cache keys", { skip: FALLBACK_FONTS.length > 0 }, () => {
   const card = { kicker: SITE.name, title: "缓存键不变", subtitle: null };
   assert.equal(ogEtag(card), createHash("sha256").update(OG_TEMPLATE_VERSION).update(JSON.stringify(card)).digest("hex").slice(0, 24));
   const poster = { url: "https://example.test/a", kicker: "精选", title: "缓存键不变", summary: null, source: "来源", date: "2026-11-01", score: null };
   assert.equal(posterEtag(poster), createHash("sha256").update(POSTER_TEMPLATE_VERSION).update(JSON.stringify(poster)).digest("hex").slice(0, 24));
+  // English images carry how English is set, so a change to it draws them again; the Chinese keys above stay.
+  const english = { ...card, lang: "en" as const };
+  assert.equal(ogEtag(english), createHash("sha256").update(OG_TEMPLATE_VERSION).update(ENGLISH_LAYOUT_VERSION).update(JSON.stringify(english)).digest("hex").slice(0, 24));
+  const englishPoster = { ...poster, lang: "en" as const };
+  assert.equal(posterEtag(englishPoster), createHash("sha256").update(POSTER_TEMPLATE_VERSION).update(ENGLISH_LAYOUT_VERSION).update(JSON.stringify(englishPoster)).digest("hex").slice(0, 24));
 });
 
 test("successive responsive candidates reuse the completed original download", async () => {

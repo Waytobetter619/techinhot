@@ -7,7 +7,7 @@
 // sit in rows of two whose rules run across the page, each story as tall as its neighbour.
 import { IntentLink } from "../../components/ui/IntentLink";
 import { createContext, useContext, useState, type ReactNode } from "react";
-import { REPORT_NAMES, type ReportCitation, type ReportDetail, type ReportNavigationEntry } from "@aihot/contracts/site";
+import { REPORT_NAMES, reportDateLabel, reportDateLabelEn, type ReportCitation, type ReportDetail, type ReportNavigationEntry } from "@aihot/contracts/site";
 import { REPORTS, SEO_TITLES, SITE, subjectAfter, withSubject } from "@aihot/site";
 import { ENGLISH } from "@aihot/contracts/english";
 import { linkMentions, type MentionRun } from "@aihot/contracts/mentions";
@@ -26,6 +26,7 @@ import { monthDay } from "../../lib/format.ts";
 import { EDITION, MOTTO, dateLine, dateMark, headline, kindName, metricItems, neighbourLabel, reportPath, shortDay } from "./format";
 import { Link } from "../../lib/link";
 import { L, translator, useLocale, useT, type Locale } from "../../lib/i18n";
+import { jumpTo } from "../../lib/motion";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const keyOf = (c: ReportCitation) => c.itemId ?? (c.sourceUrl || c.title);
@@ -376,7 +377,7 @@ function FrontPage({ report, pages, leadStory, count }: { report: ReportDetail; 
                 }
                 return (
                   <li key={keyOf(h)}>
-                    <Link to={to} viewTransition={to.startsWith("/")} className="group flex gap-3.5 border-b border-line py-4">
+                    <Link to={to} viewTransition={to.startsWith("/")} onClick={to.startsWith("#") ? (e) => jumpTo(e, to.slice(1)) : undefined} className="group flex gap-3.5 border-b border-line py-4">
                       <span className="num w-6 shrink-0 text-ui-title-2 font-black leading-[0.95] tracking-[-0.03em] text-accent">{i + 1}</span>
                       <span className="min-w-0">
                         <span className="block text-ui-body font-bold leading-[1.55] text-ink transition-colors group-hover:text-accent">{h.title}</span>
@@ -395,7 +396,7 @@ function FrontPage({ report, pages, leadStory, count }: { report: ReportDetail; 
             <ol className="mt-3">
               {index.map((p, i) => (
                 <li key={p.id}>
-                  <a href={`#${p.id}`} className="group flex items-baseline gap-2 py-1.5 text-ui-label-lg">
+                  <a href={`#${p.id}`} onClick={(e) => jumpTo(e, p.id)} className="group flex items-baseline gap-2 py-1.5 text-ui-label-lg">
                     <span className="num w-7 shrink-0 text-ui-body-sm font-bold text-ink">{pad(i + 1)}</span>
                     <span className="min-w-0 flex-1 truncate text-ink-2 transition-colors group-hover:text-accent">{p.label}</span>
                     <span className="num shrink-0 text-ui-caption text-ink-4">{p.n}</span>
@@ -480,7 +481,8 @@ function Neighbours({ report, index }: { report: ReportDetail; index: ReportNavi
 function History({ report, index }: { report: ReportDetail; index: ReportNavigationEntry[] }) {
   const locale = useLocale();
   const t = useT();
-  const others = index.filter((e) => e.key !== report.key).slice(0, 12);
+  // Weeklies and monthlies only (the daily has its archive page): their 更早 leads here, so every issue is listed.
+  const others = index.filter((e) => e.key !== report.key);
   if (others.length === 0) return null;
   const label = REPORT_NAMES[report.kind];
   return (
@@ -490,7 +492,7 @@ function History({ report, index }: { report: ReportDetail; index: ReportNavigat
         {others.map((e) => (
           <li key={e.key}>
             <Link to={reportPath(report.kind, e.key)} className="group flex items-baseline gap-4 border-b border-line py-3">
-              <span className="num w-[76px] shrink-0 text-ui-caption-lg text-ink-4">{e.key}</span>
+              <span className="num w-[108px] shrink-0 text-ui-caption-lg text-ink-4">{t(reportDateLabel(report.kind, e.key), reportDateLabelEn(report.kind, e.key))}</span>
               <span className="min-w-0 flex-1 truncate text-ui-body-sm text-ink-2 transition-colors group-hover:text-accent">{e.title ?? `${SITE.name} ${kindName(report.kind, locale)} · ${e.key}`}</span>
             </Link>
           </li>

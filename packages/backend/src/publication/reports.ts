@@ -171,16 +171,32 @@ async function dailyLeads(rows: Array<{ key: string; content: Record<string, any
   return leads;
 }
 
+/** What a composed overview says: how many stories the issue carries and the titles it names, each with its article. */
+export interface ComposedOverview {
+  count: number;
+  named: Array<{ title: string; itemId: string | null }>;
+}
+
+/**
+ * Kept on a weekly's or monthly's answer whose overview periodOverview composed, under this key, which JSON leaves
+ * out: English pages say that overview in English (publication/english.ts).
+ */
+export const COMPOSED_OVERVIEW = Symbol("composed overview");
+
 /**
  * A weekly's or monthly's overview: the one written for it, else what it carries, naming the first three
  * of its lead, highlights and entries still public. `gone` must cover every entry.
  */
-function periodOverview(content: Record<string, any>, kind: "weekly" | "monthly", gone: Set<string>): string | null {
+function periodOverview(content: Record<string, any>, kind: "weekly" | "monthly", gone: Set<string>): { text: string | null; composed: ComposedOverview | null } {
   const changed = entriesOf(content, "periodic").some((e) => e.itemId && gone.has(e.itemId));
-  if (!changed && typeof content.overview === "string" && content.overview) return content.overview;
+  if (!changed && typeof content.overview === "string" && content.overview) return { text: content.overview, composed: null };
   const shown = leadCandidates(content, "periodic").filter((e) => !e.itemId || !gone.has(String(e.itemId)));
-  if (!shown.length) return null;
-  return `${kind === "weekly" ? "本周" : "本月"} ${shown.length} ${REPORTS.entry.measure}${REPORTS.entry.noun}，最受关注的是：${shown.slice(0, 3).map((e) => e.title).join("；")}。`;
+  if (!shown.length) return { text: null, composed: null };
+  const named = shown.slice(0, 3).map((e) => ({ title: String(e.title), itemId: e.itemId ? String(e.itemId) : null }));
+  return {
+    text: `${kind === "weekly" ? "本周" : "本月"} ${shown.length} ${REPORTS.entry.measure}${REPORTS.entry.noun}，最受关注的是：${named.map((n) => n.title).join("；")}。`,
+    composed: { count: shown.length, named },
+  };
 }
 
 /** A weekly or monthly's own headline; the composer's "<site name> 周报 · 2026-W38" names the issue, not its news. */
@@ -390,7 +406,8 @@ export async function loadReport(kind: ReportKind, key: string): Promise<ReportD
   const avail = await issueAvailability(c);
   const { sections, all, highlights, flashes, gone, hasCitedLead, named, leadItem, leadItemId } = issueAsShown(kind, c, avail);
   const text = [c.lead?.leadParagraph ?? "", c.overview ?? "", ...all.flatMap((i: ReportCitation) => [`${i.title}${i.summary ?? ""}`, ...(i.related ?? []).map((r) => r.title)])].join("");
-  const overview = kind === "daily" ? c.overview ?? null : periodOverview(c, kind, gone);
+  const period = kind === "daily" ? null : periodOverview(c, kind, gone);
+  const overview = kind === "daily" ? c.overview ?? null : period!.text;
   // An earlier weekly's or monthly's picture is captioned with the item it comes from.
   const [{ prev, next }, picture] = await Promise.all([neighbors(kind, key), leadItem?.itemId && leadItem.available ? leadCover(leadItem.itemId) : null]);
   const cover = picture && leadItem ? { ...picture, caption: kind === "daily" || c.leadItemId ? null : leadItem.title } : null;
@@ -401,7 +418,7 @@ export async function loadReport(kind: ReportKind, key: string): Promise<ReportD
       : c.lead ? { ...c.lead, leadParagraph: overview ?? "" } : (headline ? { title: headline, leadParagraph: overview ?? "" } : null);
   const title = kind === "daily" ? `${withSubject("日报")} · ${key}`
     : String((hasCitedLead && c.title === headline ? named?.title : c.title) ?? (kind === "weekly" ? `${SITE.name} 周报 · ${key}` : `${SITE.name} 月报 · ${key}`));
-  return {
+  const detail: ReportDetail = {
     kind,
     key,
     issueNumber: r.issue_number,
@@ -425,6 +442,7 @@ export async function loadReport(kind: ReportKind, key: string): Promise<ReportD
     // The texts the issue's page draws: its lead, overview and each section's summary and stories.
     mentions: await mentionsIn([lead?.leadParagraph, overview, ...sections.flatMap((s) => [s.summary, ...s.items.map((i) => i.summary)])]),
   };
+  return period?.composed ? Object.assign(detail, { [COMPOSED_OVERVIEW]: period.composed }) : detail;
 }
 
 /**
@@ -437,7 +455,7 @@ export async function firstDaily(itemId: string): Promise<{ key: string; lead: b
   // Every daily citing it anywhere, oldest first. strict: in lax mode `.**` reaches every array member a second time.
   const issues = await sql<{ key: string; content: Record<string, any> }[]>`
     SELECT key, content FROM reports
-    WHERE kind = 'daily' AND jsonb_path_exists(content, 'strict $.**.itemId ? (@ == $id)', jsonb_build_object('id', ${itemId}::text))
+    WHERE kind = 'daily' AND jsonb_path_query_array(content, 'strict $.**.itemId') ? ${itemId}
     ORDER BY key`;
   for (const { key, content } of issues) {
     const shown = issueAsShown("daily", content, await issueAvailability(content));
@@ -594,9 +612,11 @@ export interface FeedIssue {
   key: string;
   generatedAt: Date;
   headline: string | null;
-  /** A daily's lead paragraph; a weekly's or monthly's overview. */
+  /** A daily's lead paragraph; a weekly's or monthly's overview (one composed by rule keeps COMPOSED_OVERVIEW). */
   leadParagraph: string | null;
-  sections: Array<{ label: string; items: Array<{ title: string; link: string }> }>;
+  /** The article the headline and lead are about. */
+  leadItemId: string | null;
+  sections: Array<{ label: string; items: Array<{ id: string; title: string }> }>;
 }
 
 /**
@@ -630,16 +650,19 @@ export async function feedIssues(kind: ReportKind, limit: number): Promise<FeedI
     const groups: Array<{ label: unknown; items?: Array<Record<string, any>> }> = kind === "daily"
       ? (r.content.sections ?? []).map((s: any) => ({ label: s.label, items: s.items }))
       : (r.content.themes ?? []).map((t: any) => ({ label: t.heading, items: t.storyRefs }));
-    return {
+    const period = kind === "daily" ? null : periodOverview(r.content, kind, gone);
+    const issue: FeedIssue = {
       key: r.key,
       generatedAt: r.generated_at,
       headline: lead?.title ?? null,
-      leadParagraph: kind === "daily" ? lead?.leadParagraph ?? null : periodOverview(r.content, kind, gone),
+      leadParagraph: period ? period.text : lead?.leadParagraph ?? null,
+      leadItemId: typeof r.content.leadItemId === "string" && !gone.has(r.content.leadItemId) ? r.content.leadItemId : null,
       sections: groups.map((g) => ({
         label: String(g.label),
-        items: (g.items ?? []).filter((i) => i.itemId && !gone.has(i.itemId)).map((i) => ({ title: String(i.title), link: itemUrl(i.itemId) })),
+        items: (g.items ?? []).filter((i) => i.itemId && !gone.has(i.itemId)).map((i) => ({ id: String(i.itemId), title: String(i.title) })),
       })).filter((s) => s.items.length > 0),
     };
+    return period?.composed ? Object.assign(issue, { [COMPOSED_OVERVIEW]: period.composed }) : issue;
   });
 }
 
@@ -689,37 +712,37 @@ export async function v1Period(kind: PeriodKind, key: string | "latest") {
   const ok = (i: Record<string, any>) => !i.itemId || (avail.get(i.itemId)?.available ?? true);
   const gone = goneIn(avail);
   const url = periodUrl(kind, r.key);
-  return {
-    schemaVersion: 1 as const,
-    report: {
-      ...periodOf(kind, r.key),
-      generatedAt: r.generated_at.toISOString(),
-      windowStart: r.window_start.toISOString(),
-      windowEnd: r.window_end.toISOString(),
-      links: { aihot: url },
-      attribution: attribution(url),
-      headline: issueLead(c, "periodic", gone)?.title ?? null,
-      overview: periodOverview(c, kind, gone),
-      sections: (c.themes ?? []).map((t: any) => ({
-        label: String(t.heading),
-        summary: sectionSummary(t, avail),
-        items: (t.storyRefs ?? []).filter(ok).map((i: any) => {
-          const a = i.itemId ? avail.get(i.itemId) : undefined;
-          const metadata = citationMetadata(i, a);
-          const sourceId = a?.sourceId ?? (typeof i.sourceId === "string" ? i.sourceId : null);
-          return {
-            id: i.itemId ? String(i.itemId) : null,
-            title: String(i.title),
-            summary: String(metadata.summary ?? ""),
-            source: { ...(sourceId ? { id: sourceId } : {}), name: metadata.sourceName },
-            links: { aihot: i.itemId ? itemUrl(i.itemId) : null, original: metadata.sourceUrl },
-            publishedAt: metadata.publishedAt,
-            attribution: attribution(i.itemId ? itemUrl(i.itemId) : url),
-          };
-        }),
-      })).filter((s: { items: unknown[] }) => s.items.length > 0),
-    },
+  const period = periodOverview(c, kind, gone);
+  const report = {
+    ...periodOf(kind, r.key),
+    generatedAt: r.generated_at.toISOString(),
+    windowStart: r.window_start.toISOString(),
+    windowEnd: r.window_end.toISOString(),
+    links: { aihot: url },
+    attribution: attribution(url),
+    headline: issueLead(c, "periodic", gone)?.title ?? null,
+    overview: period.text,
+    sections: (c.themes ?? []).map((t: any) => ({
+      label: String(t.heading),
+      summary: sectionSummary(t, avail),
+      items: (t.storyRefs ?? []).filter(ok).map((i: any) => {
+        const a = i.itemId ? avail.get(i.itemId) : undefined;
+        const metadata = citationMetadata(i, a);
+        const sourceId = a?.sourceId ?? (typeof i.sourceId === "string" ? i.sourceId : null);
+        return {
+          id: i.itemId ? String(i.itemId) : null,
+          title: String(i.title),
+          summary: String(metadata.summary ?? ""),
+          source: { ...(sourceId ? { id: sourceId } : {}), name: metadata.sourceName },
+          links: { aihot: i.itemId ? itemUrl(i.itemId) : null, original: metadata.sourceUrl },
+          publishedAt: metadata.publishedAt,
+          attribution: attribution(i.itemId ? itemUrl(i.itemId) : url),
+        };
+      }),
+    })).filter((s: { items: unknown[] }) => s.items.length > 0),
   };
+  // An overview composed by rule is said in English from the titles it names (publication/english.ts).
+  return { schemaVersion: 1 as const, report: period.composed ? Object.assign(report, { [COMPOSED_OVERVIEW]: period.composed }) : report };
 }
 
 export function reportNavigation(kind: ReportKind, index: ReportIndexEntry[], key: string): ReportNavigationEntry[] {

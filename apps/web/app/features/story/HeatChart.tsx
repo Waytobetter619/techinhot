@@ -6,6 +6,7 @@ import { useEntrance } from "../../lib/hydration";
 import { L, useLocale, useT, type Locale } from "../../lib/i18n";
 import { PillTabs } from "../../components/ui/Tabs";
 import { areaPath, curvePath, type Pt } from "../hot/curve";
+import { useSwapped } from "../../lib/motion";
 
 const HOUR = 3600 * 1000;
 const BEIJING = 8 * HOUR;
@@ -82,8 +83,11 @@ export function HeatChart({ points: all }: { points: HeatPoint[] }) {
   const ranges = useMemo(() => distinctRanges(all), [all]);
   const [hours, setHours] = useState<number>(168);
   const range = ranges.find((r) => r.hours === hours) ?? ranges[ranges.length - 1];
+  // Another time range redraws the curve in place: the new one fades in over where the old one was.
+  const switched = useSwapped(range?.hours ?? null);
   const points = useMemo(() => inRange(all, range?.hours ?? 168), [all, range]);
   const entrance = useEntrance();
+
   const series = useMemo(() => {
     if (points.length === 0) return [];
     const byHour = new Map(points.map((p) => [Date.parse(p.hour), p]));
@@ -146,10 +150,10 @@ export function HeatChart({ points: all }: { points: HeatPoint[] }) {
     <div>
       <div className="flex flex-col-reverse gap-4 sm:flex-row sm:items-start sm:justify-between">
         <dl className="grid grid-cols-3 gap-x-5 sm:flex sm:gap-x-10">
-          <Stat label={t("最新观测", "Latest")}>
+          <Stat label={t("当前热度", "Now")}>
             <span className="mono text-ui-heading-lg-sm font-semibold leading-none tracking-[-0.02em] text-ink">{num(Math.round(last.p!.heat), locale)}</span>
           </Stat>
-          <Stat label={t("区间峰值", "Peak")}>
+          <Stat label={t("最高热度", "Peak")}>
             <span className="mono text-ui-heading-lg-sm font-semibold leading-none tracking-[-0.02em] text-ink">{num(Math.round(peak.p!.heat), locale)}</span>
             <span className="num text-ui-caption text-ink-4">{monthDayTime(new Date(peak.t).toISOString(), locale)}</span>
           </Stat>
@@ -184,7 +188,7 @@ export function HeatChart({ points: all }: { points: HeatPoint[] }) {
         <div
           className="relative size-full touch-pan-y select-none rounded-mark outline-offset-4"
           role="img"
-          aria-label={t(`热度走势：最新观测 ${Math.round(last.p!.heat)}，峰值 ${Math.round(peak.p!.heat)}`, `Heat over time: latest ${num(Math.round(last.p!.heat), locale)}, peak ${num(Math.round(peak.p!.heat), locale)}`)}
+          aria-label={t(`热度走势：当前热度 ${Math.round(last.p!.heat)}，最高热度 ${Math.round(peak.p!.heat)}`, `Heat over time: now ${num(Math.round(last.p!.heat), locale)}, peak ${num(Math.round(peak.p!.heat), locale)}`)}
           tabIndex={0}
           onKeyDown={(e) => {
             if (e.key === "ArrowRight") setActive((a) => Math.min(seen.length - 1, a === null ? seen.length - 1 : a + 1));
@@ -203,7 +207,7 @@ export function HeatChart({ points: all }: { points: HeatPoint[] }) {
               <line key={v} x1="0" x2="100" y1={y(v)} y2={y(v)} stroke={v === 0 ? "var(--line-strong)" : "var(--line-soft)"} vectorEffect="non-scaling-stroke" />
             ))}
           </svg>
-          <svg viewBox="0 0 100 100" preserveAspectRatio="none" className={`absolute inset-0 size-full overflow-visible text-accent ${entrance ? "anim-reveal" : ""}`} aria-hidden="true">
+          <svg key={range!.hours} viewBox="0 0 100 100" preserveAspectRatio="none" className={`absolute inset-0 size-full overflow-visible text-accent ${switched ? "anim-fade-in" : entrance ? "anim-reveal" : ""}`} aria-hidden="true">
             <defs>
               <linearGradient id={wash} x1="0" x2="0" y1="0" y2="1">
                 <stop offset="0" stopColor="currentColor" stopOpacity="0.2" />
@@ -213,19 +217,23 @@ export function HeatChart({ points: all }: { points: HeatPoint[] }) {
             <path d={area} fill={`url(#${wash})`} />
             <path d={line} fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
           </svg>
-          {cur ? (
+          {/* The reading under the pointer fades in once, then follows the pointer as it moves. */}
+          {cur && (
             <>
-              <span className="pointer-events-none absolute inset-y-0 w-px -translate-x-1/2 bg-line-strong" style={{ left: `${x(cur.t)}%` }} />
-              <span className="pointer-events-none absolute size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent ring-2 ring-surface" style={at(cur)} />
+              <span className="anim-fade-in pointer-events-none absolute inset-y-0 w-px -translate-x-1/2 bg-line-strong" style={{ left: `${x(cur.t)}%` }} />
+              <span className="anim-fade-in pointer-events-none absolute size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent ring-2 ring-surface" style={at(cur)} />
             </>
-          ) : (
-            <span className={`pointer-events-none absolute grid size-5 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-accent/20 ${entrance ? "anim-fade-in" : ""}`} style={{ ...at(last), ...(entrance ? { animationDelay: "650ms" } : {}) }}>
+          )}
+          {/* The latest reading stays on the curve's end: it steps aside while the pointer reads the curve and is back
+              at once after, its first appearance waiting for the curve to be drawn to it. */}
+          <span className={`pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 transition-opacity ${cur ? "opacity-0" : ""}`} style={at(last)}>
+            <span className={`grid size-5 place-items-center rounded-full bg-accent/20 ${entrance ? "anim-fade-in" : ""}`} style={entrance ? { animationDelay: "650ms" } : undefined}>
               <span className="size-2.5 rounded-full bg-accent ring-2 ring-surface" />
             </span>
-          )}
+          </span>
           {cur && (
             <div
-              className="pointer-events-none absolute top-0 z-10 whitespace-nowrap rounded-control border border-line bg-raised px-2.5 py-1.5 text-ui-caption shadow-[var(--shadow-pop)]"
+              className="anim-fade-in pointer-events-none absolute top-0 z-10 whitespace-nowrap rounded-control border border-line bg-raised px-2.5 py-1.5 text-ui-caption shadow-[var(--shadow-pop)]"
               style={x(cur.t) > 55 ? { right: `calc(${100 - x(cur.t)}% + 10px)` } : { left: `calc(${x(cur.t)}% + 10px)` }}
             >
               <div className="num text-ink-4">{monthDayTime(new Date(cur.t).toISOString(), locale)}</div>
@@ -254,8 +262,8 @@ export function HeatChart({ points: all }: { points: HeatPoint[] }) {
       </div>
       <p className="mt-4 text-ui-caption leading-relaxed text-ink-4">
         {t(
-          "曲线仅统计同一批持续追踪的来源，数值可能与实时总热度不同。悬停或点击图表可看每小时变化，键盘左右键也可切换。",
-          "This chart only tracks a consistent set of sources, so its numbers may differ from the live total heat. Hover or tap to inspect each hour, or use the left and right arrow keys.",
+          "曲线仅统计同一批持续追踪的来源，数值可能与实时总热度不同。",
+          "This chart only tracks a consistent set of sources, so its numbers may differ from the live total heat.",
         )}
       </p>
     </div>

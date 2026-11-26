@@ -2,7 +2,7 @@ import { REPORTS, SEO_TITLES, SITE } from "@aihot/site";
 import { ENGLISH } from "@aihot/contracts/english";
 import { TOPIC_GROUP_EN } from "@aihot/industry/english";
 import { topicDefinition, topicName } from "@aihot/contracts/taxonomy";
-import { redirect, useLoaderData } from "react-router";
+import { redirect, useLoaderData, useNavigation } from "react-router";
 import type { Route } from "./+types/topic";
 import type { TopicPage } from "@aihot/contracts/site";
 import { cachedPage, loadOr404, pagePathname } from "../lib/api.server";
@@ -16,11 +16,11 @@ import { beijingDate } from "@aihot/contracts/time";
 import { monthDay, monthDayTime } from "../lib/format";
 import { PhoneBar } from "../components/shell/PhoneBar";
 import { navUp } from "../components/shell/nav";
-import type { Screen } from "../components/shell/screens";
+import { useHistoryBack, type Screen } from "../components/shell/screens";
 import type { TopicPagePart } from "../modules";
 import { loadParts } from "../site-modules";
 import { Link } from "../lib/link";
-import { localeOf, localizePath, translator, useLocale, useT, type Locale } from "../lib/i18n";
+import { apiIn, localeOf, localizePath, pagePath, translator, useLocale, useT, type Locale } from "../lib/i18n";
 
 // Topics are reached from the topics page, as long as the site shows it.
 const UP = navUp("/topics");
@@ -35,7 +35,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
   if (params.page !== undefined && (!/^\d+$/.test(params.page) || page < 1)) throw new Response("Not found", { status: 404 });
   // Page 1 lives at the topic's own address (308), in the reader's language.
   if (params.page === "1") throw redirect(localizePath(`/topics/${encodeURIComponent(params.slug)}`, localeOf(pagePathname(request))), 308);
-  const data = await loadOr404<TopicPage>(`/api/site/topics/${encodeURIComponent(params.slug)}?page=${page}`, { signal: request.signal });
+  const data = await loadOr404<TopicPage>(apiIn(`/topics/${encodeURIComponent(params.slug)}?page=${page}`, localeOf(pagePathname(request))), { signal: request.signal });
   return cachedPage(60, { data });
 }
 
@@ -115,11 +115,16 @@ export default function TopicRoute() {
   const href = (p: number) => (p <= 1 ? `/topics/${topic.slug}` : `/topics/${topic.slug}/page/${p}`);
   const first = (page - 1) * pageSize + 1;
   const last = first + items.length - 1;
+  // Another page of this topic on its way: the list it replaces dims, if the wait is long enough to notice.
+  const navigation = useNavigation();
+  const paging = navigation.state === "loading" && !!navigation.location && pagePath(navigation.location.pathname).startsWith(`/topics/${topic.slug}`);
+  // Desktop back, as on the article page and the phone bar; opened directly, up to all topics.
+  const { behind, onClick: goBack } = useHistoryBack();
   return (
     <div className="pb-6">
       <PhoneBar back={{ to: UP.to, label: UP.back }} title={name} />
-      <Link to={UP.to} className="hidden items-center gap-1.5 py-2 text-ui-label text-ink-3 transition-colors hover:text-accent lg:inline-flex">
-        <IconArrowLeft size={14} />{t(<> 返回{t(UP.back)}</>, <> Back to {t(UP.name)}</>)}
+      <Link to={UP.to} onClick={goBack} className="hidden items-center gap-1.5 py-2 text-ui-label text-ink-3 transition-colors hover:text-accent lg:inline-flex touch:min-h-11">
+        <IconArrowLeft size={14} />{behind ? t(" 返回", " Back") : t(<> 返回{t(UP.back)}</>, <> Back to {t(UP.name)}</>)}
       </Link>
       <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2 pb-5 pt-3 lg:pt-1">
         <div className="min-w-0 max-w-[760px]">
@@ -175,16 +180,18 @@ export default function TopicRoute() {
       ))}
 
       <h2 className="sr-only">{page === 1 ? t(`${topic.name}的精选`, `Top picks on ${name}`) : t(`精选归档 · 第 ${page} 页`, `Top picks archive · Page ${page}`)}</h2>
+      <div className={`transition-opacity ${paging ? "opacity-55 delay-150" : ""}`}>
       {items.length === 0 ? (
         <div className="lg:card">
           <EmptyState title={t("这个主题暂时还没有精选内容", "No top picks on this topic yet")} />
         </div>
       ) : (
-        <DayList items={items} tagTopics={data.tagTopics} currentTopicSlug={topic.slug} headerAside={<span className="num whitespace-nowrap">{t(
+        <DayList items={items} tagTopics={data.tagTopics} currentTopicSlug={topic.slug} inPicks headerAside={<span className="num whitespace-nowrap">{t(
           <>第 {first}–{last} 条<span className="hidden sm:inline"> · 共 {topic.total.toLocaleString("zh-CN")} 条</span></>,
           <>Items {first.toLocaleString("en-US")}–{last.toLocaleString("en-US")}<span className="hidden sm:inline"> of {topic.total.toLocaleString("en-US")}</span></>,
         )}</span>} />
       )}
+      </div>
       <Pagination page={page} pageCount={pageCount} href={href} />
     </div>
   );

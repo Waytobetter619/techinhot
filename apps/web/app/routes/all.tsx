@@ -8,8 +8,8 @@ import { ENGLISH } from "@aihot/contracts/english";
 import { beijingTime } from "@aihot/contracts/time";
 import { cachedPage, loadOr404, pagePathname } from "../lib/api.server";
 import { pageReuse } from "../lib/page-reuse";
-import { filterParams, hasFeedFilters, itemListLd, listPath, pageMeta, readFilters } from "../lib/seo";
-import { ActiveFilters, CategoryTabs, FeedBar, SearchField } from "../features/feed/Filters";
+import { feedListPath, filterParams, hasFeedFilters, itemListLd, listPath, pageMeta, readFilters } from "../lib/seo";
+import { ActiveFilters, CategoryTabs, FeedBar, FilterButton, SearchField, TagClear } from "../features/feed/Filters";
 import { PillTabs } from "../components/ui/Tabs";
 import { DayList, Pagination } from "../features/feed/DayList";
 import { EmptyState } from "../components/ui/Page";
@@ -19,7 +19,7 @@ import { isPhone, type Screen } from "../components/shell/screens";
 import { openSearch } from "../features/search/SearchOverlay";
 import { addRecentSearch } from "../lib/local-state";
 import { Link } from "../lib/link";
-import { L, localeOf, localizePath, pagePath, translator, useLocale, useT } from "../lib/i18n";
+import { apiIn, L, localeOf, localizePath, pagePath, translator, useLocale, useT } from "../lib/i18n";
 
 export const handle: Screen = { tab: "featured", name: L("全部", "All") };
 export { pageHeaders as headers } from "../lib/api.server";
@@ -35,7 +35,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   // Older deep-paging parameters (deep, anchorAt) still open a normal page.
   const page = Math.min(Math.max(Number.parseInt(url.searchParams.get("page") ?? "1", 10) || 1, 1), 50);
   const data = await loadOr404<PoolResponse>(
-    listPath("/api/site/pool", { ...filterParams(readFilters(url.searchParams)), q, tab, page: page > 1 ? page : null }),
+    listPath(apiIn("/pool", locale), { ...filterParams(readFilters(url.searchParams)), q, tab, page: page > 1 ? page : null }),
     // The busy page keeps the search, so it can be tried again as it was.
     { signal: request.signal, busyRedirect: localizePath(`/all/search-busy${url.search}`, locale) },
   );
@@ -72,14 +72,7 @@ export function meta({ loaderData, location }: Route.MetaArgs) {
 const ALL_BACK = L("全部", "All");
 
 function pageHref(params: URLSearchParams, page: number) {
-  const sp = new URLSearchParams(params);
-  sp.delete("deep");
-  sp.delete("anchorAt");
-  sp.delete("search");
-  if (page <= 1) sp.delete("page");
-  else sp.set("page", String(page));
-  const s = sp.toString();
-  return s ? `/all?${s}` : "/all";
+  return feedListPath("/all", params, { page: page > 1 ? page : null });
 }
 
 export default function AllPage() {
@@ -91,15 +84,12 @@ export default function AllPage() {
   const f = data.filters;
   const busy = navigation.state === "loading" && !!navigation.location && pagePath(navigation.location.pathname) === "/all";
   const { channel, category } = filterParams(f);
-  const keep = { channel, category };
-  const searchTabHref = (tab: "time" | "relevance") => {
-    const sp = new URLSearchParams(params);
-    sp.delete("page");
-    if (tab === "relevance") sp.set("tab", "relevance");
-    else sp.delete("tab");
-    return `/all?${sp}`;
-  };
+  // A new search from here keeps the list's filter and, for a search, the chosen order (as the phone search does).
+  const keep = { channel, category, tab: f.q && params.get("tab") === "relevance" ? "relevance" : null };
+  const searchTabHref = (tab: "time" | "relevance") => feedListPath("/all", params, { tab: tab === "relevance" ? tab : null });
   const shownTag = f.tag ? displayTagIn(f.tag, locale) : null;
+  const filtered = f.channel !== "all" || !!f.category || !!f.tag;
+  const clearFilters = feedListPath("/all", params, { category: null, channel: null, tag: null });
   const title = f.q ? t(`搜索“${f.q}”`, `Search: “${f.q}”`) : f.tag ? (shownTag ? `#${shownTag}` : t("标签筛选", "Tag filter")) : null;
   const updated = beijingTime(data.freshness);
   const found = data.total >= 2000 ? t("2000+", "2,000+") : t(String(data.total), data.total.toLocaleString("en-US"));
@@ -124,6 +114,7 @@ export default function AllPage() {
               <span className="truncate">{f.q}</span>
             </button>
           }
+          actions={<FilterButton base="/all" category={f.category} channel={f.channel} />}
         />
       ) : (
         <FeedBar base="/all" category={f.category} channel={f.channel} />
@@ -131,7 +122,10 @@ export default function AllPage() {
       <ActiveFilters base="/all" category={f.category} channel={f.channel} tag={f.tag} />
 
       {/* Desktop, as on 精选: the title, then one filter row with the search field aligned on the right. */}
-      <h1 className="sr-only lg:not-sr-only lg:text-ui-heading-lg lg:font-semibold lg:leading-[1.3] lg:text-ink">{title ?? t(ALL_TITLE)}</h1>
+      <div className="lg:flex lg:items-center lg:gap-1.5">
+        <h1 className="sr-only lg:not-sr-only lg:text-ui-heading-lg lg:font-semibold lg:leading-[1.3] lg:text-ink">{title ?? t(ALL_TITLE)}</h1>
+        {f.tag && !f.q && <TagClear base="/all" tag={f.tag} />}
+      </div>
       <div className="mb-5 mt-4 hidden items-center justify-between gap-4 lg:flex">
         <CategoryTabs base="/all" category={f.category} channel={f.channel} layoutId="all-cat-desk" className="min-w-0" />
         <SearchField defaultValue={f.q ?? ""} keep={keep} />
@@ -159,16 +153,26 @@ export default function AllPage() {
         </div>
       )}
 
-      <div className={`transition-opacity duration-200 ${busy ? "opacity-50" : ""}`}>
+      <div className={`transition-opacity ${busy ? "opacity-55 delay-150" : ""}`}>
         {data.items.length === 0 ? (
           <div className="mt-2 lg:card">
             <EmptyState
               title={t("没有找到相关内容", "Nothing found")}
               action={
-                f.q && f.tab === "time" ? (
-                  <Link to={searchTabHref("relevance")} className="text-ui-label font-medium text-accent hover:underline">
-                    {t("试试“按相关度”，连正文一起搜", "Try “Most relevant” to search the full text too")}
-                  </Link>
+                (f.q && f.tab === "time") || filtered ? (
+                  <span className="flex flex-wrap justify-center gap-x-5 gap-y-1">
+                    {f.q && f.tab === "time" && (
+                      <Link to={searchTabHref("relevance")} className="inline-flex min-h-11 items-center text-ui-label font-medium text-accent hover:underline lg:min-h-0">
+                        {t("试试“按相关度”，连正文一起搜", "Try “Most relevant” to search the full text too")}
+                      </Link>
+                    )}
+                    {/* The way out the text suggests, one press away. */}
+                    {filtered && (
+                      <Link to={clearFilters} rel={clearFilters.includes("?") ? "nofollow" : undefined} className="inline-flex min-h-11 items-center text-ui-label font-medium text-accent hover:underline lg:min-h-0">
+                        {t("去掉筛选", "Clear filters")}
+                      </Link>
+                    )}
+                  </span>
                 ) : undefined
               }
             >

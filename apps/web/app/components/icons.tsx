@@ -37,6 +37,7 @@ export const IconGithub = ({ size = 18, ...rest }: P) => (
   </svg>
 );
 export const IconSun = (p: P) => (<Svg {...p}><circle cx="12" cy="12" r="4" /><path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4L6 18M18 6l1.4-1.4" /></Svg>);
+export const IconGlobe = (p: P) => (<Svg {...p}><circle cx="12" cy="12" r="8.5" /><path d="M3.5 12h17M12 3.5c2.3 2.4 3.5 5.2 3.5 8.5s-1.2 6.1-3.5 8.5c-2.3-2.4-3.5-5.2-3.5-8.5s1.2-6.1 3.5-8.5z" /></Svg>);
 export const IconMoon = (p: P) => (<Svg {...p}><path d="M20 14.5A8 8 0 019.5 4a8 8 0 1010.5 10.5z" /></Svg>);
 export const IconMonitor = (p: P) => (<Svg {...p}><rect x="3" y="4" width="18" height="12" rx="2" /><path d="M8 20h8M12 16v4" /></Svg>);
 export const IconArrowLeft = (p: P) => (<Svg {...p}><path d="M19 12H5M11 18l-6-6 6-6" /></Svg>);
@@ -49,8 +50,7 @@ export const IconExternal = (p: P) => (<Svg {...p}><path d="M14 4h6v6M20 4l-9 9"
 export const IconDownload = (p: P) => (<Svg {...p}><path d="M12 4v11M7 10l5 5 5-5M5 20h14" /></Svg>);
 export const IconImage = (p: P) => (<Svg {...p}><rect x="3.5" y="3.5" width="17" height="17" rx="2.5" /><circle cx="9" cy="9" r="1.6" /><path d="M20.5 15.5l-4.5-4.5-9 9.5" /></Svg>);
 export const IconShare = (p: P) => (<Svg {...p}><circle cx="18" cy="5.5" r="2.5" /><circle cx="6" cy="12" r="2.5" /><circle cx="18" cy="18.5" r="2.5" /><path d="M8.2 10.8l7.6-4.1M8.2 13.2l7.6 4.1" /></Svg>);
-export const IconMenu = (p: P) => (<Svg {...p}><path d="M4 7h16M4 12h16M4 17h16" /></Svg>);
-/** Three dots in a row: more actions (phone bars). */
+/** Three dots in a row: more actions. */
 export const IconMore = ({ size = 18, ...rest }: P) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" {...rest}>
     <circle cx="5.5" cy="12" r="1.6" />

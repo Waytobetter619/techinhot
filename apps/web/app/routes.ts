@@ -1,6 +1,7 @@
 import { type RouteConfig, type RouteConfigEntry, index, layout, route } from "@react-router/dev/routes";
 import type { ModulePage } from "@aihot/contracts/modules";
 import { MODULES } from "@aihot/site/modules";
+import { englishPages, READER_PAGES } from "@aihot/contracts/reader-pages";
 
 /** A module's route module, from the app directory. */
 const file = (module: string, path: string) => `../../../modules/${module}/${path}`;
@@ -13,34 +14,31 @@ const modulePages: RouteConfigEntry[] = MODULES.flatMap((m) =>
 );
 const adminPages: RouteConfigEntry[] = MODULES.flatMap((m) => (m.pages ?? []).flatMap((p) => ("layout" in p || !p.admin ? [] : [page(m.name, p)])));
 
-export default [
-  index("routes/home.tsx"),
-  route("all", "routes/all.tsx"),
-  route("all/search-busy", "routes/search-busy.tsx", { id: "all-search-busy" }),
-  route("search-busy", "routes/search-busy.tsx", { id: "search-busy" }),
-  route("items/:id", "routes/item.tsx"),
-  route("items/:id/original", "routes/item-original.tsx", { id: "item-original" }),
-  route("hot", "routes/hot.tsx"),
-  route("story/:publicId", "routes/story.tsx"),
-  route("daily", "routes/report-latest.tsx", { id: "daily-latest" }),
-  route("daily/archive", "routes/daily-archive.tsx"),
-  route("daily/:key", "routes/report-detail.tsx", { id: "daily-detail" }),
-  route("weekly", "routes/report-latest.tsx", { id: "weekly-latest" }),
-  route("weekly/:key", "routes/report-detail.tsx", { id: "weekly-detail" }),
-  route("monthly", "routes/report-latest.tsx", { id: "monthly-latest" }),
-  route("monthly/:key", "routes/report-detail.tsx", { id: "monthly-detail" }),
-  route("topics", "routes/topics.tsx"),
-  route("topics/:slug", "routes/topic.tsx", { id: "topic" }),
-  route("topics/:slug/page/:page", "routes/topic.tsx", { id: "topic-page" }),
-  route("about", "routes/about.tsx"),
-  route("terms", "routes/terms.tsx"),
-  route("privacy", "routes/privacy.tsx"),
-  route("changelog", "routes/changelog.tsx"),
-  route("feedback", "routes/feedback.tsx"),
-  route("more", "routes/more.tsx"),
-  route("starred", "routes/starred.tsx"),
-  route("agent", "routes/agent.tsx"),
+/**
+ * The pages with an English edition again under /en, using the same route modules. The address
+ * decides the language. A layout keeps its English children.
+ */
+function inEnglish(entries: RouteConfigEntry[]): RouteConfigEntry[] {
+  const english = new Set(englishPages());
+  const visit = (list: RouteConfigEntry[]): RouteConfigEntry[] => list.flatMap((e): RouteConfigEntry[] => {
+    if (e.path === undefined && !e.index && e.children) {
+      const children = visit(e.children);
+      return children.length ? [{ ...e, id: `en-${e.id ?? e.file}`, children }] : [];
+    }
+    if (!english.has(e.index ? "/" : `/${e.path}`)) return [];
+    return [{ ...e, index: undefined, path: e.index ? "en" : `en/${e.path}`, id: `en-${e.id ?? e.file}` }];
+  });
+  return visit(entries);
+}
+
+const PAGES: RouteConfigEntry[] = [
+  ...READER_PAGES.map((p) => p.path ? route(p.path, p.file, p.id ? { id: p.id } : {}) : index(p.file)),
   ...modulePages,
+];
+
+export default [
+  ...PAGES,
+  ...inEnglish(PAGES),
   // The modules' admin pages (ModulePage.admin), for the admins a site module names, in their own back-office shell.
   ...(adminPages.length ? [layout("routes/admin/module-layout.tsx", { id: "module-admin-layout" }, adminPages)] : []),
   route("admin/login", "routes/admin-login.tsx"),

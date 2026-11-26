@@ -8,8 +8,10 @@ import { IconClose, IconSearch } from "../../components/icons";
 import { topicsInNav } from "../../components/shell/nav";
 import { addRecentSearch, clearRecentSearches, useRecentSearches } from "../../lib/local-state";
 import { useModal } from "../../components/ui/modal";
+import { Collapse, Presence } from "../../components/ui/Presence";
 import { Link } from "../../lib/link";
-import { localizePath, useLocale, useT } from "../../lib/i18n";
+import { apiIn, localizePath, pagePath, useLocale, useT, type Locale } from "../../lib/i18n";
+import { filterKeep, listPath, readFilters } from "../../lib/seo";
 import { topicName } from "@aihot/contracts/taxonomy";
 
 // One overlay for the whole site, opened from any bar.
@@ -40,14 +42,18 @@ export function openSearch(query = "", trigger?: HTMLElement) {
   setOpen(true);
 }
 
-let suggestions: Promise<SearchSuggestions> | null = null;
+const suggestions = new Map<Locale, Promise<SearchSuggestions>>();
 
 /** Share only an ongoing read; the HTTP cache owns freshness and failed reads can be retried. */
-function loadSuggestions() {
-  suggestions ??= fetch('/api/site/search/suggestions')
-    .then(r => { if (!r.ok) throw new Error(String(r.status)); return r.json() as Promise<SearchSuggestions>; })
-    .finally(() => { suggestions = null; });
-  return suggestions;
+function loadSuggestions(locale: Locale) {
+  let read = suggestions.get(locale);
+  if (!read) {
+    read = fetch(apiIn("/search/suggestions", locale))
+      .then(r => { if (!r.ok) throw new Error(String(r.status)); return r.json() as Promise<SearchSuggestions>; })
+      .finally(() => { suggestions.delete(locale); });
+    suggestions.set(locale, read);
+  }
+  return read;
 }
 
 const RANK_COLOR = ["text-rank-1", "text-rank-2", "text-rank-3"];
@@ -62,8 +68,17 @@ export function SearchOverlay() {
   const [hasText, setHasText] = useState(false);
   const recent = useRecentSearches();
   const navigation = useNavigation();
-  const { key } = useLocation();
+  const { key, pathname, search } = useLocation();
+  // Searching from 精选 or 全部动态 keeps that list's filter, and from a search its chosen order, as the desktop
+  // field does (filterKeep).
+  const here = new URLSearchParams(search);
+  const list = pagePath(pathname);
+  const keep: Record<string, string | null> = list === "/" || list === "/all"
+    ? { ...filterKeep(readFilters(here)), tab: list === "/all" && here.get("q") && here.get("tab") === "relevance" ? "relevance" : null }
+    : {};
   const [more, setMore] = useState<Awaited<ReturnType<typeof loadSuggestions>> | null>(null);
+  // Once opened, the lists stay in the overlay, so closing fades them out with it rather than clearing them first.
+  const [opened, setOpened] = useState(false);
 
   useModal({ open: shown, panel, initialFocus: input, returnFocus: opener, onClose: close });
 
@@ -81,8 +96,10 @@ export function SearchOverlay() {
     if (!shown) return;
     let active = true;
     setHasText(!!input.current?.value);
-    setMore(null);
-    void loadSuggestions().then(value => { if (active) setMore(value); }).catch(() => {});
+    setOpened(true);
+    // The last suggestions stay up while fresh ones load, so the sections do not pop in on every opening; a read
+    // that fails takes them down rather than leave old ones standing.
+    void loadSuggestions(locale).then(value => { if (active) setMore(value); }).catch(() => { if (active) setMore(null); });
     // At the desktop breakpoint this layer is hidden by CSS; it must stop holding the page still too.
     const desktop = window.matchMedia("(min-width: 700px)");
     const onResize = () => { if (desktop.matches) close(); };
@@ -92,7 +109,7 @@ export function SearchOverlay() {
       active = false;
       desktop.removeEventListener("change", onResize);
     };
-  }, [shown]);
+  }, [shown, locale]);
 
   // Leaving for the results (or anywhere) closes the search.
   useEffect(() => {
@@ -117,7 +134,7 @@ export function SearchOverlay() {
       aria-label={t("搜索", "Search")}
       tabIndex={-1}
       inert={!shown}
-      className={`fixed inset-0 z-[75] flex flex-col bg-bg pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] transition-[opacity,transform] duration-200 ease-[var(--ease-out-quart)] lg:hidden ${shown ? "translate-y-0 opacity-100" : "pointer-events-none -translate-y-1 opacity-0"}`}
+      className={`fixed inset-0 z-[75] flex flex-col bg-bg pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] transition-[opacity,translate] lg:hidden ${shown ? "translate-y-0 opacity-100 duration-(--dur-move)" : "pointer-events-none -translate-y-1 opacity-0 duration-(--dur-leave)"}`}
     >
       <Form
         method="get"
@@ -133,6 +150,7 @@ export function SearchOverlay() {
         }}
         className="flex h-14 shrink-0 items-center gap-1 pl-4 pr-1 pt-[env(safe-area-inset-top)]"
       >
+        {Object.entries(keep).map(([k, v]) => (v ? <input key={k} type="hidden" name={k} value={v} /> : null))}
         <label className="relative flex-1">
           <span className="sr-only">{t("搜索标题和摘要", "Search titles and summaries")}</span>
           <IconSearch size={18} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-4" />
@@ -148,7 +166,7 @@ export function SearchOverlay() {
             enterKeyHint="search"
             className="h-10 w-full rounded-full bg-surface pl-10 pr-9 text-ui-body-lg text-ink outline-none ring-1 ring-inset ring-line-strong transition-shadow placeholder:text-ink-4 focus:ring-accent focus:shadow-[0_0_0_3px_var(--accent-soft)] [&::-webkit-search-cancel-button]:hidden"
           />
-          {hasText && (
+          <Presence show={hasText} motion="fade">
             <button
               type="button"
               aria-label={t("清空", "Clear")}
@@ -162,35 +180,36 @@ export function SearchOverlay() {
             >
               <IconClose size={15} />
             </button>
-          )}
+          </Presence>
         </label>
-        <button type="button" tabIndex={shown ? 0 : -1} onClick={close} className="h-11 shrink-0 px-3 text-ui-body-lg text-accent">
+        <button type="button" tabIndex={shown ? 0 : -1} onClick={close} className="press h-11 shrink-0 px-3 text-ui-body-lg text-accent active:opacity-60">
           {t("取消", "Cancel")}
         </button>
       </Form>
 
-      {shown && (
+      {opened && (
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-[max(24px,env(safe-area-inset-bottom))]">
-          {recent.length > 0 && (
+          {/* Cleared, the searches fold away and what is below rises to meet the field. */}
+          <Collapse open={recent.length > 0}>
             <section className="pt-3">
               <div className="flex items-center justify-between">
                 <h2 className="text-ui-label font-semibold text-ink-3">{t("最近搜索", "Recent searches")}</h2>
-                <button type="button" onClick={clearRecentSearches} className="-mr-2 h-11 px-2 text-ui-label text-ink-4">
+                <button type="button" onClick={clearRecentSearches} className="press -mr-2 h-11 px-2 text-ui-label text-ink-4 active:text-ink-2">
                   {t("清除", "Clear")}
                 </button>
               </div>
               <div className="mt-1.5 flex flex-wrap gap-2">
                 {recent.map((q) => (
-                  <Link key={q} to={`/all?q=${encodeURIComponent(q)}`} onClick={() => addRecentSearch(q)} className={`${chip} bg-surface text-ink-2 ring-1 ring-inset ring-line active:bg-bg-sunk`}>
+                  <Link key={q} to={listPath("/all", { q, ...keep })} onClick={() => addRecentSearch(q)} className={`${chip} bg-surface text-ink-2 ring-1 ring-inset ring-line active:bg-bg-sunk`}>
                     <span className="truncate">{q}</span>
                   </Link>
                 ))}
               </div>
             </section>
-          )}
+          </Collapse>
 
           {companies.length > 0 && (
-            <section className="pt-6">
+            <section className="anim-fade-in pt-6">
               <h2 className="text-ui-label font-semibold text-ink-3">{t("按主题找", "Browse by topic")}</h2>
               <div className="mt-2.5 flex flex-wrap gap-2">
                 {companies.map((topic) => (
@@ -208,8 +227,8 @@ export function SearchOverlay() {
           )}
 
           {(more?.hot.length ?? 0) > 0 && (
-            <section className="pt-6">
-              <h2 className="text-ui-label font-semibold text-ink-3">{t("正在热议", "Trending now")}</h2>
+            <section className="anim-fade-in pt-6">
+              <h2 className="text-ui-label font-semibold text-ink-3">{t("当前热点", "Trending now")}</h2>
               <ol className="mt-1 divide-y divide-line-soft">
                 {more!.hot.map((h, i) => (
                   <li key={h.to}>

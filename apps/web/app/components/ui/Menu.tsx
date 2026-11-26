@@ -58,7 +58,7 @@ export function Menu({ trigger, label, children }: { trigger: ReactNode; label: 
         {trigger}
       </button>
       <div inert={!open} aria-hidden={!open || undefined}>
-        <Presence show={open} enter="anim-drop-in" exit="anim-drop-out" duration={140}>
+        <Presence show={open} motion="pop">
           <div
             ref={menuRef}
             role="menu"
@@ -85,7 +85,7 @@ export function Menu({ trigger, label, children }: { trigger: ReactNode; label: 
 
 /** One entry of a Menu (a button or a link). */
 export function MenuItem({ icon, children, onSelect, href, download }: { icon?: ReactNode; children: ReactNode; onSelect?: () => void; href?: string; download?: boolean }) {
-  const cls = "flex w-full items-center gap-2.5 px-3 py-2 text-left text-ui-label text-ink-2 transition-colors hover:bg-bg-sunk hover:text-ink focus-visible:bg-bg-sunk focus-visible:text-ink";
+  const cls = "flex w-full items-center gap-2.5 px-3 py-2 text-left text-ui-label text-ink-2 transition-colors hover:bg-bg-sunk hover:text-ink focus-visible:bg-bg-sunk focus-visible:text-ink touch:min-h-11";
   const inner = (
     <>
       {icon && <span className="text-ink-4">{icon}</span>}
