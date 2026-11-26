@@ -80,7 +80,7 @@ test("packages never import the apps, and nothing below the admin imports it", (
 });
 
 test("editorial and event code can enqueue work without loading worker implementations", () => {
-  const found = violations([...sources(BACKEND + "/editorial"), ...sources(BACKEND + "/events")], (file, spec) => {
+  const found = violations([...sources(BACKEND + "/editorial"), ...sources(BACKEND + "/stories")], (file, spec) => {
     const target = backendPath(file, spec);
     return !!target?.startsWith("jobs/") && target !== "jobs/queue.ts";
   });
@@ -109,8 +109,8 @@ const OWNERS: Record<string, string> = {
   publications: "publication/", selected_ledger: "publication/", selected_state: "publication/", pool_search: "publication/",
   receipts: "providers/receipts.ts", receipt_attempts: "providers/receipts.ts",
   deliveries: "notify/",
-  facts: "events/", fact_articles: "events/", stories: "events/", story_signals: "events/", story_aliases: "events/", story_links: "events/",
-  story_digests: "events/", grouping_decisions: "events/", grouping_overrides: "events/",
+  facts: "stories/", fact_articles: "stories/", stories: "stories/", story_signals: "stories/", story_aliases: "stories/", story_links: "stories/",
+  story_digests: "stories/", grouping_decisions: "stories/", grouping_overrides: "stories/",
   audit_log: "audit.ts",
   feedback_submission_state: "operations/feedback.ts",
   reader_previewers: "../../../modules/accounts/backend/",

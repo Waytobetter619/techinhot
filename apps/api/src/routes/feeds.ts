@@ -3,7 +3,8 @@ import { inLanguage } from "@techinhot/contracts/i18n";
 // feed is also at /en/feed…, in English (publication/feeds.ts).
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { READER_LANGUAGES } from "@techinhot/contracts/english";
-import { feedCacheControl, isFeedCategory, itemFeed, reportFeed, type FeedLanguage, type ItemFeedKind } from "@techinhot/backend/publication/feeds";
+import { feedCacheControl, isFeedCategory, itemFeed, reportFeed, watchFeed, WATCH_FEED_CACHE_CONTROL, type FeedLanguage, type ItemFeedKind } from "@techinhot/backend/publication/feeds";
+import { isEmptyFilter, watchFilterFromQuery, WatchFilterError } from "@techinhot/backend/publication/watch";
 import { serverModules } from "@techinhot/backend/modules";
 import { applyPublicHeaders, sendTextWithEtag } from "../http/respond.ts";
 
@@ -19,6 +20,23 @@ function feedError(reply: FastifyReply) {
 
 export function registerFeeds(app: FastifyInstance) {
   for (const lang of READER_LANGUAGES) registerIn(app, lang);
+  // A subscription address (docs/subscriptions.md), Chinese only: ?topic=&category=&source=&q=&level=.
+  app.get("/feed/watch.xml", async (req, reply) => {
+    let filter;
+    try {
+      filter = watchFilterFromQuery(req.query as Record<string, unknown>);
+    } catch (error) {
+      if (error instanceof WatchFilterError) return reply.code(400).type("text/plain; charset=utf-8").send(`Bad subscription: ${error.message}`);
+      throw error;
+    }
+    if (isEmptyFilter(filter)) return reply.code(400).type("text/plain; charset=utf-8").send("Bad subscription: name a topic, category, source or keyword (or use /feed.xml)");
+    try {
+      return await sendFeed(req, reply, await watchFeed(filter), WATCH_FEED_CACHE_CONTROL, "zh");
+    } catch (error) {
+      req.log.error({ err: error }, "feed error");
+      return feedError(reply);
+    }
+  });
 }
 
 function registerIn(app: FastifyInstance, lang: FeedLanguage) {

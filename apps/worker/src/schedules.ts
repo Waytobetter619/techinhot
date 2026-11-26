@@ -23,6 +23,7 @@ import { recoverStaleWork } from "@techinhot/backend/operations/recover";
 import { forwardPendingFeedback } from "@techinhot/backend/operations/feedback";
 import { backupConfigured, runBackup } from "@techinhot/backend/operations/backup";
 import { sourceHealthWeekly } from "@techinhot/backend/operations/reports";
+import { runWatchRules } from "@techinhot/backend/watch/run";
 
 const collecting = process.env.COLLECT_ENABLED === "true";
 
@@ -35,6 +36,9 @@ const ENGINE_SCHEDULES: Scheduled[] = [
   { name: "hot.rank", cron: "*/5 * * * *", run: () => computeHotRanking() },
   { name: "hot.snapshot", cron: "2 * * * *", run: () => snapshotHeat() },
   { name: "stories.links", cron: "12 * * * *", run: linkRelatedStories },
+  // The owner's watch rules (docs/subscriptions.md): instant alerts every five minutes, digests each morning.
+  { name: "watch.instant", cron: "3-59/5 * * * *", run: () => runWatchRules("instant") },
+  { name: "watch.daily", cron: "7 8 * * *", missed: "once", run: () => runWatchRules("daily") },
   // Every issue that is due and not written yet, each from its edition time (site/site.ts EDITION_TIMES)
   // at the next half hour; a missed or failed one at the next run.
   { name: "reports.compose", cron: "0,30 * * * *", missed: "once", run: () => composeDueReports() },

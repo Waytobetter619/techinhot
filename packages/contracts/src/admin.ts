@@ -439,3 +439,55 @@ export interface AdminSelectBenchCases {
   rows: Array<{ case_id: string; title: string; stratum: string | null; gold: "select" | "reject" | "either"; by_model: Record<string, AdminSelectBenchDecision> }>;
   strata: Array<{ stratum: string | null; n: number }>;
 }
+
+// Watch rules (docs/subscriptions.md)
+
+export type AdminWatchChannel = "feishu" | "wecom" | "serverchan";
+
+/** A subscription filter, as the public feed's address carries it (publication/watch.ts). */
+export interface AdminWatchFilter {
+  topics: string[];
+  categories: string[];
+  sources: string[];
+  q: string | null;
+  level: "selected" | "all";
+}
+
+export interface AdminWatchRule {
+  id: number;
+  name: string;
+  filter: AdminWatchFilter;
+  channels: AdminWatchChannel[];
+  mode: "instant" | "daily";
+  enabled: boolean;
+  created_at: Timestamp;
+  updated_at: Timestamp;
+  checked_at: Timestamp | null;
+  /** The subscription address of the same filter. */
+  feedUrl: string;
+  pushes7d: number;
+  lastPush: { channel: AdminWatchChannel; items: number; status: "sent" | "failed" | "unknown" | "skipped"; response: string | null; pushed_at: Timestamp } | null;
+}
+
+export interface AdminWatchOverview {
+  rules: AdminWatchRule[];
+  /** WATCH_PUSH_ENABLED: off, runs match and record their pushes as skipped. */
+  pushEnabled: boolean;
+  channels: Array<{ key: AdminWatchChannel; name: string; configured: boolean }>;
+  topics: Array<{ slug: string; name: string; group: string }>;
+  groups: Array<{ key: string; name: string }>;
+  categories: Array<{ key: string; label: string }>;
+}
+
+export interface AdminWatchInput {
+  name: string;
+  filter: AdminWatchFilter;
+  channels: AdminWatchChannel[];
+  mode: "instant" | "daily";
+  enabled: boolean;
+}
+
+export interface AdminWatchPreview {
+  items: Array<{ id: string; title: string; source: string; published_at: Timestamp | null; url: string }>;
+  feedUrl: string;
+}

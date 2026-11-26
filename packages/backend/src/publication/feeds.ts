@@ -24,6 +24,9 @@ import { PUBLIC_ITEM_COLUMNS, publicCategoryCondition, exportTranslation, xView,
 import { publicSourceName } from "./rules.ts";
 import { browsedCondition, seatedCondition } from "./scope.ts";
 import { siteUrl } from "./links.ts";
+import { cachedByKey } from "../lib/cache.ts";
+import { findTopic } from "./topics.ts";
+import { watchItems, watchQueryString, WATCH_WINDOW_DAYS, type WatchFilter } from "./watch.ts";
 
 /** A feed's language: Chinese at /feed…, English at /en/feed… (on a site with an English edition). */
 export type FeedLanguage = Locale;
@@ -264,6 +267,38 @@ export async function itemFeed(kind: ItemFeedKind, category: PublicApiCategoryKe
   const items = shown.map((r) => itemXml(r, includeContent, lang));
   return channel(meta, items, lang);
 }
+
+/** What a watch feed narrows to, in words, for its title: “出口管制 · 地缘 · 含“英伟达””. */
+export function describeWatch(filter: WatchFilter): string {
+  const parts = [
+    ...filter.topics.map((slug) => findTopic(slug)?.name ?? slug),
+    ...filter.categories.map((c) => feedCategoryLabelIn(c, "zh")),
+    ...(filter.sources.length ? [`${filter.sources.length} 个信源`] : []),
+    ...(filter.q ? [`含“${filter.q}”`] : []),
+  ];
+  return parts.join(" · ");
+}
+
+// A reader polls its address every few minutes and many addresses may name the same filter, so each
+// filter's rows are kept a minute; a keyword filter is a search, so this also caps how often it runs.
+const watchRows = cachedByKey((filter: WatchFilter) => watchQueryString(filter), (filter) => watchItems(filter), { freshMs: 60_000, maxStaleMs: 10 * 60_000, maxKeys: 500 });
+
+/** A subscription address as a feed (publication/watch.ts): summaries and links, in Chinese. */
+export async function watchFeed(filter: WatchFilter): Promise<string> {
+  const rows = await watchRows(filter);
+  const what = describeWatch(filter);
+  const level = filter.level === "all" ? "全部动态" : "精选";
+  const meta = {
+    title: `${SITE.name} — 订阅：${what}`,
+    description: `${SITE.name}按条件订阅：${what}（${level}，最近 ${WATCH_WINDOW_DAYS} 天）。`,
+    homePath: "/watch",
+    selfPath: `/feed/watch.xml?${watchQueryString(filter)}`,
+    ttl: 15,
+  };
+  return channel(meta, rows.map((r) => itemXml(r, false, "zh")), "zh");
+}
+
+export const WATCH_FEED_CACHE_CONTROL = "public, max-age=300, s-maxage=300, must-revalidate";
 
 const ISSUE_NAME: Record<ReportKind, string> = { daily: "日报", weekly: "周报", monthly: "月报" };
 /** Issues each report feed keeps: a month of dailies, a quarter of weeklies, a year of monthlies. */

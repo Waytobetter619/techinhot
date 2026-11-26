@@ -16,6 +16,8 @@ import { resolveDelivery } from "@techinhot/backend/notify/deliver";
 import { releaseReceipt } from "@techinhot/backend/operations/recover";
 import { replaceContactQr, setTargetEnabled, settingsOverview, updateBudget } from "@techinhot/backend/admin/settings";
 import { createSource, fetchNow, listSources, previewSource, previewStoredSource, sourceDetail, updateSource } from "@techinhot/backend/admin/sources";
+import { createWatchRule, deleteWatchRule, previewWatch, updateWatchRule, watchOverview } from "@techinhot/backend/watch/rules";
+import { testWatchRule } from "@techinhot/backend/watch/run";
 import { sendProblem } from "../http/respond.ts";
 import { adminHandler } from "./admin-auth.ts";
 
@@ -112,6 +114,14 @@ export function registerAdmin(app: FastifyInstance) {
     return orNotFound(req, reply, await setTargetEnabled(param(req, "key"), !!b.enabled, b.reason, actorOf(admin)));
   }));
   app.put("/api/admin/budgets/:service", adminHandler(async (req, _reply, admin) => updateBudget(param(req, "service"), body(req) as never, actorOf(admin))));
+
+  // Watch rules: the owner's alerts (docs/subscriptions.md)
+  app.get("/api/admin/watch", adminHandler(async () => watchOverview()));
+  app.post("/api/admin/watch/preview", adminHandler(async (req) => previewWatch(body(req))));
+  app.post("/api/admin/watch", adminHandler(async (req, _reply, admin) => createWatchRule(body(req), actorOf(admin))));
+  app.put("/api/admin/watch/:id", adminHandler(async (req, reply, admin) => orNotFound(req, reply, await updateWatchRule(Number(param(req, "id")), body(req), actorOf(admin)))));
+  app.delete("/api/admin/watch/:id", adminHandler(async (req, reply, admin) => orNotFound(req, reply, await deleteWatchRule(Number(param(req, "id")), actorOf(admin)))));
+  app.post("/api/admin/watch/:id/test", adminHandler(async (req, reply) => orNotFound(req, reply, await testWatchRule(Number(param(req, "id"))))));
 
 
   // Models and evaluation

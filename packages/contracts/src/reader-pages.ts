@@ -38,6 +38,7 @@ export const READER_PAGES: readonly ReaderPage[] = [
   { path: "more", file: "routes/more.tsx" },
   { path: "starred", file: "routes/starred.tsx" },
   { path: "agent", file: "routes/agent.tsx" },
+  { path: "watch", file: "routes/watch.tsx", chineseOnly: true },
 ];
 
 let english: readonly string[] | null = null;

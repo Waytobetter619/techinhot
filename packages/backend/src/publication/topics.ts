@@ -115,8 +115,8 @@ export function topicMembership(topics: Topic[] = TOPICS) {
     ORDER BY t.position)`;
 }
 
-/** Report `p` is in topic `t`; the tag overlap comes first, for the tags index. */
-function inTopic(t: Topic) {
+/** Report `p` is in topic `t`; the tag overlap comes first, for the tags index. Subscriptions (watch.ts) use the same rule. */
+export function inTopic(t: Topic) {
   const pattern: ReturnType<typeof sql> = t.pattern === null ? sql`NULL::text` : sql`${t.pattern}::text`;
   return topicMatch(sql`${t.tags}::text[]`, pattern);
 }
