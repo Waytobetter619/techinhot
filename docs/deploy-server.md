@@ -35,7 +35,7 @@ done
 | `SOCIALDATA_API_KEY` | X 账号信源要用（重点人物言论都靠它）；不填时 X 信源会在后台标红，其余照常 |
 | `MODEL_CALLS_ENABLED`、`COLLECT_ENABLED` | 确认是 `true`（或不写，按 `.env.example` 的默认） |
 
-先别填飞书推送；Techin 那一节保持注释（Docker 不会启动 feeder）。
+先别填飞书推送和关注提醒；站点跑稳后再按 [订阅与提醒](subscriptions.md) 配置。B站、小红书博主见 [自建 RSSHub](rsshub.md)。
 
 ## 3. 启动
 

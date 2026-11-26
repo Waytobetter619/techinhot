@@ -55,23 +55,27 @@ export async function pushAlert(channel: WatchChannel, alert: Alert): Promise<Pu
   const address = credential("integrations", ADDRESS[channel]);
   if (!address) return { status: "skipped", response: `${ADDRESS[channel]} is not set` };
   try {
-    if (channel === "feishu") {
-      return await sendWebhook(address, {
-        msg_type: "interactive",
-        card: {
-          header: { template: "blue", title: { tag: "plain_text", content: alert.title } },
-          elements: [{ tag: "markdown", content: markdown(alert, 20_000) }],
-        },
-      });
-    }
-    if (channel === "wecom") {
-      // A WeCom bot's Markdown message is at most 4096 bytes.
-      const body = markdown(alert, 3_800);
-      return await sendWebhook(address, { msgtype: "markdown", markdown: { content: `**${alert.title}**\n${body}` } }, (json) => json?.errcode);
-    }
-    return await sendWebhook(`https://sctapi.ftqq.com/${encodeURIComponent(address)}.send`, { title: shortTitle(alert.title), desp: markdown(alert, 20_000) }, (json) => json?.code);
+    const { status, body } = await send(channel, address, alert);
+    return { status, response: body };
   } catch (error) {
     // The request may or may not have reached the channel: unknown, never retried.
     return { status: "unknown", response: String(error).slice(0, 500) };
   }
+}
+
+function send(channel: WatchChannel, address: string, alert: Alert) {
+  if (channel === "feishu") {
+    return sendWebhook(address, {
+      msg_type: "interactive",
+      card: {
+        header: { template: "blue", title: { tag: "plain_text", content: alert.title } },
+        elements: [{ tag: "markdown", content: markdown(alert, 20_000) }],
+      },
+    });
+  }
+  if (channel === "wecom") {
+    // A WeCom bot's Markdown message is at most 4096 bytes.
+    return sendWebhook(address, { msgtype: "markdown", markdown: { content: `**${alert.title}**\n${markdown(alert, 3_800)}` } }, (json) => json?.errcode);
+  }
+  return sendWebhook(`https://sctapi.ftqq.com/${encodeURIComponent(address)}.send`, { title: shortTitle(alert.title), desp: markdown(alert, 20_000) }, (json) => json?.code);
 }
