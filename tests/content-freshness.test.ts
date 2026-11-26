@@ -12,7 +12,7 @@ import { upsertMaterial } from '@techinhot/backend/content/materials';
 import { extractArticleBody } from '@techinhot/backend/content/extract';
 import { buildScoreInput, loadAnalyzeInput } from '@techinhot/backend/editorial/analyze';
 import { collectSource } from '@techinhot/backend/sources/collect';
-import { groupArticle } from '@techinhot/backend/events/group';
+import { groupArticle } from '@techinhot/backend/stories/group';
 import { publishArticle } from '@techinhot/backend/publication/publish';
 import { selectedContent } from '@techinhot/backend/notify/selected-content';
 import { dailyEdition } from '@techinhot/backend/reports/edition';

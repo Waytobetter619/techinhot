@@ -50,11 +50,11 @@ const citation = (available: boolean): ReportCitation => ({ itemId: available ? 
 const leadless = (): ReportDetail => ({ ...report("daily"), key: "2026-10-05", lead: null, leadItemId: null,
   sections: [{ label: "模型", summary: null, items: [citation(false)] }], highlights: [{ ...citation(true), itemId: "metadata-pick", title: "同一时段值得一看的报道" }] });
 const report = (kind: ReportKind): ReportDetail => ({ kind, key: kind === "daily" ? "2026-10-04" : kind === "weekly" ? "2026-W40" : "2026-10", issueNumber: 1, title: `${SITE.name} 测试刊物`, generatedAt: at, lead: { title: "本期已验证的重要变化", leadParagraph: "本期的导读与依据。" }, leadItemId: item.id, overview: null, highlights: [citation(true)], sections: [], flashes: [], cover: null, metrics: {}, readingMinutes: 1, prev: null, next: null, mentions: [] });
-const story: StoryDetail = { publicId: "metadata-story", title: "测试事件的最新进展", status: "settled", reportCount: 1, sourceCount: 1, firstReportAt: at, latestAt: at, digest: "当前可核实的事件综述。", digestUpdatedAt: "2026-10-04T09:00:00.000Z", summary: null, excerpt: null, latest: null, latestReport: null, whyHot: { participants48h: 0, newParticipants6h: 0, recentReports24h: 0, observationComplete: true, rank: null }, developments: [], officialReports: [], timeline: [{ id: item.id, title: item.title, summary: item.summary, source: { name: item.source.name, firstParty: true }, publishedAt: at, selected: true }], heat: [], related: [], topics: [], mentions: [] };
+const story: StoryDetail = { publicId: "metadata-story", title: "测试事件的最新进展", status: "settled", reportCount: 1, sourceCount: 1, firstReportAt: at, latestAt: at, digest: "当前可核实的事件综述。", digestUpdatedAt: "2026-10-04T09:00:00.000Z", summary: null, excerpt: null, latest: null, latestReport: null, whyHot: { participants48h: 0, newParticipants6h: 0, recentReports24h: 0, observationComplete: true, rank: null }, developments: [], officialArticles: [], timeline: [{ id: item.id, title: item.title, summary: item.summary, source: { name: item.source.name, firstParty: true }, publishedAt: at, selected: true }], heat: [], related: [], topics: [], mentions: [] };
 /** Multiple reports from the same source still stay noindex. */
 const sameSourceStory: StoryDetail = { ...story, publicId: "metadata-story-same-source", reportCount: 3, sourceCount: 1 };
 /** The same event once a second distinct source joined it. */
-const severalReports: StoryDetail = { ...story, publicId: "metadata-story-several", reportCount: 2, sourceCount: 2 };
+const severalArticles: StoryDetail = { ...story, publicId: "metadata-story-several", reportCount: 2, sourceCount: 2 };
 const topicPage = (pageNum: number): TopicPage => ({
   topic: { slug: "openai", name: "OpenAI", group: "company", groupName: "公司", definition: "OpenAI 最新动态。", brand: null, total: 45, poolTotal: 60, recent: 5, latest: { title: item.title, at }, indexable: true },
   modules: {},
@@ -80,7 +80,7 @@ const api = createServer((req, res) => {
   if (article && details[article]) return send(details[article]);
   if (path === `/api/site/stories/${story.publicId}`) return send(story);
   if (path === `/api/site/stories/${sameSourceStory.publicId}`) return send(sameSourceStory);
-  if (path === `/api/site/stories/${severalReports.publicId}`) return send(severalReports);
+  if (path === `/api/site/stories/${severalArticles.publicId}`) return send(severalArticles);
   const match = /^\/api\/site\/reports\/(daily|weekly|monthly)\/(.+)$/.exec(path);
   if (match) {
     const r = report(match[1] as ReportKind);
@@ -167,7 +167,7 @@ test("an event page stands in search once covered by at least two distinct sourc
   const sameSource = await page(`/story/${sameSourceStory.publicId}`);
   assert.equal(sameSource("meta[name=robots]").attr("content"), "noindex, follow", "multiple reports from one source: stay on their articles");
   assert.equal(structured(sameSource).find((entry) => entry["@type"] === "NewsArticle"), undefined);
-  const several = await page(`/story/${severalReports.publicId}`);
+  const several = await page(`/story/${severalArticles.publicId}`);
   assert.equal(several("meta[name=robots]").attr("content"), "max-image-preview:large");
   assert.equal(several("meta[name=googlebot]").length, 0);
 });
@@ -266,7 +266,7 @@ test("HTML and navigation keep a temporary English-title noindex for at most a m
   const cases = [
     [`/en/items/${item.id}`, true, true],
     [`/en/items/${item.id}/original`, true, true],
-    [`/en/story/${severalReports.publicId}`, true, true],
+    [`/en/story/${severalArticles.publicId}`, true, true],
     ...(["daily", "weekly", "monthly"] as const).map((kind) => [`/en/${kind}/${report(kind).key}`, true, true] as const),
     [`/en/daily/${leadless().key}`, false, false], // The issue date stands on its own.
     [`/en/story/${sameSourceStory.publicId}`, false, true],
@@ -314,12 +314,12 @@ test("story metadata describes the visible collection, current summary and repor
   assert.ok($("main").text().includes(story.digest!));
   assert.equal(structured($).find((entry) => entry["@type"] === "NewsArticle"), undefined, "a single-report noindex story does not emit a NewsArticle");
 
-  const several = await page(`/story/${severalReports.publicId}`);
+  const several = await page(`/story/${severalArticles.publicId}`);
   const article = structured(several).find((entry) => entry["@type"] === "NewsArticle")!;
   assert.ok(article, "an indexable story with a digest emits a NewsArticle dated by its digest");
-  assert.equal(article.headline, severalReports.title);
-  assert.equal(article.datePublished, severalReports.digestUpdatedAt);
-  assert.equal(article.image, `${web.origin}/og/stories/${severalReports.publicId}.png`);
+  assert.equal(article.headline, severalArticles.title);
+  assert.equal(article.datePublished, severalArticles.digestUpdatedAt);
+  assert.equal(article.image, `${web.origin}/og/stories/${severalArticles.publicId}.png`);
 });
 
 test("entry pages keep one accessible heading each and distinct metadata across agent tabs", async () => {

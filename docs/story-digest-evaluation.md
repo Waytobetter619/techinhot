@@ -42,7 +42,7 @@ node --env-file=.env scripts/eval-story-digests.ts --cases .data/story-digest-ca
 
 ```bash
 node --env-file=.env --input-type=module -e '
-const { rewriteStoryDigest } = await import("@techinhot/backend/events/corrections");
+const { rewriteStoryDigest } = await import("@techinhot/backend/stories/corrections");
 const { sql } = await import("@techinhot/backend/db");
 const [s] = await sql`SELECT id FROM stories WHERE public_id = ${"<事件id>"}`;
 if (!s) throw new Error("没有这个事件 id");

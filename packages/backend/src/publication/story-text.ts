@@ -1,9 +1,9 @@
 // What the site tells readers about an event (the hot list and the event page), by the rule the digest is
-// written by (events/digest.ts): its listed evidence. A digest stands while its saved evidence remains
+// written by (stories/digest.ts): its listed evidence. A digest stands while its saved evidence remains
 // public and unchanged; the latest development is the newest listed evidence.
 import { sql } from "../db.ts";
 import { evidenceCondition, listedCondition } from "./scope.ts";
-import { digestInputsHashMatches, digestReports } from "./story-evidence.ts";
+import { digestInputsHashMatches, digestArticles } from "./story-evidence.ts";
 
 export interface StoryText {
   digest: string | null;
@@ -39,7 +39,7 @@ export async function storyTexts(storyIds: number[], now = new Date()): Promise<
       ORDER BY coalesce(p.published_at, p.discovered_at) DESC, p.article_id LIMIT 1
     ) latest ON true
     WHERE st.id = ANY(${storyIds}::bigint[])`;
-  const reports = await digestReports(sql, rows.filter((r) => r.current && r.digest && r.inputs_hash).map((r) => Number(r.id)), now);
+  const reports = await digestArticles(sql, rows.filter((r) => r.current && r.digest && r.inputs_hash).map((r) => Number(r.id)), now);
   const byStory = Map.groupBy(reports, (p) => Number(p.story_id));
   return new Map(rows.map((r) => {
     // New reports may extend an event without changing the evidence behind its saved digest.

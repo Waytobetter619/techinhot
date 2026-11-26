@@ -178,7 +178,7 @@ export interface ServerModule {
   admin?: (cookieHeader: string | undefined) => Promise<Previewer | null>;
   /** Sources whose selected articles keep independent cards/seats without changing admission or event identity (publication/rules.ts, scope.ts). */
   independentSelectedSources?: readonly string[];
-  /** Another account of an independent source's author, by source id: its post gives way to the article on the same news (events/cards.ts). */
+  /** Another account of an independent source's author, by source id: its post gives way to the article on the same news (stories/cards.ts). */
   independentSelectedEchoes?: Readonly<Record<string, string>>;
   /** Its HTTP routes, and hooks on the app such as what to flush when it closes, registered before the engine's v1 fallbacks (apps/api/src/app.ts). */
   http?: (app: FastifyInstance) => void;
@@ -260,7 +260,7 @@ export interface ServerModule {
    * of the internal chat, and only their screenshots go to Feishu. It wakes whoever handles them (`alerts`).
    */
   feedbackPages?: readonly string[];
-  /** Publication suitability review before analysis, translation or event digests are stored (editorial/analyze.ts, editorial/translate.ts, events/digest.ts). */
+  /** Publication suitability review before analysis, translation or event digests are stored (editorial/analyze.ts, editorial/translate.ts, stories/digest.ts). */
   editorial?: EditorialPolicy;
 }
 
@@ -360,7 +360,7 @@ export interface EditorialPolicy {
   reviewAnalysis?: (input: EditorialReviewInput) => Promise<EditorialReviewOutcome | null>;
   /** Reviews translated body or quote text before it is stored (editorial/translate.ts). */
   reviewTranslation?: (input: EditorialTranslationReviewInput) => Promise<{ allow: boolean; reason?: string; receiptIds?: number[] }>;
-  /** Reviews a generated event title and digest before saving (events/digest.ts). */
+  /** Reviews a generated event title and digest before saving (stories/digest.ts). */
   reviewStoryDigest?: (input: EditorialStoryDigestReviewInput) => Promise<{ title: string; digest: string; receiptIds?: number[] } | null>;
   /** Sanitizes stored fact and story copy when a report is grouped, revised or overridden. */
   sanitizeEventCopy?: (input: EditorialEventCopyInput) => EditorialEventCopyOutcome;

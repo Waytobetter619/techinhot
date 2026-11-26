@@ -34,7 +34,7 @@ export function browsedCondition(now: Date) {
 }
 
 /** Story reports include older editorial material outside the pool, but never withdrawn or not yet released content. */
-export function storyReportCondition(now: Date) {
+export function storyArticleCondition(now: Date) {
   return sql`p.visibility = 'public' AND s.participation_mode = 'editorial' AND ${releasedCondition(now)}`;
 }
 

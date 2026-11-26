@@ -2,8 +2,8 @@
 // (scripts/eval-story-digests.ts --stories); the site's digest input made from a case; and the comparison
 // a run writes, as Markdown for reading.
 import { z } from "zod";
-import { byReportTime } from "@techinhot/backend/events/digest";
-import type { DigestReport } from "@techinhot/backend/publication/story-evidence";
+import { byReportTime } from "@techinhot/backend/stories/digest";
+import type { DigestArticle } from "@techinhot/backend/publication/story-evidence";
 import { parseCasesJsonl } from "./eval-tools.ts";
 
 const ReportSchema = z.strictObject({
@@ -43,10 +43,10 @@ export type DigestEvalCase = z.infer<typeof CaseSchema>;
 export const parseDigestEvalJsonl = (text: string): DigestEvalCase[] => parseCasesJsonl(text, CaseSchema);
 
 /**
- * An event as the site rewrites its digest from its current reports (digestReports): without the
+ * An event as the site rewrites its digest from its current reports (digestArticles): without the
  * previous digest when it has saved one, the way a correction is rewritten; as a first digest otherwise.
  */
-export function caseFromStory(story: { publicId: string; title: string; hasDigest: boolean }, reports: DigestReport[]): DigestEvalCase {
+export function caseFromStory(story: { publicId: string; title: string; hasDigest: boolean }, reports: DigestArticle[]): DigestEvalCase {
   return {
     caseId: story.publicId,
     story: { title: story.title, previousDigest: null },
@@ -76,7 +76,7 @@ export function caseFromStory(story: { publicId: string; title: string; hasDiges
 export function toDigestInput(row: DigestEvalCase) {
   return {
     story: { title: row.story.title, digest: row.story.previousDigest },
-    reports: row.reports.map((report): Omit<DigestReport, "story_id" | "source_id"> => ({
+    reports: row.reports.map((report): Omit<DigestArticle, "story_id" | "source_id"> => ({
       id: report.id,
       title: report.title,
       summary: report.summary,

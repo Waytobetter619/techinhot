@@ -10,7 +10,7 @@ import { isEmptyOrLinkOnly, withXArticle } from "../content/posts.ts";
 import { proxiedImage, proxiedImageSet } from "../media/imgproxy.ts";
 import { sourceOwnsPost } from "../sources/account.ts";
 import { displayTags, publicSourceName } from "./rules.ts";
-import { foldableSelectionCondition, seatedCondition, storyReportCondition } from "./scope.ts";
+import { foldableSelectionCondition, seatedCondition, storyArticleCondition } from "./scope.ts";
 
 export interface ItemRow {
   id: string;
@@ -224,7 +224,7 @@ export function storyIndexableCondition(now: Date) {
   return sql`(st.id IS NOT NULL AND (
     SELECT count(DISTINCT p.source_id) FROM facts f JOIN fact_articles fa ON fa.fact_id = f.id
     JOIN publications p ON p.article_id = fa.article_id JOIN sources s ON s.id = p.source_id
-    WHERE f.story_id = st.id AND ${storyReportCondition(now)}) >= ${STORY_INDEX_MIN_SOURCES})`;
+    WHERE f.story_id = st.id AND ${storyArticleCondition(now)}) >= ${STORY_INDEX_MIN_SOURCES})`;
 }
 
 /**

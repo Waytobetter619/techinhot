@@ -5,7 +5,7 @@ import { analysisStep, SELECTING_SCORE } from "./analysis-steps.ts";
 import assert from "node:assert/strict";
 import { after, afterEach, before, test } from "node:test";
 import { closeDb, sql } from "@techinhot/backend/db";
-import { groupArticle } from "@techinhot/backend/events/group";
+import { groupArticle } from "@techinhot/backend/stories/group";
 import { upsertMaterial } from "@techinhot/backend/content/materials";
 import { rerun } from "@techinhot/backend/admin/content";
 import { processArticle, queueProcessing, registerContentJobs, sweepUnprocessed } from "@techinhot/backend/jobs/content";

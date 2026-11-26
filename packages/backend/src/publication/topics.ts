@@ -17,7 +17,7 @@ import { cached, type Cached } from "../lib/cache.ts";
 import { sha256, stableJson } from "../lib/ids.ts";
 import { serverModules } from "../modules.ts";
 import { ITEM_COLUMNS, ITEM_FROM, toFeedItemSummary, type ItemRow } from "./items.ts";
-import { evidenceCondition, listedCondition, ownFactEvidenceCondition, seatedCondition, selectedCondition, storyReportCondition } from "./scope.ts";
+import { evidenceCondition, listedCondition, ownFactEvidenceCondition, seatedCondition, selectedCondition, storyArticleCondition } from "./scope.ts";
 
 export interface Topic {
   slug: string;
@@ -379,7 +379,7 @@ export async function topicsOfStory(storyId: number, now = new Date()): Promise<
     SELECT DISTINCT ON (p.article_id) ${topicMembership()} AS topics
     FROM facts f JOIN fact_articles fa ON fa.fact_id = f.id JOIN publications p ON p.article_id = fa.article_id
     JOIN sources s ON s.id = p.source_id
-    WHERE f.story_id = ${storyId} AND ${evidenceCondition()} AND ${storyReportCondition(now)}
+    WHERE f.story_id = ${storyId} AND ${evidenceCondition()} AND ${storyArticleCondition(now)}
     ORDER BY p.article_id`;
   const reports = new Map<string, number>();
   for (const r of rows) for (const slug of r.topics) reports.set(slug, (reports.get(slug) ?? 0) + 1);

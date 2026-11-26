@@ -11,7 +11,7 @@ import { addDays } from "@techinhot/contracts/time";
 import { SELECTION } from "@techinhot/industry/selection";
 import { CATEGORIES } from "@techinhot/industry/taxonomy";
 import { sql } from "../db.ts";
-import { currentSignals } from "../events/hot.ts";
+import { currentSignals } from "../stories/hot.ts";
 import { pickRepresentative, representativePriority, REPRESENTATIVE_COLUMNS, type RepresentativeIdentity } from "../publication/representative.ts";
 import { factSources } from "../publication/coverage.ts";
 import { evidenceCondition, listedCondition, ownFactEvidenceCondition } from "../publication/scope.ts";

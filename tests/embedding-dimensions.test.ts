@@ -38,7 +38,7 @@ const persisted = async (id: string) =>
 async function freshProcess(dimensions: number, code: string) {
   const { stdout } = await promisify(execFile)(process.execPath, ["--input-type=module", "-e", `
     const { ensureEmbeddings } = await import('@techinhot/backend/providers/embeddings');
-    const { cosine32 } = await import('@techinhot/backend/events/recall');
+    const { cosine32 } = await import('@techinhot/backend/stories/recall');
     const { closeDb } = await import('@techinhot/backend/db');
     try { ${code} } finally { await closeDb(); }
   `], { env: { ...process.env, EMBEDDING_DIMS: String(dimensions) } });

@@ -55,7 +55,7 @@ function sources(dir: string, kind = /\.tsx?$/): Array<{ file: string; text: str
 /** Module specifiers a file imports (static, dynamic and type imports). */
 const specifiers = (text: string) => [...text.matchAll(/\b(?:from|import)\s*\(?\s*["']([^"']+)["']/g)].map((m) => m[1]!);
 
-/** A specifier as a path under packages/backend/src (`events/group.ts`), or null outside the backend. */
+/** A specifier as a path under packages/backend/src (`stories/group.ts`), or null outside the backend. */
 function backendPath(file: string, spec: string): string | null {
   if (spec.startsWith("@techinhot/backend/")) return `${spec.slice("@techinhot/backend/".length)}.ts`;
   if (!spec.startsWith(".")) return null;

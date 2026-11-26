@@ -7,7 +7,7 @@ import path from "node:path";
 import { parseArgs } from "node:util";
 import { REPO_ROOT } from "@techinhot/backend/config";
 import { closeDb, sql } from "@techinhot/backend/db";
-import { PAIR_SYSTEM, PairSchema, RELATE_PROMPT_VERSION, pairUser } from "@techinhot/backend/events/relate";
+import { PAIR_SYSTEM, PairSchema, RELATE_PROMPT_VERSION, pairUser } from "@techinhot/backend/stories/relation";
 import { chatJson } from "@techinhot/backend/providers/llm";
 import { completeReceipt, failedReceiptId } from "@techinhot/backend/providers/receipts";
 import {
@@ -15,7 +15,7 @@ import {
   parseRelationGoldJsonl,
   relationMetrics,
   storyTieMetrics,
-  toReportView,
+  toArticleView,
   type RelationPrediction,
 } from "./eval-relations-core.ts";
 import { evalModels, pmap, positiveInt, safeReportNamePart, sampleCases, usageFor } from "./eval-tools.ts";
@@ -58,7 +58,7 @@ async function main() {
     const results = await pmap(sample, concurrency, async (row) => {
       let shared = false;
       try {
-        const user = pairUser(toReportView(row.a), toReportView(row.b));
+        const user = pairUser(toArticleView(row.a), toArticleView(row.b));
         let request = requests.get(user);
         shared = request !== undefined;
         if (!request) {

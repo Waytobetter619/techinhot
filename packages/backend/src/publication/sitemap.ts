@@ -20,7 +20,7 @@ import { sql } from "../db.ts";
 import { shared } from "../lib/cache.ts";
 import { escapeXml } from "../lib/text.ts";
 import { siteUrl } from "./links.ts";
-import { evidenceCondition, listedCondition, selectedCondition, storyReportCondition } from "./scope.ts";
+import { evidenceCondition, listedCondition, selectedCondition, storyArticleCondition } from "./scope.ts";
 import { usableCopy } from "./english.ts";
 import { issueLead, unavailableHeadlineIds } from "./reports.ts";
 import { storyTexts } from "./story-text.ts";
@@ -160,7 +160,7 @@ export async function loadDiscoveryEntries(at = new Date(), limits?: { urls: num
           ',' ORDER BY p.article_id, f.id))`)}
       FROM facts f JOIN fact_articles fa ON fa.fact_id = f.id JOIN publications p ON p.article_id = fa.article_id
       JOIN sources s ON s.id = p.source_id
-      WHERE f.story_id = st.id AND ${storyReportCondition(at)}
+      WHERE f.story_id = st.id AND ${storyArticleCondition(at)}
     ) members ON true
     WHERE st.merged_into IS NULL AND EXISTS (
       SELECT 1 FROM facts f JOIN fact_articles fa ON fa.fact_id = f.id JOIN publications p ON p.article_id = fa.article_id
@@ -189,7 +189,7 @@ export async function loadDiscoveryEntries(at = new Date(), limits?: { urls: num
       ${revisionColumn(sql`md5(concat_ws('|', p.revision::text, a.content_hash, a.cover::text, tr.title, tr.body_html, tr.body_text, tr.complete::text, qt.text_zh,
         p.source_id, regexp_replace(s.name, '（[^（）]*）', '', 'g'), s.icon_url, st.public_id::text, st.title))`)}
     ${ITEM_FROM}
-    WHERE ${storyReportCondition(at)} AND p.indexable ${limits ? sql`AND NOT ${thinPageCondition()} AND NOT ${eventPageCondition(at)}` : sql``}
+    WHERE ${storyArticleCondition(at)} AND p.indexable ${limits ? sql`AND NOT ${thinPageCondition()} AND NOT ${eventPageCondition(at)}` : sql``}
     ORDER BY p.timeline_at DESC, p.article_id DESC ${limits ? sql`LIMIT ${Math.max(0, limits.urls - entries.length)}` : sql``}`;
   for (const it of items) {
     entries.push({ loc: `/items/${it.id}`, newsAt: it.released, newsTitle: limits ? it.title : undefined, revision: it.revision, changefreq: "monthly", priority: 0.5,

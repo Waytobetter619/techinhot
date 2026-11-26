@@ -31,7 +31,7 @@ const story = (publicId: string, firstReportAt: string | null): StoryDetail => (
   publicId, title: "测试事件", status: "settled", reportCount: 61, sourceCount: 20, firstReportAt, latestAt: firstReportAt ?? FIXTURE_AT, digest: null, digestUpdatedAt: null,
   summary: null, excerpt: null, latest: null, latestReport: null,
   whyHot: { participants48h: 0, newParticipants6h: 0, recentReports24h: 0, observationComplete: true, rank: null },
-  developments: [], officialReports: [], timeline: [], heat: [], related: [], topics: [], mentions: [],
+  developments: [], officialArticles: [], timeline: [], heat: [], related: [], topics: [], mentions: [],
 });
 const stories = [story("links-this-year", recent), story("links-last-year", "2025-12-30T17:00:00.000Z"), story("links-undated", null)];
 

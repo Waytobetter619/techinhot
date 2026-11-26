@@ -21,7 +21,7 @@ import { stopBoss } from "@techinhot/backend/jobs/queue";
 import { publishArticle } from "@techinhot/backend/publication/publish";
 import { firstDaily, loadReport, v1Daily } from "@techinhot/backend/publication/reports";
 import { composeDaily } from "@techinhot/backend/reports/compose";
-import { mergeStoryInto } from "@techinhot/backend/events/merge";
+import { mergeStoryInto } from "@techinhot/backend/stories/merge";
 import { buildApp } from "../apps/api/src/app.ts";
 
 const T = tag();

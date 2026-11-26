@@ -11,8 +11,8 @@ import { closeDb, sql } from "@techinhot/backend/db";
 import { upsertMaterial } from "@techinhot/backend/content/materials";
 import { publishArticle } from "@techinhot/backend/publication/publish";
 import { stopBoss } from "@techinhot/backend/jobs/queue";
-import { mergeStoryInto } from "@techinhot/backend/events/merge";
-import { linkRelatedStories } from "@techinhot/backend/events/consolidate";
+import { mergeStoryInto } from "@techinhot/backend/stories/merge";
+import { linkRelatedStories } from "@techinhot/backend/stories/consolidate";
 import { buildApp } from "../apps/api/src/app.ts";
 
 const source = `related-evidence-${tag()}`;

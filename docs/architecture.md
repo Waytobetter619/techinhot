@@ -1,5 +1,7 @@
 # 架构
 
+名词和它们在代码、数据库、页面上的叫法见 [概念与命名](concepts.md)。
+
 ```mermaid
 flowchart LR
   S["信源<br/>RSS · 网页 · JSON · X · 公众号 · 外部推送"] --> C["采集<br/>判重 · 抓原文"]
@@ -47,7 +49,7 @@ flowchart LR
 | `packages/backend/src/sources/` | 六种信源的读取器，抓取调度（`collect.ts`） |
 | `packages/backend/src/content/` | 资料入库、判重、正文提取和清洗 |
 | `packages/backend/src/editorial/` | 判断与写作：`analyze.ts`（流程）、`prompts.ts`（读提示词）、`models.ts`（每一步用哪个模型） |
-| `packages/backend/src/events/` | 事件归组、热度、事件综述 |
+| `packages/backend/src/stories/` | 事件归组（`relation.ts` 判断报道与事实的关系，`story-links.ts` 管相关事件）、热度、事件综述 |
 | `packages/backend/src/publication/` | 公开读取层 |
 | `packages/backend/src/reports/` | 日报、周报、月报 |
 | `packages/backend/src/providers/` | 模型、向量、X、公众号、Jina 的调用，回执与预算 |

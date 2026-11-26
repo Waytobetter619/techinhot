@@ -11,7 +11,7 @@ import { sql } from "../db.ts";
 import { beijingDate } from "@techinhot/contracts/time";
 import { sha256 } from "../lib/ids.ts";
 import { embeddingsAvailable, ensureEmbeddings } from "../providers/embeddings.ts";
-import { GROUP_BODY_CHARS, lexicalSimilarity, reportText, signalText, type CandidateView, type ReportView, type ReadingContext } from "./relate.ts";
+import { GROUP_BODY_CHARS, lexicalSimilarity, articleText, signalText, type CandidateView, type ArticleView, type ReadingContext } from "./relation.ts";
 import { groupingEvidenceCondition, ownFactEvidenceCondition, seatedCondition, selectedCondition } from "../publication/scope.ts";
 import { pickRepresentative, REPRESENTATIVE_COLUMNS, type RepresentativeIdentity, type RepresentativeRow } from "../publication/representative.ts";
 
@@ -80,7 +80,7 @@ async function attachedPostsPool(hours: number): Promise<PoolRow[]> {
       AND NOT EXISTS (SELECT 1 FROM fact_articles m WHERE m.article_id = ss.article_id AND m.manual)`;
 }
 
-type ReadingRow = ReportView & { article_id: string; revision: number; fact_id: number | null };
+type ReadingRow = ArticleView & { article_id: string; revision: number; fact_id: number | null };
 
 /**
  * Already displayed reports supply reading context, never identity evidence: those without a fact,
@@ -104,7 +104,7 @@ async function reportTexts(ids: string[]): Promise<Map<string, string>> {
     LEFT JOIN publications p ON p.article_id = a.id
     LEFT JOIN LATERAL (SELECT title_zh, summary_zh FROM analyses x WHERE x.article_id = a.id ORDER BY input_revision DESC, id DESC LIMIT 1) an ON true
     WHERE a.id = ANY(${ids})`;
-  return new Map(rows.map((r) => [r.id, reportText(r.title, r.summary)]));
+  return new Map(rows.map((r) => [r.id, articleText(r.title, r.summary)]));
 }
 
 /** The texts of discussion posts (signalText). */
@@ -162,7 +162,7 @@ export function cosine32(a: Float32Array, b: Float32Array): number {
 const LEXICAL_MIN = 0.25;
 
 /** Both identity candidates and reading context use the same stored vectors (or the lexical fallback). */
-async function similarReports(queryId: string, queryText: string, pool: Array<{ article_id: string; revision?: number }>, minScore: number,
+async function similarArticles(queryId: string, queryText: string, pool: Array<{ article_id: string; revision?: number }>, minScore: number,
   texts: (ids: string[]) => Promise<Map<string, string>> = reportTexts): Promise<Map<string, number>> {
   const scores = new Map<string, number>();
   if (pool.length && !embeddingsAvailable()) {
@@ -203,14 +203,14 @@ async function similarReports(queryId: string, queryText: string, pool: Array<{ 
 /** The best report of each fact counts; boosted facts (quoted/replied-to posts) are always included. */
 export async function recallFacts(queryId: string, queryText: string, minScore: number, top: number, boost: PoolRow[] = []): Promise<Recalled[]> {
   const pool = (await recallPool()).filter((r) => r.article_id !== queryId);
-  const scores = await similarReports(queryId, queryText, pool, minScore);
+  const scores = await similarArticles(queryId, queryText, pool, minScore);
   return bestPerFact([...scoredRows(pool, scores), ...boost.map((r) => toRecalled(r, 1))], top);
 }
 
 /** The facts the discussion posts attached within the last `hours` point to; the closest post of each fact counts. */
 export async function recallFactsByPosts(queryId: string, queryText: string, minScore: number, hours: number): Promise<Recalled[]> {
   const pool = (await attachedPostsPool(hours)).filter((r) => r.article_id !== queryId);
-  return bestPerFact(scoredRows(pool, await similarReports(queryId, queryText, pool, minScore, postTexts)));
+  return bestPerFact(scoredRows(pool, await similarArticles(queryId, queryText, pool, minScore, postTexts)));
 }
 
 /** Each fact once, at its best score, most similar first. */
@@ -234,7 +234,7 @@ function scoredRows(pool: PoolRow[], scores: Map<string, number>): Recalled[] {
 /** A small separate context lets a single report compare with earlier selected coverage, one report per fact. */
 export async function recallSelectedBackground(queryId: string, queryText: string, minScore: number, candidateFacts: number[] = [], top = 3): Promise<ReadingContext[]> {
   const pool = (await selectedReadingPool(candidateFacts)).filter(r => r.article_id !== queryId);
-  const scores = await similarReports(queryId, queryText, pool, minScore);
+  const scores = await similarArticles(queryId, queryText, pool, minScore);
   const picked: ReadingRow[] = [];
   const facts = new Set<number>();
   for (const r of pool.filter(r => scores.has(r.article_id)).sort((a, b) => scores.get(b.article_id)! - scores.get(a.article_id)!)) {
@@ -312,7 +312,7 @@ export async function candidateViews(recalled: Recalled[]): Promise<CandidateVie
 /** How far from a report a card still tells a reader the same news. A late report is compared around its own date. */
 export const CARD_DAYS = 7;
 
-export type CardRow = ReportView & { article_id: string; revision: number; source_id: string; fact_id: number | null; story_id: number | null; score: number };
+export type CardRow = ArticleView & { article_id: string; revision: number; source_id: string; fact_id: number | null; story_id: number | null; score: number };
 
 /** The cards around `at`, closest first: every card a reader sees, with or without a fact (cards.ts). */
 const CARD_COLUMNS = sql`p.article_id, p.revision, p.source_id, p.fact_id, f.story_id, p.title, p.summary, s.name AS source, (s.tier = 'T1') AS "firstParty",
@@ -337,7 +337,7 @@ export async function recallCards(queryId: string, queryText: string, at: Date, 
       AND (${ownFact}::bigint IS NULL OR p.fact_id IS DISTINCT FROM ${ownFact}::bigint)
       ${sources.skip?.length ? sql`AND NOT p.source_id = ANY(${sources.skip})` : sql``}
       ${sources.only ? sql`AND p.source_id = ANY(${sources.only})` : sql``}`;
-  const scores = await similarReports(queryId, queryText, pool, minScore);
+  const scores = await similarArticles(queryId, queryText, pool, minScore);
   return pool.filter((c) => scores.has(c.article_id)).map((c) => cardOf(c, scores.get(c.article_id)!))
     .sort((x, y) => y.score - x.score).slice(0, top);
 }

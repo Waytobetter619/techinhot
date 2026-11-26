@@ -3,7 +3,7 @@
 // title-and-summary embedding on both sides over the reports of the last 14 days (shared bigrams
 // without an embedding key), plus the same URL and the X post a post replies to or quotes.
 // Identity: one four-way relation judgement over the candidate
-// facts with their representative reports fully described (relate.ts); a merge that is not obvious
+// facts with their representative reports fully described (relation.ts); a merge that is not obvious
 // from similarity is confirmed by a second vendor before it is written; a development attaches only
 // to the fact that started its story, so stories do not grow by chaining. Manual corrections
 // (corrections.ts) are never overwritten; a revision keeps its membership unless an editor asks for a regroup or its
@@ -39,9 +39,9 @@ import { mergeFactInto, mergeStoryInto } from "./merge.ts";
 import { bestPerFact, candidateViews, cosine32, RECALL_DAYS, recallFacts, recallFactsByPosts, recallSelectedBackground, relatedPosts, vectorsFor, type Recalled, type CardRow } from "./recall.ts";
 import {
   BATCH_SYSTEM, BATCH_PROMPT_VERSION, BatchSchema, PAIR_SYSTEM, PairSchema, RELATE_PROMPT_VERSION, SIGNAL_SYSTEM, SignalSchema, TIE_MIN_CONFIDENCE,
-  batchUser, completeDecisions, firmlyTied, pairUser, reportText, sameOccurrence, signalTarget, signalText, storyForDevelopment, verdictsByFact,
-  type CandidateView, type ReadingContext, type Relation, type ReportView, type SelectionValue, type Verdict,
-} from "./relate.ts";
+  batchUser, completeDecisions, firmlyTied, pairUser, articleText, sameOccurrence, signalTarget, signalText, storyForDevelopment, verdictsByFact,
+  type CandidateView, type ReadingContext, type Relation, type ArticleView, type SelectionValue, type Verdict,
+} from "./relation.ts";
 
 const RECALL_MIN_COSINE = 0.6;
 const RECALL_TOP_FACTS = 10;
@@ -79,7 +79,7 @@ interface ArticleRow {
 
 /**
  * The participant as recorded when the signal was written. Heat reads the participant from the current
- * source (events/hot.ts currentSignals), so a later change of group or owner reaches it at once.
+ * source (stories/hot.ts currentSignals), so a later change of group or owner reaches it at once.
  */
 function participantKey(source: { id: string; signal_group_id: string | null }): string {
   return source.signal_group_id ? `group:${source.signal_group_id}` : `source:${source.id}`;
@@ -89,7 +89,7 @@ function participantKey(source: { id: string; signal_group_id: string | null }):
 
 const NO_SELECTED_COVERAGE: SelectionValue = { addsValue: true, reason: "没有已公开精选的相关报道" };
 
-async function judgeBatch(articleId: string, query: ReportView, cands: CandidateView[], reading: ReadingContext[]): Promise<{ verdicts: Map<number, Verdict>; selection: SelectionValue; receiptId: number }> {
+async function judgeBatch(articleId: string, query: ArticleView, cands: CandidateView[], reading: ReadingContext[]): Promise<{ verdicts: Map<number, Verdict>; selection: SelectionValue; receiptId: number }> {
   const res = await chatJson({
     ...await modelRoute("group"), purpose: "group_article", subject: `article:${articleId}`, promptVersion: BATCH_PROMPT_VERSION,
     system: BATCH_SYSTEM, user: batchUser(query, cands, "新报道", reading), schema: BatchSchema.refine(value => completeDecisions(value.decisions, cands.length), "Every candidate requires exactly one decision"), temperature: 0, maxTokens: 400 + 120 * cands.length,
@@ -98,7 +98,7 @@ async function judgeBatch(articleId: string, query: ReportView, cands: Candidate
 }
 
 /** The review model reads both reports on their own; a merge stands only when it agrees. */
-async function confirmMerge(articleId: string, query: ReportView, cand: CandidateView): Promise<{ relation: Relation; receiptId: number }> {
+async function confirmMerge(articleId: string, query: ArticleView, cand: CandidateView): Promise<{ relation: Relation; receiptId: number }> {
   const res = await chatJson({
     model: await modelFor("groupReview"), purpose: "group_review", subject: `article:${articleId}:fact:${cand.factId}`, promptVersion: RELATE_PROMPT_VERSION,
     system: PAIR_SYSTEM, user: pairUser(query, cand.report), schema: PairSchema, temperature: 0, maxTokens: 400,
@@ -106,7 +106,7 @@ async function confirmMerge(articleId: string, query: ReportView, cand: Candidat
   return { relation: res.data.relation, receiptId: res.receiptId };
 }
 
-async function judgeSignal(articleId: string, query: ReportView, cands: CandidateView[]): Promise<{ verdicts: Map<number, Verdict>; receiptId: number }> {
+async function judgeSignal(articleId: string, query: ArticleView, cands: CandidateView[]): Promise<{ verdicts: Map<number, Verdict>; receiptId: number }> {
   const res = await chatJson({
     ...await modelRoute("group"), purpose: "group_signal", subject: `article:${articleId}`, promptVersion: RELATE_PROMPT_VERSION,
     system: SIGNAL_SYSTEM, user: batchUser(query, cands, "帖子"), schema: SignalSchema.refine(value => completeDecisions(value.decisions, cands.length), "Every candidate requires exactly one decision"), temperature: 0, maxTokens: 150 + 60 * cands.length,
@@ -390,7 +390,7 @@ async function decide(articleId: string, opts: GroupOptions, revision: number, r
     return { verdict: "standalone" };
   }
   const title = an.title_zh || a.title;
-  const query: ReportView = {
+  const query: ArticleView = {
     title, source: a.source_name, firstParty: a.first_party, at: a.published_at, publicationTime: a.publication_time, summary: an.summary_zh,
     scope: composite ? "composite" : an.output?.scope === "single" ? "single" : "unknown",
     frame: frame ? { subject: frame.subject, action: frame.action, object: frame.object, occurredAt: frame.occurredAt } : null,
@@ -404,8 +404,8 @@ async function decide(articleId: string, opts: GroupOptions, revision: number, r
     factId: sameUrl.fact_id, storyId: sameUrl.story_id, factTitle: sameUrl.fact_title, score: 1,
   }]))[0]?.selected === true;
   const cands = selectedSameUrl ? [] : await candidateViews(await recallFacts(articleId,
-    reportText(title, an.summary_zh), RECALL_MIN_COSINE, RECALL_TOP_FACTS, [...referenced, ...(sameUrl ? [sameUrl] : [])]));
-  const reading = selectedSameUrl ? [] : await recallSelectedBackground(articleId, reportText(title, an.summary_zh), RECALL_MIN_COSINE, cands.map(c => c.factId));
+    articleText(title, an.summary_zh), RECALL_MIN_COSINE, RECALL_TOP_FACTS, [...referenced, ...(sameUrl ? [sameUrl] : [])]));
+  const reading = selectedSameUrl ? [] : await recallSelectedBackground(articleId, articleText(title, an.summary_zh), RECALL_MIN_COSINE, cands.map(c => c.factId));
   let verdicts = new Map<number, Verdict>();
   let selection = NO_SELECTED_COVERAGE;
   const receipts: number[] = [];
@@ -588,7 +588,7 @@ async function decide(articleId: string, opts: GroupOptions, revision: number, r
     }
   }
   // The fact, new or not, may now be what earlier discussion posts were about in other words.
-  await rematch(result, articleId, reportText(title, an.summary_zh), written.factId!, SIGNAL_MIN_COSINE);
+  await rematch(result, articleId, articleText(title, an.summary_zh), written.factId!, SIGNAL_MIN_COSINE);
   return result;
 }
 
@@ -706,19 +706,19 @@ async function groupSignal(a: ArticleRow, source: { id: string; signal_group_id:
     SELECT unnest(${answeredFacts(sql`${a.id}`)}) AS id
     EXCEPT SELECT f.id FROM facts f JOIN story_signals ss ON ss.story_id = f.story_id WHERE ss.article_id = ${a.id}`).map((r) => r.id));
   const open = (recalled: Recalled[]) => recalled.filter((r) => !answered.has(r.factId));
-  const byReports = open(await recallFacts(a.id, text, SIGNAL_MIN_COSINE, Infinity));
-  if (byReports[0] && byReports[0].score >= SIGNAL_AUTO_COSINE) {
-    return write(byReports[0], "signal", asCandidates(byReports.slice(0, SIGNAL_TOP_FACTS)));
+  const byArticles = open(await recallFacts(a.id, text, SIGNAL_MIN_COSINE, Infinity));
+  if (byArticles[0] && byArticles[0].score >= SIGNAL_AUTO_COSINE) {
+    return write(byArticles[0], "signal", asCandidates(byArticles.slice(0, SIGNAL_TOP_FACTS)));
   }
   const byPosts = open(await recallFactsByPosts(a.id, text, SIGNAL_PEER_MIN_COSINE, HEAT_WINDOW_HOURS));
-  const recalled = bestPerFact([...byReports, ...byPosts], SIGNAL_TOP_FACTS);
+  const recalled = bestPerFact([...byArticles, ...byPosts], SIGNAL_TOP_FACTS);
   if (recalled.length === 0) {
     // Recorded, so a post that found nothing is told apart from one never decided.
     return write(null, "signal-unmatched", []);
   }
   const cands = await candidateViews(recalled);
   if (cands.length === 0) return write(null, "signal-unmatched", []);
-  const query: ReportView = { title: a.title, source: a.source_name, firstParty: false, at: a.published_at, publicationTime: a.publication_time, summary: a.body_text?.slice(0, 300) ?? null };
+  const query: ArticleView = { title: a.title, source: a.source_name, firstParty: false, at: a.published_at, publicationTime: a.publication_time, summary: a.body_text?.slice(0, 300) ?? null };
   const { verdicts, receiptId } = await judgeSignal(a.id, query, cands);
   const target = signalTarget(cands, verdicts);
   return write(target, target ? "signal" : "signal-unmatched", asCandidates(recalled, verdicts), receiptId);

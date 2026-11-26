@@ -24,7 +24,7 @@ export const GROUP_BODY_CHARS = 10_000;
 export const RELATIONS = ["SAME_OCCURRENCE", "SAME_STORY", "UNRELATED", "ROUNDUP"] as const;
 export type Relation = (typeof RELATIONS)[number];
 
-export interface ReportView {
+export interface ArticleView {
   title: string;
   source: string;
   firstParty: boolean;
@@ -38,7 +38,7 @@ export interface ReportView {
 }
 
 /** A previously selected report, with its stored source evidence; it has no candidate fact id. */
-export interface ReadingContext { report: ReportView; sourceText: string | null }
+export interface ReadingContext { report: ArticleView; sourceText: string | null }
 
 export interface CandidateView {
   factId: number;
@@ -50,10 +50,10 @@ export interface CandidateView {
   storyRoot: boolean;
   /** Recall similarity with the query (cosine of the two embeddings, or the lexical fallback's overlap). */
   score: number;
-  report: ReportView;
+  report: ArticleView;
   /** Only a report already visible in 精选 counts as coverage the reader has seen. */
   selected?: boolean;
-  selectedReport?: ReportView | null;
+  selectedReport?: ArticleView | null;
 }
 
 export interface SelectionValue { addsValue: boolean; reason: string }
@@ -93,7 +93,7 @@ export const SignalSchema = z.object({
   decisions: z.array(z.object({ id: z.string().regex(/^C[1-9]\d*$/), relation: RelationSchema, confidence: z.number().min(0).max(1) })),
 });
 
-export function describeReport(r: ReportView, label: string, extra = "", summaryLimit = 360): string {
+export function describeReport(r: ArticleView, label: string, extra = "", summaryLimit = 360): string {
   const f = r.frame;
   return [
     `【${label}】${extra}`,
@@ -112,7 +112,7 @@ export function describeReport(r: ReportView, label: string, extra = "", summary
 
 export const candidateKey = (index: number) => `C${index + 1}`;
 
-export function batchUser(query: ReportView, cands: CandidateView[], queryLabel = "新报道", reading: ReadingContext[] = []): string {
+export function batchUser(query: ArticleView, cands: CandidateView[], queryLabel = "新报道", reading: ReadingContext[] = []): string {
   const list = cands
     .map((c, i) => [
       describeReport(c.report, `候选 ${candidateKey(i)}`, `（该事实已有 ${c.members} 篇报道；事实标题：${c.factTitle}）`),
@@ -128,7 +128,7 @@ export function batchUser(query: ReportView, cands: CandidateView[], queryLabel 
   return `${describeReport(query, queryLabel)}\n\n${list}${background ? `\n\n${background}` : ""}\n\n${queryLabel}与每个候选的关系是什么？${background ? "同时比较所有已公开精选内容，判断新增价值；无事实候选时 decisions=[]。" : ""}`;
 }
 
-export function pairUser(a: ReportView, b: ReportView): string {
+export function pairUser(a: ArticleView, b: ArticleView): string {
   return `${describeReport(a, "报道 A")}\n\n${describeReport(b, "报道 B")}\n\n这两篇报道是什么关系？`;
 }
 
@@ -179,7 +179,7 @@ export const TIE_MIN_CONFIDENCE = 0.8;
 /** The relations that tie a report to a candidate: the same occurrence, or a direct development of it. */
 export const TIE_RELATIONS: Relation[] = ["SAME_OCCURRENCE", "SAME_STORY"];
 
-/** A report is firmly tied to a candidate it calls the same occurrence or a direct development of (in SQL: related.ts firmTie). */
+/** A report is firmly tied to a candidate it calls the same occurrence or a direct development of (in SQL: story-links.ts firmTie). */
 export function firmlyTied(relation: string | undefined, confidence: number | undefined, minConfidence = TIE_MIN_CONFIDENCE): boolean {
   return TIE_RELATIONS.includes(relation as Relation) && (confidence ?? 0) >= minConfidence;
 }
@@ -192,12 +192,12 @@ export function firmlyTied(relation: string | undefined, confidence: number | un
 export const STORY_REVIEW_MIN_CONFIDENCE = 0.75;
 
 /** The text a report is embedded with: title and the start of the summary, the same on both sides of a comparison. */
-export function reportText(title: string, summary: string | null | undefined): string {
+export function articleText(title: string, summary: string | null | undefined): string {
   return `${title}。${(summary ?? "").slice(0, 300)}`;
 }
 
 /** The text a discussion post is embedded with: its title and the start of its body. */
-export const signalText = (a: { title: string; body_text: string | null }) => reportText(a.title, a.body_text?.slice(0, 300) ?? null);
+export const signalText = (a: { title: string; body_text: string | null }) => articleText(a.title, a.body_text?.slice(0, 300) ?? null);
 
 /** Lexical stand-in for cosine when embeddings are off (no embedding key): shared character bigrams. */
 export function lexicalSimilarity(a: string, b: string): number {

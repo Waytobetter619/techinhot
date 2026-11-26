@@ -1,14 +1,14 @@
 // Stories (events) and the hot ranking through the public read layer. The website sees heat values;
 // v1 and MCP only see ranks and counts.
-import type { HeatPoint, HotResponse, StoryDetail, StoryReportView } from "@techinhot/contracts/site";
+import type { HeatPoint, HotResponse, StoryDetail, StoryArticleView } from "@techinhot/contracts/site";
 import { SITE } from "@techinhot/site";
 import { sql } from "../db.ts";
 import { shared } from "../lib/cache.ts";
 import { proxiedImage, proxiedImageSet } from "../media/imgproxy.ts";
-import { behindSources, currentSignals, heatSeries, sourceClocks, type HotRanking } from "../events/hot.ts";
-import { relatedEvidence, RELATED_MIN_REPORTS } from "../events/related.ts";
+import { behindSources, currentSignals, heatSeries, sourceClocks, type HotRanking } from "../stories/hot.ts";
+import { relatedEvidence, RELATED_MIN_REPORTS } from "../stories/story-links.ts";
 import { pickRepresentative, REPRESENTATIVE_COLUMNS, type RepresentativeIdentity } from "./representative.ts";
-import { compositeCondition, evidenceCondition, listedCondition, storyReportCondition } from "./scope.ts";
+import { compositeCondition, evidenceCondition, listedCondition, storyArticleCondition } from "./scope.ts";
 import { publicSourceName } from "./rules.ts";
 import { latestHotRanking, rankingParticipants } from "./hot.ts";
 import { storyTexts } from "./story-text.ts";
@@ -48,7 +48,7 @@ export async function resolveStory(publicId: string): Promise<StoryLookup> {
   return { kind: "found", storyId: s!.id, publicId };
 }
 
-interface ReportRow extends RepresentativeIdentity {
+interface ArticleRow extends RepresentativeIdentity {
   role: string;
   body_mode: "full" | "summary";
   score: number | null;
@@ -71,19 +71,19 @@ interface ReportRow extends RepresentativeIdentity {
  * pool-eligible articles; imported hot stories also carry reports the pool leaves out. hot_signal
  * material only adds heat and is not listed.
  */
-async function storyReports(storyId: number, now: Date): Promise<ReportRow[]> {
-  return sql<ReportRow[]>`
+async function storyReports(storyId: number, now: Date): Promise<ArticleRow[]> {
+  return sql<ArticleRow[]>`
     SELECT DISTINCT ON (p.article_id) p.article_id AS id, p.title, p.summary, p.url, p.selected,
       coalesce(p.published_at, p.discovered_at) AS at, s.id AS source_id, s.name AS source_name,
       (s.tier = 'T1') AS first_party, f.id AS fact_id,
       CASE WHEN ${compositeCondition()} THEN 'mention' ELSE fa.role END AS role, p.body_mode, p.score, p.timeline_at, ${REPRESENTATIVE_COLUMNS}
     FROM facts f JOIN fact_articles fa ON fa.fact_id = f.id JOIN publications p ON p.article_id = fa.article_id
     JOIN sources s ON s.id = p.source_id
-    WHERE f.story_id = ${storyId} AND ${storyReportCondition(now)}
+    WHERE f.story_id = ${storyId} AND ${storyArticleCondition(now)}
     ORDER BY p.article_id, (fa.role = 'primary') DESC, (fa.role <> 'mention') DESC, f.id`;
 }
 
-function reportView(r: ReportRow): StoryReportView {
+function articleView(r: ArticleRow): StoryArticleView {
   return {
     id: r.id,
     title: r.title,
@@ -102,10 +102,10 @@ async function storyContent(storyId: number, now: Date) {
   if (reports.length === 0) return null;
   reports.sort((a, b) => b.at.getTime() - a.at.getTime() || a.id.localeCompare(b.id));
 
-  const primaryReports = reports.filter((r) => r.role !== "mention");
-  const latestReport = primaryReports[0];
+  const primaryArticles = reports.filter((r) => r.role !== "mention");
+  const latestReport = primaryArticles[0];
   if (!latestReport) return null;
-  const byFact = Map.groupBy(primaryReports, (report) => report.fact_id);
+  const byFact = Map.groupBy(primaryArticles, (report) => report.fact_id);
   const [facts, texts] = await Promise.all([
     sql<{ id: number; public_id: string; title: string }[]>`SELECT id, public_id, title FROM facts WHERE story_id = ${storyId}`,
     storyTexts([storyId], now),
@@ -121,7 +121,7 @@ async function storyContent(storyId: number, now: Date) {
     })
     .sort((a, b) => Date.parse(b.firstReportAt) - Date.parse(a.firstReportAt));
 
-  const firstReportAt = primaryReports[primaryReports.length - 1]!.at;
+  const firstReportAt = primaryArticles[primaryArticles.length - 1]!.at;
   const text = texts.get(storyId)!;
   // Historical stories without listed evidence retain their latest readable report.
   const latest = text.latest ?? latestReport;
@@ -159,7 +159,7 @@ async function relatedStories(storyId: number, now: Date) {
       AND EXISTS (
       SELECT 1 FROM facts f JOIN fact_articles fa ON fa.fact_id = f.id JOIN publications p ON p.article_id = fa.article_id
       JOIN sources s ON s.id = p.source_id
-      WHERE f.story_id = st.id AND ${evidenceCondition()} AND ${storyReportCondition(now)}
+      WHERE f.story_id = st.id AND ${evidenceCondition()} AND ${storyArticleCondition(now)}
     ) ORDER BY st.latest_at DESC NULLS LAST, st.id DESC LIMIT 8`;
 }
 
@@ -204,9 +204,9 @@ export async function loadStoryDetail(storyId: number, now = new Date(), knownRa
       observationComplete: !partial?.n,
       rank,
     },
-    developments: developments.map((d) => ({ ...d, representative: reportView(d.representative) })),
-    officialReports: reports.filter((r) => r.role !== "mention" && r.first_party).slice(0, 12).map(reportView),
-    timeline: reports.slice(0, 100).map(reportView),
+    developments: developments.map((d) => ({ ...d, representative: articleView(d.representative) })),
+    officialArticles: reports.filter((r) => r.role !== "mention" && r.first_party).slice(0, 12).map(articleView),
+    timeline: reports.slice(0, 100).map(articleView),
     heat: heat.map((h): HeatPoint => ({ hour: h.hour.toISOString(), heat: Number(h.heat), participants: h.participants })),
     related: related.map((r) => ({ publicId: r.public_id, title: r.title, relation: r.relation })),
     topics,

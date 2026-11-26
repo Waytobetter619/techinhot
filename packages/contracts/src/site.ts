@@ -253,7 +253,7 @@ export interface HeatPoint {
   participants: number;
 }
 
-export interface StoryReportView {
+export interface StoryArticleView {
   id: string;
   title: string;
   summary: string | null;
@@ -267,7 +267,7 @@ export interface StoryFactView {
   title: string;
   firstReportAt: string;
   reportCount: number;
-  representative: StoryReportView;
+  representative: StoryArticleView;
 }
 
 /**
@@ -303,8 +303,8 @@ export interface StoryDetail {
     rank: number | null;
   };
   developments: StoryFactView[];
-  officialReports: StoryReportView[];
-  timeline: StoryReportView[];
+  officialArticles: StoryArticleView[];
+  timeline: StoryArticleView[];
   heat: HeatPoint[];
   related: Array<StoryRef & { relation: "storyline" | "related" }>;
   /** The topics its reports belong to, most reports first. */

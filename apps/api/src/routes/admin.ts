@@ -9,7 +9,7 @@ import { listAudit } from "@techinhot/backend/audit";
 import { importSelectBenchRun, listSelectBenchRuns, selectBenchRun } from "@techinhot/backend/admin/selectbench";
 import { modelsOverview, switchModel } from "@techinhot/backend/admin/models";
 import { contentChain, overrideFields, rerun, searchContent, setSeoIndexed, setVisibility } from "@techinhot/backend/admin/content";
-import { detachFromFact, mergeStories } from "@techinhot/backend/events/corrections";
+import { detachFromFact, mergeStories } from "@techinhot/backend/stories/corrections";
 import { banFeedbackEmail, banSource, eraseFeedback, feedbackScreenshot, listFeedback, unbanSource, updateFeedback } from "@techinhot/backend/admin/feedback";
 import { requeueFailedArticles, runsOverview } from "@techinhot/backend/admin/runs";
 import { resolveDelivery } from "@techinhot/backend/notify/deliver";

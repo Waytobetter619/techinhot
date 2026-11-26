@@ -26,7 +26,7 @@ import { posterText } from "@techinhot/backend/media/poster";
 import { loadItemOgCard, loadItemPoster } from "@techinhot/backend/publication/og";
 import { loadReport } from "@techinhot/backend/publication/reports";
 import { publishArticle } from "@techinhot/backend/publication/publish";
-import { digestInputsHash, digestReports } from "@techinhot/backend/publication/story-evidence";
+import { digestInputsHash, digestArticles } from "@techinhot/backend/publication/story-evidence";
 import { buildApp } from "../apps/api/src/app.ts";
 
 const T = tag();
@@ -189,7 +189,7 @@ before(async () => {
   const only = await report(await source(`独家媒体${T}`), { title: `独家报道${T}`, summary: "独家报道的摘要。", reason: "独家报道的理由。" }, singleFact!.id);
   const digest = "这件事的 AI 综述：只有一家媒体报道。";
   await sql`INSERT INTO story_digests (story_id, version, digest, article_ids, inputs_hash)
-            VALUES (${single!.id}, 1, ${digest}, ${[only]}, ${digestInputsHash(await digestReports(sql, [single!.id]))})`;
+            VALUES (${single!.id}, 1, ${digest}, ${[only]}, ${digestInputsHash(await digestArticles(sql, [single!.id]))})`;
   await sql`UPDATE stories SET digest = ${digest}, digest_version = 1, digest_updated_at = now() WHERE id = ${single!.id}`;
   Object.assign(site, { a, b, w, zhBody, story: story!.public_id, single: single!.public_id, digest, fact: `f-${T}-1` });
 });

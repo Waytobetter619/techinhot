@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { after, test } from "node:test";
 import { closeDb, sql } from "@techinhot/backend/db";
-import { heatRows, snapshotHeat, type HotEntry } from "@techinhot/backend/events/hot";
+import { heatRows, snapshotHeat, type HotEntry } from "@techinhot/backend/stories/hot";
 import { loadHotStrip, rankingParticipants } from "@techinhot/backend/publication/hot";
 import { loadHot, loadStoryDetail, v1HotTopics } from "@techinhot/backend/publication/stories";
 import { buildApp } from "../apps/api/src/app.ts";

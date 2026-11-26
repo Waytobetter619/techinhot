@@ -4,8 +4,8 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { after, test } from 'node:test';
 import { sql, closeDb } from '@techinhot/backend/db';
-import { candidateViews, recallFacts, relatedPosts } from '@techinhot/backend/events/recall';
-import { consolidate, linkRelatedStories } from '@techinhot/backend/events/consolidate';
+import { candidateViews, recallFacts, relatedPosts } from '@techinhot/backend/stories/recall';
+import { consolidate, linkRelatedStories } from '@techinhot/backend/stories/consolidate';
 const prompts: string[] = [];
 const provider = await stub((_hit,request) => {
   prompts.push(JSON.parse(request.body).messages[1].content);

@@ -3,7 +3,7 @@
 // the next ranking); the web shows heat values, machine exits only ranks (stories.ts).
 import { HOT_FACE_LIMIT, type HotParticipant, type HotStripEntry } from "@techinhot/contracts/site";
 import { sql } from "../db.ts";
-import { storedHotRanking, tierRank, type HotEntry, type HotRanking } from "../events/hot.ts";
+import { storedHotRanking, tierRank, type HotEntry, type HotRanking } from "../stories/hot.ts";
 import { shared } from "../lib/cache.ts";
 import { proxiedImage, proxiedImageSet } from "../media/imgproxy.ts";
 import { publicSourceName } from "./rules.ts";

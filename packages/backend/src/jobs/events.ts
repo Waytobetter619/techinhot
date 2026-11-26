@@ -1,7 +1,7 @@
 // Event jobs: serial grouping, debounced digests.
 import type { PgBoss } from "pg-boss";
-import { groupArticle } from "../events/group.ts";
-import { composeStoryDigest } from "../events/digest.ts";
+import { groupArticle } from "../stories/group.ts";
+import { composeStoryDigest } from "../stories/digest.ts";
 import { settleNonEditorial } from "./content.ts";
 import { articlePriority, enqueue, ensureQueue, QUEUES, work } from "./queue.ts";
 import { sql } from "../db.ts";

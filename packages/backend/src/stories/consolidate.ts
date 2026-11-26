@@ -10,18 +10,18 @@ import { completeReceipt } from "../providers/receipts.ts";
 import { groupingEvidenceCondition } from "../publication/scope.ts";
 import { mergeStoryInto } from "./merge.ts";
 import { RECALL_DAYS, rootFactOf } from "./recall.ts";
-import { firmTie, latestJudgements, RELATED_MIN_REPORTS } from "./related.ts";
+import { firmTie, latestJudgements, RELATED_MIN_REPORTS } from "./story-links.ts";
 import {
   PAIR_SYSTEM, PairSchema, RELATE_PROMPT_VERSION, STORY_REVIEW_MIN_CONFIDENCE, firmlyTied, pairUser,
-  type Relation, type ReportView,
-} from "./relate.ts";
+  type Relation, type ArticleView,
+} from "./relation.ts";
 
 interface StoryRoot {
   storyId: number;
   at: Date;
   /** The story started as a multi-topic digest: never merged. */
   roundup: boolean;
-  report: ReportView;
+  report: ArticleView;
 }
 
 /** A model-managed story's root; editor-confirmed identities are excluded before paid comparison. */
@@ -133,7 +133,7 @@ const startedByRoundup = (story: ReturnType<typeof sql>) => sql`EXISTS (
 /**
  * Stories that stay apart although reports tie them (a reaction, a development of a later fact, a
  * comparison) list each other as related events: at least two reports whose latest judgement
- * (related.ts, the same one public reads check) falls in the recall window, each firmly tied to a fact
+ * (story-links.ts, the same one public reads check) falls in the recall window, each firmly tied to a fact
  * of the other story, none of them a roundup, neither story started by one. A single tie is too often a stray answer about one candidate among many. Links are only
  * added; public reads check saved bridge evidence after explicit changes, independently of the
  * recall window. A merged story drops out where links are read.

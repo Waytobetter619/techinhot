@@ -3,7 +3,7 @@
 // and TZ=Asia/Shanghai to see both).
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { batchUser, describeReport } from "@techinhot/backend/events/relate";
+import { batchUser, describeReport } from "@techinhot/backend/stories/relation";
 import { readable } from "@techinhot/backend/content/extract";
 import { parseLooseDate, readPublicationDate, readRelativeDate, describePublicationTime } from "@techinhot/backend/sources/dates";
 

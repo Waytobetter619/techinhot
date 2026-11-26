@@ -10,7 +10,7 @@ import { localizePath } from "@techinhot/contracts/reader-pages";
 import type {
   ChangelogResponse, FeedItemSummary, GroupReportsResponse, HotEntryView, HotParticipant, HotResponse, HotStripEntry, ItemAvailability,
   PoolResponse, ReportCitation, ReportDetail, ReportIndexResponse, ReportLatestPage, ReportNavigationResponse,
-  SearchSuggestions, SiteItemDetail, SiteStats, SourceRef, StoryDetail, StoryFollowupsResponse, StoryReportView, TimelineResponse,
+  SearchSuggestions, SiteItemDetail, SiteStats, SourceRef, StoryDetail, StoryFollowupsResponse, StoryArticleView, TimelineResponse,
   TopicGroup, TopicLink, TopicPage, TopicSummary, TopicsResponse,
 } from "@techinhot/contracts/site";
 import { REPORT_NAMES_EN } from "@techinhot/contracts/site";
@@ -249,7 +249,7 @@ const hotEntry = (e: HotEntryView, c: Copy): HotEntryView => {
 /** Over the hot ranking with its texts whole (loadHot without clipping): the clip comes after, in the shown language. */
 export const hot: Overlay<HotResponse> = (r, c) => ({ ...r, entries: r.entries.map((e) => hotEntry(e, c)) });
 
-const storyReport = (r: StoryReportView, c: Copy): StoryReportView => {
+const storyReport = (r: StoryArticleView, c: Copy): StoryArticleView => {
   const [title, summary] = c.all([["headline", r.title], ["text", r.summary]], r.id);
   return { ...r, title, summary, source: source(r.source, c) };
 };
@@ -273,7 +273,7 @@ export const story: Overlay<StoryDetail> = async (s, c) => {
       const [factTitle, reportTitle, reportSummary] = c.all([["headline", f.title], ["headline", f.representative.title], ["text", f.representative.summary]], f.representative.id);
       return { ...f, title: factTitle, representative: { ...f.representative, title: reportTitle, summary: reportSummary, source: source(f.representative.source, c) } };
     }),
-    officialReports: s.officialReports.map((r) => storyReport(r, c)),
+    officialArticles: s.officialArticles.map((r) => storyReport(r, c)),
     timeline: s.timeline.map((r) => storyReport(r, c)),
     related: s.related.map((r) => ({ ...r, title: c.one("headline", r.title) })),
     topics: s.topics.map(topicLink),

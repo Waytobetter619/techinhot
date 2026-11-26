@@ -4,8 +4,8 @@
 // Which judgement ties a report to another story is written once here, for making links
 // (consolidate.ts linkRelatedStories) and for reading them.
 import { sql } from "../db.ts";
-import { latestCompositeCondition, storyReportCondition } from "../publication/scope.ts";
-import { TIE_MIN_CONFIDENCE, TIE_RELATIONS } from "./relate.ts";
+import { latestCompositeCondition, storyArticleCondition } from "../publication/scope.ts";
+import { TIE_MIN_CONFIDENCE, TIE_RELATIONS } from "./relation.ts";
 
 export const RELATED_MIN_REPORTS = 2;
 
@@ -20,7 +20,7 @@ export function latestJudgements(scope: Fragment) {
     WHERE d.verdict <> 'kept' AND ${scope} ORDER BY d.article_id, d.id DESC`;
 }
 
-/** Judgement `d` firmly tied its report to candidate `c`, one of `d.candidates` (relate.ts firmlyTied). */
+/** Judgement `d` firmly tied its report to candidate `c`, one of `d.candidates` (relation.ts firmlyTied). */
 export function firmTie(d: Fragment, c: Fragment) {
   return sql`${d}.verdict IN ('same-fact', 'same-card', 'same-url', 'new-fact-in-story', 'new-story')
     AND ${c}->>'relation' IN ${sql(TIE_RELATIONS)} AND (${c}->>'confidence')::numeric >= ${TIE_MIN_CONFIDENCE}`;
@@ -39,7 +39,7 @@ export function relatedEvidence(story: Fragment, other: Fragment, now: Date) {
           OR (own.story_id = ${other} AND candidate.story_id = ${story}))),
     latest AS (${latestJudgements(sql`d.article_id IN (SELECT article_id FROM judged)`)})
     SELECT j.article_id, bool_or((j.id = latest.id
-      AND ${storyReportCondition(now)} AND NOT ${latestCompositeCondition(sql`j.article_id`)}
+      AND ${storyArticleCondition(now)} AND NOT ${latestCompositeCondition(sql`j.article_id`)}
       AND EXISTS (SELECT 1 FROM fact_articles fa WHERE fa.article_id = j.article_id
         AND fa.fact_id = j.fact_id AND fa.role IN ('primary', 'report'))) IS TRUE) AS valid
     FROM judged j JOIN latest ON latest.article_id = j.article_id

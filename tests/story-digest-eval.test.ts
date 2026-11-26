@@ -13,7 +13,7 @@ import { after, test } from "node:test";
 import { promisify } from "node:util";
 import { REPO_ROOT } from "@techinhot/backend/config";
 import { closeDb, sql } from "@techinhot/backend/db";
-import { composeStoryDigest } from "@techinhot/backend/events/digest";
+import { composeStoryDigest } from "@techinhot/backend/stories/digest";
 import { parseDigestEvalJsonl } from "../scripts/eval-story-digests-core.ts";
 
 const exec = promisify(execFile);

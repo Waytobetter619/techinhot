@@ -1,7 +1,7 @@
 // Event-relation evaluation cases (two reports and the human relation between them, one per line) and
-// their metrics. Whether a pair ties two stories is the site's own rule (events/relate.ts firmlyTied).
+// their metrics. Whether a pair ties two stories is the site's own rule (stories/relation.ts firmlyTied).
 import { z } from "zod";
-import { RELATIONS, STORY_REVIEW_MIN_CONFIDENCE, TIE_MIN_CONFIDENCE, TIE_RELATIONS, firmlyTied, type Relation, type ReportView } from "@techinhot/backend/events/relate";
+import { RELATIONS, STORY_REVIEW_MIN_CONFIDENCE, TIE_MIN_CONFIDENCE, TIE_RELATIONS, firmlyTied, type Relation, type ArticleView } from "@techinhot/backend/stories/relation";
 import { binaryMetrics, nonEmpty, nullableString, parseCasesJsonl, round, SamplingContext } from "./eval-tools.ts";
 
 const GoldReport = z.object({
@@ -37,7 +37,7 @@ export interface RelationPrediction {
 /** Production thresholds worth reporting by default; explicit --thresholds still overrides them. */
 export const DEFAULT_RELATION_THRESHOLDS = [...new Set([STORY_REVIEW_MIN_CONFIDENCE, TIE_MIN_CONFIDENCE])];
 
-export function toReportView(report: RelationGoldReport): ReportView {
+export function toArticleView(report: RelationGoldReport): ArticleView {
   return {
     title: report.title,
     source: report.source,

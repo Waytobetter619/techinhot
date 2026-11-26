@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode }
 import { IntentLink } from "../components/ui/IntentLink";
 import { useLoaderData, useLocation } from "react-router";
 import type { Route } from "./+types/story";
-import { STORY_INDEX_MIN_SOURCES, type StoryDetail, type StoryReportView } from "@techinhot/contracts/site";
+import { STORY_INDEX_MIN_SOURCES, type StoryDetail, type StoryArticleView } from "@techinhot/contracts/site";
 import { topicName } from "@techinhot/contracts/taxonomy";
 import { SITE } from "@techinhot/site";
 import { linkMentions } from "@techinhot/contracts/mentions";
@@ -106,7 +106,7 @@ function RailCard({ title, right, children, className = "" }: { title: ReactNode
 }
 
 /** One report on the story timeline: time, source and marks, title, a summary that opens on demand. */
-function TimelineRow({ r }: { r: StoryReportView }) {
+function TimelineRow({ r }: { r: StoryArticleView }) {
   const t = useT();
   const [open, setOpen] = useState(false);
   const [clamped, setClamped] = useState(false);
@@ -217,7 +217,7 @@ export default function StoryPage() {
       : story.excerpt
         ? { label: t("报道摘要", "Report excerpt"), text: story.excerpt.text, note: t(`摘自 ${story.excerpt.sourceName}`, `From ${story.excerpt.sourceName}`) }
         : null;
-  const officialCount = counts.official || story.officialReports.length;
+  const officialCount = counts.official || story.officialArticles.length;
   const [overviewRuns] = useMemo(() => linkMentions([overview?.text], story.mentions), [overview?.text, story.mentions]);
   const showOfficial = () => {
     setFilter("official");
@@ -456,11 +456,11 @@ export default function StoryPage() {
               </p>
             </RailCard>
           )}
-          {story.officialReports.length > 0 && (
+          {story.officialArticles.length > 0 && (
             <RailCard title={t("官方一手", "Official")} right={t(`${officialCount} 篇`, `${officialCount} ${officialCount === 1 ? "report" : "reports"}`)}>
               <p className="text-ui-caption text-ink-4">{t("直接了解当事方的说法", "Straight from those involved")}</p>
               <ul className="mt-1 divide-y divide-line-soft">
-                {story.officialReports.slice(0, 5).map((r) => (
+                {story.officialArticles.slice(0, 5).map((r) => (
                   <li key={r.id} className="py-3">
                     <div className="truncate text-ui-caption-md text-ink-4">{r.source.name}</div>
                     <Link viewTransition to={`/items/${r.id}`} className="group mt-1 block text-ui-label-lg font-semibold leading-[1.6] text-ink transition-colors hover:text-accent">

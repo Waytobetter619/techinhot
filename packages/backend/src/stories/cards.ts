@@ -14,7 +14,7 @@ import { republishTx } from "../publication/publish.ts";
 import { echoesOfIndependent, independentOfEcho, independentSelectedSources, isIndependentSelectedSource } from "../publication/rules.ts";
 import { foldableSelectionCondition, seatedCondition } from "../publication/scope.ts";
 import { factCards, recallCards, type CardRow } from "./recall.ts";
-import { PAIR_SYSTEM, PairSchema, RELATE_PROMPT_VERSION, STORY_REVIEW_MIN_CONFIDENCE, TIE_MIN_CONFIDENCE, pairUser, reportText, type ReportView } from "./relate.ts";
+import { PAIR_SYSTEM, PairSchema, RELATE_PROMPT_VERSION, STORY_REVIEW_MIN_CONFIDENCE, TIE_MIN_CONFIDENCE, pairUser, articleText, type ArticleView } from "./relation.ts";
 
 /** Below this, two reports of one piece of news are rare and analyses of one filing common. */
 const CARD_MIN_COSINE = 0.78;
@@ -24,7 +24,7 @@ export interface Reader {
   articleId: string;
   sourceId: string;
   /** Title, source, time and summary only: what the reader sees, on both sides of the comparison. */
-  view: ReportView;
+  view: ArticleView;
   text: string;
   at: Date;
 }
@@ -47,7 +47,7 @@ export async function readerOf(articleId: string): Promise<Reader | null> {
   if (!row) return null;
   const title = row.title_zh || row.title;
   return {
-    articleId, sourceId: row.source_id, text: reportText(title, row.summary_zh), at: row.timeline_at,
+    articleId, sourceId: row.source_id, text: articleText(title, row.summary_zh), at: row.timeline_at,
     view: { title, source: row.source, firstParty: row.first_party, at: row.published_at, publicationTime: row.publication_time, summary: row.summary_zh },
   };
 }
@@ -58,7 +58,7 @@ export const alreadyOnCard = (title: string) => `读者已在精选看过同一�
 /** The review model reads the pair the other way round. */
 async function sameNews(reader: Reader, card: CardRow): Promise<boolean> {
   const subject = `article:${reader.articleId}:card:${card.article_id}`;
-  const shown: ReportView = { title: card.title, source: card.source, firstParty: card.firstParty, at: card.at, publicationTime: card.publicationTime, summary: card.summary };
+  const shown: ArticleView = { title: card.title, source: card.source, firstParty: card.firstParty, at: card.at, publicationTime: card.publicationTime, summary: card.summary };
   const first = await chatJson({
     ...await modelRoute("group"), purpose: "group_card", subject, promptVersion: RELATE_PROMPT_VERSION,
     system: PAIR_SYSTEM, user: pairUser(shown, reader.view), schema: PairSchema, temperature: 0, maxTokens: 400,

@@ -21,7 +21,7 @@ import { serverModules } from "../modules.ts";
 import { latestHotRanking } from "../publication/hot.ts";
 import { listReports, loadReport, type ReportKind } from "../publication/reports.ts";
 import { publicSourceName } from "../publication/rules.ts";
-import { storyReportCondition } from "../publication/scope.ts";
+import { storyArticleCondition } from "../publication/scope.ts";
 import { loadHot, loadStoryDetail } from "../publication/stories.ts";
 import { storyTexts } from "../publication/story-text.ts";
 import { listTopicSummaries } from "../publication/topics.ts";
@@ -85,7 +85,7 @@ const itemTexts = (r: { id: string; title: string; summary: string | null; reaso
 /** A development (`f`) an event page lists: one with a public report as its evidence. */
 const shownFact = () => sql`EXISTS (
   SELECT 1 FROM fact_articles fa JOIN publications p ON p.article_id = fa.article_id JOIN sources s ON s.id = p.source_id
-  WHERE fa.fact_id = f.id AND fa.role <> 'mention' AND ${storyReportCondition(new Date())})`;
+  WHERE fa.fact_id = f.id AND fa.role <> 'mention' AND ${storyArticleCondition(new Date())})`;
 
 async function items(window: "recent" | "reachable", limit: number): Promise<Text[]> {
   const scope = window === "recent"

@@ -13,7 +13,7 @@ import { ingestItems } from "@techinhot/backend/ingest/items";
 import { queueProcessing, settleNonEditorial } from "@techinhot/backend/jobs/content";
 import { collectSource } from "@techinhot/backend/sources/collect";
 import { updateSource } from "@techinhot/backend/admin/sources";
-import { groupArticle } from "@techinhot/backend/events/group";
+import { groupArticle } from "@techinhot/backend/stories/group";
 
 after(async () => { await stopBoss(); await closeDb(); });
 

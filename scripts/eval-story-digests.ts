@@ -14,11 +14,11 @@ import { parseArgs } from "node:util";
 import { REPO_ROOT } from "@techinhot/backend/config";
 import { closeDb, sql } from "@techinhot/backend/db";
 import { promptFromText } from "@techinhot/backend/editorial/prompts";
-import { DIGEST_PROMPT_VERSION, DIGEST_SAMPLING, DIGEST_SYSTEM, DigestSchema, buildStoryDigestInput } from "@techinhot/backend/events/digest";
+import { DIGEST_PROMPT_VERSION, DIGEST_SAMPLING, DIGEST_SYSTEM, DigestSchema, buildStoryDigestInput } from "@techinhot/backend/stories/digest";
 import { sha256 } from "@techinhot/backend/lib/ids";
 import { chatJson } from "@techinhot/backend/providers/llm";
 import { completeReceipt, failedReceiptId } from "@techinhot/backend/providers/receipts";
-import { digestReports } from "@techinhot/backend/publication/story-evidence";
+import { digestArticles } from "@techinhot/backend/publication/story-evidence";
 import {
   caseFromStory,
   digestComparisonMarkdown,
@@ -59,7 +59,7 @@ async function exportCases(list: string, out: string) {
     const found = new Map(stories.map((story) => [story.public_id, story]));
     const missing = ids.filter((id) => !found.has(id));
     if (missing.length) throw new Error(`no current event (unknown, or merged into another: use the id its page redirects to): ${missing.join(", ")}`);
-    const reports = await digestReports(tx, stories.map((story) => story.id));
+    const reports = await digestArticles(tx, stories.map((story) => story.id));
     const own = (story: { id: number }) => reports.filter((report) => report.story_id === story.id);
     const empty = stories.filter((story) => own(story).length === 0);
     if (empty.length) throw new Error(`no listed report to write a digest from: ${empty.map((story) => story.public_id).join(", ")}`);

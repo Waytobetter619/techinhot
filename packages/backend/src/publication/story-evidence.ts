@@ -4,7 +4,7 @@ import { sha256, stableJson } from "../lib/ids.ts";
 import { publicSourceName } from "./rules.ts";
 import { evidenceCondition, listedCondition } from "./scope.ts";
 
-export interface DigestReport {
+export interface DigestArticle {
   story_id: number;
   id: string;
   title: string;
@@ -23,7 +23,7 @@ export interface DigestReport {
 }
 
 /** Conditions stay next to their object and source quote; no ownership is inferred from subject tags. */
-export function digestFactEvidence(report: Pick<DigestReport, "fact_subject" | "fact_action" | "fact_object" | "fact_conditions" | "evidence" | "structured_fact">) {
+export function digestFactEvidence(report: Pick<DigestArticle, "fact_subject" | "fact_action" | "fact_object" | "fact_conditions" | "evidence" | "structured_fact">) {
   const fact = report.structured_fact && typeof report.structured_fact === "object" ? report.structured_fact as Record<string, unknown> : {};
   const conditions = Array.isArray(fact.conditions) ? fact.conditions.flatMap((condition) => {
     if (!condition || typeof condition !== "object") return [];
@@ -35,9 +35,9 @@ export function digestFactEvidence(report: Pick<DigestReport, "fact_subject" | "
     extractedEvidence: typeof fact.evidence === "string" ? fact.evidence : null };
 }
 
-export async function digestReports(db: Db, storyIds: number[], now = new Date()): Promise<DigestReport[]> {
+export async function digestArticles(db: Db, storyIds: number[], now = new Date()): Promise<DigestArticle[]> {
   if (!storyIds.length) return [];
-  return db<DigestReport[]>`
+  return db<DigestArticle[]>`
     SELECT DISTINCT ON (f.story_id, p.article_id) f.story_id, p.article_id AS id, p.title, p.summary,
       s.id AS source_id, s.name AS source_name, (s.tier = 'T1') AS first_party,
       coalesce(p.published_at, p.discovered_at) AS at, f.id AS fact_id, f.subject AS fact_subject,
@@ -52,16 +52,16 @@ export async function digestReports(db: Db, storyIds: number[], now = new Date()
 }
 
 /** Public-facing evidence fingerprint: admin parenthetical notes in sources.name do not invalidate a digest. */
-export function digestInputsHash(reports: DigestReport[]): string {
+export function digestInputsHash(reports: DigestArticle[]): string {
   return sha256(stableJson([...reports].sort((a, b) => a.id.localeCompare(b.id)).map((r) => [r.id, r.fact_id, r.title, r.summary ?? "", r.source_id, publicSourceName(r.source_name), r.first_party, r.at.toISOString(), digestFactEvidence(r)])));
 }
 
 /** Pre-versioned digest fingerprint kept only to validate historical story_digests rows written before digest_version existed. */
-function legacyDigestInputsHash(reports: DigestReport[]): string {
+function legacyDigestInputsHash(reports: DigestArticle[]): string {
   return sha256(stableJson([...reports].sort((a, b) => a.id.localeCompare(b.id)).map((r) => [r.id, r.fact_id, r.title, r.summary ?? "", r.source_name, r.first_party, r.at.toISOString(), digestFactEvidence(r)])));
 }
 
-export function digestInputsHashMatches(reports: DigestReport[], savedHash: string | null, digestVersion: number | null): boolean {
+export function digestInputsHashMatches(reports: DigestArticle[], savedHash: string | null, digestVersion: number | null): boolean {
   if (!savedHash) return false;
   if (digestInputsHash(reports) === savedHash) return true;
   return digestVersion === null && legacyDigestInputsHash(reports) === savedHash;

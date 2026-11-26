@@ -8,7 +8,7 @@
 // sharing its identity or URL; better reporting of an unseen fact can still become its first pick.
 // A launch selected before the identity window is forgotten, so an official re-introduction weeks
 // later takes a fresh selected seat (and a push) as if it were new.
-// One piece of news, one card (events/cards.ts): a report the judge calls a development of a fact's
+// One piece of news, one card (stories/cards.ts): a report the judge calls a development of a fact's
 // first report opens a second card for news already on screen; a report joins a fact without a card
 // while another fact holds the card; history and composites, which have no fact, sit next to the card
 // that told the same news; a real development, or a pair only one model calls the same, folds and
@@ -22,9 +22,9 @@ import { randomUUID } from "node:crypto";
 import { after, before, test } from "node:test";
 import { closeDb, sql } from "@techinhot/backend/db";
 import { upsertMaterial } from "@techinhot/backend/content/materials";
-import { groupArticle } from "@techinhot/backend/events/group";
-import { candidateViews } from "@techinhot/backend/events/recall";
-import { BatchSchema } from "@techinhot/backend/events/relate";
+import { groupArticle } from "@techinhot/backend/stories/group";
+import { candidateViews } from "@techinhot/backend/stories/recall";
+import { BatchSchema } from "@techinhot/backend/stories/relation";
 import { publishArticle } from "@techinhot/backend/publication/publish";
 import { loadTimeline } from "@techinhot/backend/publication/timeline";
 import { setVisibility } from "@techinhot/backend/admin/content";

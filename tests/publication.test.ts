@@ -17,10 +17,10 @@ import { updateSource } from "@techinhot/backend/admin/sources";
 import { upsertMaterial } from "@techinhot/backend/content/materials";
 import { stopBoss } from "@techinhot/backend/jobs/queue";
 import { publishArticle, republishSource } from "@techinhot/backend/publication/publish";
-import { computeHotRanking } from "@techinhot/backend/events/hot";
+import { computeHotRanking } from "@techinhot/backend/stories/hot";
 import { latestHotRanking } from "@techinhot/backend/publication/hot";
 import { loadPool } from "@techinhot/backend/publication/pool";
-import { digestReports } from "@techinhot/backend/publication/story-evidence";
+import { digestArticles } from "@techinhot/backend/publication/story-evidence";
 import { v1Items } from "@techinhot/backend/publication/v1";
 import { SELECTION } from "@techinhot/industry/selection";
 import { loadItemShare } from "@techinhot/backend/publication/og";
@@ -742,7 +742,7 @@ test("suppressOriginal keeps compliant Chinese copy selected while withholding r
     if (inRest) assert.equal(inRest.originalTitle, null, "mid-snapshot continuation redacts suppressed items at once");
   }
 
-  const evidence = await digestReports(sql, [storyRow!.id]);
+  const evidence = await digestArticles(sql, [storyRow!.id]);
   const ev = evidence.find((r) => r.title === cleanTitle);
   assert.ok(ev, "story evidence still includes compliant Chinese report");
   assert.equal(ev.evidence, null);

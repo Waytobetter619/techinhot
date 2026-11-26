@@ -2,7 +2,7 @@
 import type { PgBoss } from "pg-boss";
 import { sql, type Db } from "../db.ts";
 import { republishSource } from "../publication/publish.ts";
-import { computeHotRanking } from "../events/hot.ts";
+import { computeHotRanking } from "../stories/hot.ts";
 import { emit } from "../modules.ts";
 import { enqueue, QUEUES, work } from "./queue.ts";
 
