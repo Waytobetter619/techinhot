@@ -4,10 +4,10 @@
 // it is a subject of, but not those that only mention it — among several subject companies, its name must
 // appear in the Chinese or the original title. Lists and counts read the selected set one report per
 // fact, as v1 and RSS do.
-import type { CategoryKey } from "@aihot/contracts/taxonomy";
+import type { CategoryKey } from "@techinhot/contracts/taxonomy";
 import type {
   Brand, TopicGroup, TopicGroupKey, TopicLink, TopicPage, TopicSummary, TopicsResponse,
-} from "@aihot/contracts/site";
+} from "@techinhot/contracts/site";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { REPO_ROOT } from "../config.ts";

@@ -1,7 +1,7 @@
 // Event-relation evaluation cases (two reports and the human relation between them, one per line) and
 // their metrics. Whether a pair ties two stories is the site's own rule (events/relate.ts firmlyTied).
 import { z } from "zod";
-import { RELATIONS, STORY_REVIEW_MIN_CONFIDENCE, TIE_MIN_CONFIDENCE, TIE_RELATIONS, firmlyTied, type Relation, type ReportView } from "@aihot/backend/events/relate";
+import { RELATIONS, STORY_REVIEW_MIN_CONFIDENCE, TIE_MIN_CONFIDENCE, TIE_RELATIONS, firmlyTied, type Relation, type ReportView } from "@techinhot/backend/events/relate";
 import { binaryMetrics, nonEmpty, nullableString, parseCasesJsonl, round, SamplingContext } from "./eval-tools.ts";
 
 const GoldReport = z.object({

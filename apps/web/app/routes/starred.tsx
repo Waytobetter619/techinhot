@@ -1,8 +1,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router";
-import type { ItemAvailability } from "@aihot/contracts/site";
-import { shortAddresses } from "@aihot/contracts/addresses";
-import { SITE } from "@aihot/site";
+import type { ItemAvailability } from "@techinhot/contracts/site";
+import { shortAddresses } from "@techinhot/contracts/addresses";
+import { SITE } from "@techinhot/site";
 import type { Route } from "./+types/starred";
 import { Collapse } from "../components/ui/Presence";
 import { edgeTtl } from "../lib/api.server";

@@ -1,7 +1,7 @@
 // Share poster: the server-rendered poster (with a QR code to the article), to save or hand to the
 // system share sheet. Loaded on demand from the article page; a bottom sheet on phones, centred above.
 import { useEffect, useState } from "react";
-import { SITE } from "@aihot/site";
+import { SITE } from "@techinhot/site";
 import { Sheet } from "../../components/ui/Sheet";
 import { IconDownload, IconShare } from "../../components/icons";
 import { ogPath, useLocale, useT } from "../../lib/i18n";

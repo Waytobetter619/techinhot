@@ -12,10 +12,10 @@ import { describePublicationTime } from "../sources/dates.ts";
 //      copy that uses a word the site keeps from readers (industry/wording.ts) goes back once to change only those.
 // Material with only a title or a feed summary has its article page fetched before it is judged.
 import { z } from "zod";
-import { CATEGORY_KEYS } from "@aihot/contracts/taxonomy";
-import { CATEGORIES } from "@aihot/industry/taxonomy";
-import { SELECTION } from "@aihot/industry/selection";
-import { ITEM_COPY } from "@aihot/site";
+import { CATEGORY_KEYS } from "@techinhot/contracts/taxonomy";
+import { CATEGORIES } from "@techinhot/industry/taxonomy";
+import { SELECTION } from "@techinhot/industry/selection";
+import { ITEM_COPY } from "@techinhot/site";
 import { sql } from "../db.ts";
 import { editorialPolicy } from "../modules.ts";
 import { chatJson, MODELS, type ContentPart } from "../providers/llm.ts";

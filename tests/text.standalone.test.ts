@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { looksZh } from "@aihot/backend/editorial/writing";
-import { isChineseBody, exportTranslation } from "@aihot/backend/publication/items";
-import { stripTags } from "@aihot/backend/lib/text";
-import { displayTag } from "@aihot/contracts/taxonomy";
+import { looksZh } from "@techinhot/backend/editorial/writing";
+import { isChineseBody, exportTranslation } from "@techinhot/backend/publication/items";
+import { stripTags } from "@techinhot/backend/lib/text";
+import { displayTag } from "@techinhot/contracts/taxonomy";
 
 // Regression coverage for HTML attributes that contain `>` in real source pages.
 test("stripTags ignores > inside quoted HTML attributes", () => {

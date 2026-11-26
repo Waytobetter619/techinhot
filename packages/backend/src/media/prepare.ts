@@ -4,7 +4,7 @@
 // hand, and the share image is rendered before the content push makes chat apps fetch it.
 import { convertAnimated, convertAvif, produceImage } from "./images.ts";
 import { AVIF_MODES } from "./renditions.ts";
-import { AVIF_MODE_SUFFIX } from "@aihot/contracts/site";
+import { AVIF_MODE_SUFFIX } from "@techinhot/contracts/site";
 import { loadItemDetail } from "../publication/detail.ts";
 import { toFeedItemSummary } from "../publication/items.ts";
 import { loadItemOgCard } from "../publication/og.ts";

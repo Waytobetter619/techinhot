@@ -1,4 +1,4 @@
-import { ADMIN } from "@aihot/site";
+import { ADMIN } from "@techinhot/site";
 import { actorOf, devPrincipal, sessionPrincipal } from "./auth.ts";
 import { serverModules, type Previewer } from "../modules.ts";
 

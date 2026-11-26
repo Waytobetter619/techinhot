@@ -3,8 +3,8 @@
 import './setup.ts';
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
-import { closeDb } from '@aihot/backend/db';
-import { mcpToolName } from '@aihot/contracts/mcp';
+import { closeDb } from '@techinhot/backend/db';
+import { mcpToolName } from '@techinhot/contracts/mcp';
 import { buildApp } from '../apps/api/src/app.ts';
 
 const app = await buildApp();

@@ -1,9 +1,9 @@
 import './setup.ts';
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
-import { closeDb, sql } from '@aihot/backend/db';
-import { latestHotRanking } from '@aihot/backend/publication/hot';
-import { loadSiteStats } from '@aihot/backend/site/stats';
+import { closeDb, sql } from '@techinhot/backend/db';
+import { latestHotRanking } from '@techinhot/backend/publication/hot';
+import { loadSiteStats } from '@techinhot/backend/site/stats';
 
 after(closeDb);
 

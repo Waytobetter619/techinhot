@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useRouteLoaderData } from "react-router";
-import { POLICY, SITE } from "@aihot/site";
-import { ENGLISH } from "@aihot/contracts/english";
+import { POLICY, SITE } from "@techinhot/site";
+import { ENGLISH } from "@techinhot/contracts/english";
 import type { Route } from "./+types/more";
 import type { loader as rootLoader } from "../root";
 import { useChangelogDot } from "../components/shell/Sidebar";

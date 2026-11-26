@@ -10,7 +10,7 @@ import { apiGet, loadOr404 } from "../apps/web/app/lib/api.server.ts";
 test("expected route refusals and cancelled requests stay quiet; real errors keep request and stack", (t) => {
   const lines: string[] = [];
   t.mock.method(console, "error", (line: string) => lines.push(line));
-  const request = new Request("https://example.test/missing?token=query-only-secret-9386&aihot_actor=query-only-secret-9386");
+  const request = new Request("https://example.test/missing?token=query-only-secret-9386&techinhot_actor=query-only-secret-9386");
   handleError({ status: 404, statusText: "Not Found", internal: true, data: "missing", error: new Error("No route matches") }, { request });
   handleError({ status: 405, statusText: "Method Not Allowed", internal: true, data: "method" }, { request });
   const controller = new AbortController();
@@ -35,7 +35,7 @@ test("SSR fetch timeouts keep the upstream path and stack before the existing 50
   t.mock.method(console, "error", (line: string) => lines.push(line));
   const error = new DOMException("The operation was aborted due to timeout", "TimeoutError");
   t.mock.method(globalThis, "fetch", async () => { throw error; });
-  await assert.rejects(loadOr404("/api/site/timeline?q=query-only-secret-9386&aihot_actor=query-only-secret-9386"), (thrown) => {
+  await assert.rejects(loadOr404("/api/site/timeline?q=query-only-secret-9386&techinhot_actor=query-only-secret-9386"), (thrown) => {
     assert.deepEqual(thrown, data({ message: "unavailable" }, { status: 503 }));
     return true;
   });

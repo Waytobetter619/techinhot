@@ -6,13 +6,13 @@
 import { tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { closeDb, sql } from "@aihot/backend/db";
-import { itemFeed } from "@aihot/backend/publication/feeds";
-import { loadTimeline } from "@aihot/backend/publication/timeline";
-import { v1Items } from "@aihot/backend/publication/v1";
-import { CATEGORY_KEYS, PUBLIC_API_CATEGORY_KEYS, toPublicApiCategory } from "@aihot/contracts/taxonomy";
+import { closeDb, sql } from "@techinhot/backend/db";
+import { itemFeed } from "@techinhot/backend/publication/feeds";
+import { loadTimeline } from "@techinhot/backend/publication/timeline";
+import { v1Items } from "@techinhot/backend/publication/v1";
+import { CATEGORY_KEYS, PUBLIC_API_CATEGORY_KEYS, toPublicApiCategory } from "@techinhot/contracts/taxonomy";
 import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
-import { MCP_TOOL_NAMES } from "@aihot/contracts/mcp";
+import { MCP_TOOL_NAMES } from "@techinhot/contracts/mcp";
 import { buildApp } from "../apps/api/src/app.ts";
 
 const T = tag();

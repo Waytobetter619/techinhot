@@ -3,10 +3,10 @@ import { sql } from "../db.ts";
 import { itemUrl } from "../publication/links.ts";
 import { publicSourceName } from "../publication/rules.ts";
 import { dingtalkMarkdown, type DingtalkContent } from "./dingtalk.ts";
-import { type CategoryKey } from "@aihot/contracts/taxonomy";
-import { beijingDay } from "@aihot/contracts/time";
-import { CATEGORIES } from "@aihot/industry/taxonomy";
-import { ITEM_COPY, SITE } from "@aihot/site";
+import { type CategoryKey } from "@techinhot/contracts/taxonomy";
+import { beijingDay } from "@techinhot/contracts/time";
+import { CATEGORIES } from "@techinhot/industry/taxonomy";
+import { ITEM_COPY, SITE } from "@techinhot/site";
 
 const MAX_AGE_MS = 12 * 3600_000;
 /** Content groups get first-party (T1) and near-first-party (T1_5) sources only. */

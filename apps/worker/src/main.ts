@@ -1,19 +1,19 @@
 // Worker process: queues and schedules for collection, processing, events, reports and ops, and the site's
 // modules (site/modules/server.ts).
-import { assertProductionSecrets } from "@aihot/backend/config";
-import { closeDb } from "@aihot/backend/db";
-import { getBoss, stopBoss, workModuleQueues } from "@aihot/backend/jobs/queue";
-import { installModules } from "@aihot/backend/modules";
-import { SERVER_MODULES } from "@aihot/site/modules/server";
-import { registerContentJobs } from "@aihot/backend/jobs/content";
-import { registerSourceJobs } from "@aihot/backend/jobs/sources";
-import { registerEventJobs } from "@aihot/backend/jobs/events";
-import { registerNotifyJobs } from "@aihot/backend/jobs/notify";
-import { registerPublicationJobs } from "@aihot/backend/jobs/publication";
+import { assertProductionSecrets } from "@techinhot/backend/config";
+import { closeDb } from "@techinhot/backend/db";
+import { getBoss, stopBoss, workModuleQueues } from "@techinhot/backend/jobs/queue";
+import { installModules } from "@techinhot/backend/modules";
+import { SERVER_MODULES } from "@techinhot/site/modules/server";
+import { registerContentJobs } from "@techinhot/backend/jobs/content";
+import { registerSourceJobs } from "@techinhot/backend/jobs/sources";
+import { registerEventJobs } from "@techinhot/backend/jobs/events";
+import { registerNotifyJobs } from "@techinhot/backend/jobs/notify";
+import { registerPublicationJobs } from "@techinhot/backend/jobs/publication";
 import { registerSchedules } from "./schedules.ts";
-import { ensureContentTargets } from "@aihot/backend/notify/deliver";
-import { startHeartbeat } from "@aihot/backend/operations/heartbeat";
-import { closeInterruptedRuns } from "@aihot/backend/jobs/runs";
+import { ensureContentTargets } from "@techinhot/backend/notify/deliver";
+import { startHeartbeat } from "@techinhot/backend/operations/heartbeat";
+import { closeInterruptedRuns } from "@techinhot/backend/jobs/runs";
 
 installModules(SERVER_MODULES);
 assertProductionSecrets([["auth", "IMG_PROXY_SIGN_SECRET"]]);

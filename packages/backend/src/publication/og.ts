@@ -1,10 +1,10 @@
 // Share images only need public title/summary metadata. Keep the same page visibility rule without
 // loading bodies, translations, related stories or signed media that never appear on these cards.
 // In English (the English pages' cards) the article reads as its English page does.
-import type { Locale } from '@aihot/contracts/i18n';
-import { CATEGORY_LABELS, categoryLabel, type CategoryKey } from '@aihot/contracts/taxonomy';
-import { beijingDate, longDateEn } from '@aihot/contracts/time';
-import { ITEM_COPY, withSubject } from '@aihot/site';
+import type { Locale } from '@techinhot/contracts/i18n';
+import { CATEGORY_LABELS, categoryLabel, type CategoryKey } from '@techinhot/contracts/taxonomy';
+import { beijingDate, longDateEn } from '@techinhot/contracts/time';
+import { ITEM_COPY, withSubject } from '@techinhot/site';
 import type { OgCard } from '../media/og.ts';
 import type { Poster } from '../media/poster.ts';
 import { config } from '../config.ts';

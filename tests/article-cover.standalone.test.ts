@@ -4,8 +4,8 @@
 // (Which declared pictures are the site's own is decided with the store, in article-cover.test.ts.)
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { readable } from "@aihot/backend/content/extract";
-import { withCover } from "@aihot/backend/content/cover";
+import { readable } from "@techinhot/backend/content/extract";
+import { withCover } from "@techinhot/backend/content/cover";
 
 const prose = "The article explains how the new model was trained and evaluated, with measurements. ".repeat(6);
 const page = (head: string, body = `<p>${prose}</p><p>${prose}</p>`) =>

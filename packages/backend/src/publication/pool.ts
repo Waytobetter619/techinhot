@@ -1,7 +1,7 @@
 // Public pool (/all) with numeric pages, and search in its two orderings.
-import { ENGLISH } from "@aihot/contracts/english";
-import type { PoolResponse, TimelineFilters } from "@aihot/contracts/site";
-import { beijingDate, beijingMidnight } from "@aihot/contracts/time";
+import { ENGLISH } from "@techinhot/contracts/english";
+import type { PoolResponse, TimelineFilters } from "@techinhot/contracts/site";
+import { beijingDate, beijingMidnight } from "@techinhot/contracts/time";
 import { one, sql, withCustomPlans, type Db } from "../db.ts";
 import { cachedByKey, sharedSearch } from "../lib/cache.ts";
 import {

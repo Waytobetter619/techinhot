@@ -4,9 +4,9 @@
 import { tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { closeDb, sql } from "@aihot/backend/db";
-import { loadPool, searchTerms } from "@aihot/backend/publication/pool";
-import { v1Items } from "@aihot/backend/publication/v1";
+import { closeDb, sql } from "@techinhot/backend/db";
+import { loadPool, searchTerms } from "@techinhot/backend/publication/pool";
+import { v1Items } from "@techinhot/backend/publication/v1";
 
 const T = `relevance-${tag()}`;
 const now = new Date("2026-01-01T12:00:00Z");

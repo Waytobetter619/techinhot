@@ -1,13 +1,13 @@
 {
-  "name": "@aihot/contracts",
+  "name": "@techinhot/contracts",
   "private": true,
   "type": "module",
   "exports": {
     "./*": "./src/*.ts"
   },
   "dependencies": {
-    "@aihot/industry": "*",
-    "@aihot/site": "*",
+    "@techinhot/industry": "*",
+    "@techinhot/site": "*",
     "react-router": "8.4.0"
   }
 }

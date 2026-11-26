@@ -1,7 +1,7 @@
-import { SITE, SOURCE_DEFAULTS } from "@aihot/site";
+import { SITE, SOURCE_DEFAULTS } from "@techinhot/site";
 import { useState } from "react";
 import type { Route } from "./+types/source-new";
-import type { AdminSourceCreated, AdminSourcePreview } from "@aihot/contracts/admin";
+import type { AdminSourceCreated, AdminSourcePreview } from "@techinhot/contracts/admin";
 import { useAdminAction } from "../../features/admin/action";
 import { bj } from "../../features/admin/format";
 import { KIND_LABEL, MODE_LABEL, SELECTION_CLASS_LABEL, TIER_LABEL } from "../../features/admin/labels";

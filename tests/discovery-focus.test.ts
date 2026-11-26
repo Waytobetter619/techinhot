@@ -11,10 +11,10 @@ import { tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { after, before, test } from "node:test";
-import { sql, closeDb } from "@aihot/backend/db";
-import { loadDiscoveryEntries } from "@aihot/backend/publication/sitemap";
-import { ENGLISH } from "@aihot/contracts/english";
-import { SITE } from "@aihot/site";
+import { sql, closeDb } from "@techinhot/backend/db";
+import { loadDiscoveryEntries } from "@techinhot/backend/publication/sitemap";
+import { ENGLISH } from "@techinhot/contracts/english";
+import { SITE } from "@techinhot/site";
 import { buildApp } from "../apps/api/src/app.ts";
 
 const app = await buildApp();

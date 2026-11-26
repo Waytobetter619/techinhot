@@ -13,9 +13,9 @@
 import { fact, mediaSource as MEDIA, officialSource as OFFICIAL, report, story, topicTag as T } from "./topic-fixtures.ts";
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { closeDb, sql } from "@aihot/backend/db";
-import { stopBoss } from "@aihot/backend/jobs/queue";
-import { TOPICS, loadTopicPage, listTopicSummaries, topicsOfStory } from "@aihot/backend/publication/topics";
+import { closeDb, sql } from "@techinhot/backend/db";
+import { stopBoss } from "@techinhot/backend/jobs/queue";
+import { TOPICS, loadTopicPage, listTopicSummaries, topicsOfStory } from "@techinhot/backend/publication/topics";
 import { buildApp } from "../apps/api/src/app.ts";
 
 const app = await buildApp();

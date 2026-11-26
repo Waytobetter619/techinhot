@@ -2,19 +2,19 @@
 // keys and formats once readers have data under them: existing readers' data must stay readable as-is.
 // Storage failures degrade silently.
 import { useEffect, useSyncExternalStore } from "react";
-import { beijingDate } from "@aihot/contracts/time";
+import { beijingDate } from "@techinhot/contracts/time";
 import { L, pagePath, type Phrase } from "./i18n.ts";
 
 export const KEYS = {
-  starred: "aihot-starred-items",
-  read: "aihot-read-items",
-  unreadOnly: "aihot-unread-only",
-  theme: "aihot-theme",
-  font: "aihot-font",
-  changelogSeen: "aihot-changelog-seen-version",
-  feedbackDraft: "aihot-feedback-draft-v1",
-  recentSearches: "aihot-recent-searches",
-  englishHint: "aihot-english-hint-dismissed",
+  starred: "techinhot-starred-items",
+  read: "techinhot-read-items",
+  unreadOnly: "techinhot-unread-only",
+  theme: "techinhot-theme",
+  font: "techinhot-font",
+  changelogSeen: "techinhot-changelog-seen-version",
+  feedbackDraft: "techinhot-feedback-draft-v1",
+  recentSearches: "techinhot-recent-searches",
+  englishHint: "techinhot-english-hint-dismissed",
 } as const;
 
 const STARRED_LIMIT = 500;
@@ -392,7 +392,7 @@ export function clearRecentSearches() {
 }
 
 // the page the reader was on (feedback records where a problem was seen)
-const LAST_PAGE_KEY = "aihot:last-page";
+const LAST_PAGE_KEY = "techinhot:last-page";
 const NOT_A_PLACE = /^\/(feedback|more|admin)([/?#]|$)/;
 
 /** Called on every in-site navigation: remembers the latest real page, never feedback, "更多" or the admin, in either language. */

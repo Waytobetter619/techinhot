@@ -1,7 +1,7 @@
 // Publish durable, source-owned events to the shared hub. Its documented idempotency contract makes
 // uncertain HTTP results safe to retry with the same ID. Execution/claim/retry state belongs to the hub.
 import { createHash } from "node:crypto";
-import { ADMIN } from "@aihot/site";
+import { ADMIN } from "@techinhot/site";
 import { credential, config } from "../config.ts";
 import { sql } from "../db.ts";
 import { feishuInternalEnabled, type Finding } from "./feishu.ts";

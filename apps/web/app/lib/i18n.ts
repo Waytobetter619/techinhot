@@ -1,16 +1,16 @@
 // The reader's language on the web. The address decides it: /en and every page under /en/ are English, the rest
 // Chinese, so the CDN (which keeps one copy per address) never serves one language to a reader of the other, and a
 // shared link opens in the language it was shared in. No cookie, no Accept-Language, no redirect by browser language.
-// The words themselves (t, L, zh, Phrase, Text) are the engine's, in @aihot/contracts/i18n.
+// The words themselves (t, L, zh, Phrase, Text) are the engine's, in @techinhot/contracts/i18n.
 import { useLocation } from "react-router";
-import { hasEnglish } from "@aihot/contracts/reader-pages";
-export { hasEnglish, localizePath } from "@aihot/contracts/reader-pages";
-export { readingApi as apiIn } from "@aihot/contracts/english";
-import { ENGLISH } from "@aihot/contracts/english";
-import { inLanguage, localeOf, pagePath, translator, type Locale, type Translate } from "@aihot/contracts/i18n";
+import { hasEnglish } from "@techinhot/contracts/reader-pages";
+export { hasEnglish, localizePath } from "@techinhot/contracts/reader-pages";
+export { readingApi as apiIn } from "@techinhot/contracts/english";
+import { ENGLISH } from "@techinhot/contracts/english";
+import { inLanguage, localeOf, pagePath, translator, type Locale, type Translate } from "@techinhot/contracts/i18n";
 
-export { isPhrase, L, localeOf, pagePath, shownIn, translator, zh } from "@aihot/contracts/i18n";
-export type { Locale, Phrase, Text, Translate } from "@aihot/contracts/i18n";
+export { isPhrase, L, localeOf, pagePath, shownIn, translator, zh } from "@techinhot/contracts/i18n";
+export type { Locale, Phrase, Text, Translate } from "@techinhot/contracts/i18n";
 
 export function useLocale(): Locale {
   return localeOf(useLocation().pathname);

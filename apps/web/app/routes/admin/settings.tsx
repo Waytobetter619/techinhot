@@ -1,7 +1,7 @@
-import { ADMIN, SITE } from "@aihot/site";
+import { ADMIN, SITE } from "@techinhot/site";
 import { useRef, useState } from "react";
 import type { Route } from "./+types/settings";
-import type { AdminSettings } from "@aihot/contracts/admin";
+import type { AdminSettings } from "@techinhot/contracts/admin";
 import { adminGet } from "../../lib/admin.server";
 import { useAdminAction } from "../../features/admin/action";
 import { bj, num } from "../../features/admin/format";

@@ -11,14 +11,14 @@
 import { tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { closeDb, sql } from "@aihot/backend/db";
-import { fillScheduledPublications, upsertMaterial } from "@aihot/backend/content/materials";
-import { getBoss, stopBoss } from "@aihot/backend/jobs/queue";
-import { collectFindings, dismissedFollowUps, dismissFollowUp, restoreFollowUp, sendDigest } from "@aihot/backend/operations/alerts";
-import { sourceHealthWeekly } from "@aihot/backend/operations/reports";
-import { sourceHealth, RHYTHM_WINDOW_DAYS } from "@aihot/backend/sources/health";
-import { defineServerModule, installModules } from "@aihot/backend/modules";
-import { ALERTS } from "@aihot/site";
+import { closeDb, sql } from "@techinhot/backend/db";
+import { fillScheduledPublications, upsertMaterial } from "@techinhot/backend/content/materials";
+import { getBoss, stopBoss } from "@techinhot/backend/jobs/queue";
+import { collectFindings, dismissedFollowUps, dismissFollowUp, restoreFollowUp, sendDigest } from "@techinhot/backend/operations/alerts";
+import { sourceHealthWeekly } from "@techinhot/backend/operations/reports";
+import { sourceHealth, RHYTHM_WINDOW_DAYS } from "@techinhot/backend/sources/health";
+import { defineServerModule, installModules } from "@techinhot/backend/modules";
+import { ALERTS } from "@techinhot/site";
 
 installModules([defineServerModule({ name: "watcher", sourceUses: { watch: { label: "盯梢" } } })]);
 

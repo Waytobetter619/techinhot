@@ -3,11 +3,11 @@
 import { tag } from './setup.ts';
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
-import { ENGLISH } from '@aihot/contracts/english';
-import { sql, closeDb } from '@aihot/backend/db';
-import { stopBoss } from '@aihot/backend/jobs/queue';
-import { publishArticle } from '@aihot/backend/publication/publish';
-import { upsertMaterial } from '@aihot/backend/content/materials';
+import { ENGLISH } from '@techinhot/contracts/english';
+import { sql, closeDb } from '@techinhot/backend/db';
+import { stopBoss } from '@techinhot/backend/jobs/queue';
+import { publishArticle } from '@techinhot/backend/publication/publish';
+import { upsertMaterial } from '@techinhot/backend/content/materials';
 import { buildApp } from '../apps/api/src/app.ts';
 
 const app = await buildApp();

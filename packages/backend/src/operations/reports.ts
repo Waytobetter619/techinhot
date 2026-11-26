@@ -1,6 +1,6 @@
 // The Monday source-health report for the ops chat. It goes through the same gated channel as the
 // alerts (off unless FEISHU_INTERNAL_ENABLED).
-import { beijingDay } from "@aihot/contracts/time";
+import { beijingDay } from "@techinhot/contracts/time";
 import { sql } from "../db.ts";
 import { sendAlert } from "../notify/feishu.ts";
 import { serverModules } from "../modules.ts";

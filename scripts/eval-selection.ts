@@ -9,9 +9,9 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import { parseArgs } from "node:util";
-import { DEPLOYMENT } from "@aihot/site";
-import { REPO_ROOT } from "@aihot/backend/config";
-import { closeDb } from "@aihot/backend/db";
+import { DEPLOYMENT } from "@techinhot/site";
+import { REPO_ROOT } from "@techinhot/backend/config";
+import { closeDb } from "@techinhot/backend/db";
 import {
   SELECTION_PROMPT_VERSION,
   awaitsMaterial,
@@ -23,8 +23,8 @@ import {
   shownScore,
   type AnalysisRun,
   type AnalyzeInputArticle,
-} from "@aihot/backend/editorial/analyze";
-import { importSelectBenchRun } from "@aihot/backend/admin/selectbench";
+} from "@techinhot/backend/editorial/analyze";
+import { importSelectBenchRun } from "@techinhot/backend/admin/selectbench";
 import { evalModels, pmap, positiveInt, safeReportNamePart, sampleCases, usageFor } from "./eval-tools.ts";
 import { parseSelectionGoldJsonl, selectionMetrics, selectionThresholdMetrics, type SelectionDecision, type SelectionGoldRow } from "./eval-selection-core.ts";
 

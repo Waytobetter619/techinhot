@@ -6,12 +6,12 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import http from "node:http";
 import { after, before, test } from "node:test";
-import { closeDb, sql } from "@aihot/backend/db";
-import { upsertMaterial } from "@aihot/backend/content/materials";
-import { translateArticle, translatePending, translateQuotes, importBodyTranslation } from "@aihot/backend/editorial/translate";
-import { stopBoss } from "@aihot/backend/jobs/queue";
-import { autoReleaseUnknownReceipts } from "@aihot/backend/operations/recover";
-import { publishArticle } from "@aihot/backend/publication/publish";
+import { closeDb, sql } from "@techinhot/backend/db";
+import { upsertMaterial } from "@techinhot/backend/content/materials";
+import { translateArticle, translatePending, translateQuotes, importBodyTranslation } from "@techinhot/backend/editorial/translate";
+import { stopBoss } from "@techinhot/backend/jobs/queue";
+import { autoReleaseUnknownReceipts } from "@techinhot/backend/operations/recover";
+import { publishArticle } from "@techinhot/backend/publication/publish";
 import { buildApp } from "../apps/api/src/app.ts";
 
 const T = tag();
@@ -580,15 +580,15 @@ const shutdownProvider = await stub(async (_hit, req) => {
 
 function runTranslation() {
   const script = `
-    import { translatePending } from '@aihot/backend/editorial/translate';
-    import { shutdownSignal } from '@aihot/backend/jobs/queue';
-    import { closeDb } from '@aihot/backend/db';
+    import { translatePending } from '@techinhot/backend/editorial/translate';
+    import { shutdownSignal } from '@techinhot/backend/jobs/queue';
+    import { closeDb } from '@techinhot/backend/db';
     process.on('SIGTERM', () => { shutdownSignal.abort(); process.send({ stopped: true }); });
     try { process.send({ result: await translatePending({ limit: 1 }) }); }
     finally { await closeDb(); process.disconnect(); }
   `;
   const child = spawn(process.execPath, ['--input-type=module', '-e', script], {
-    cwd: process.cwd(), env: { ...process.env, MODEL_CALLS_ENABLED: 'true', DEEPSEEK_BASE_URL: `${shutdownProvider.url}/v1`, DEEPSEEK_API_KEY: 'test-key', AIHOT_CREDENTIALS_DIR: '/nonexistent-test-credentials' },
+    cwd: process.cwd(), env: { ...process.env, MODEL_CALLS_ENABLED: 'true', DEEPSEEK_BASE_URL: `${shutdownProvider.url}/v1`, DEEPSEEK_API_KEY: 'test-key', TECHINHOT_CREDENTIALS_DIR: '/nonexistent-test-credentials' },
     stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
   });
   let result: any;

@@ -1,11 +1,11 @@
-import { namesEn } from "@aihot/contracts/i18n";
+import { namesEn } from "@techinhot/contracts/i18n";
 import { useEffect, useState } from "react";
 import { IntentLink } from "../components/ui/IntentLink";
 import { useLoaderData, useSearchParams } from "react-router";
 import type { Route } from "./+types/agent";
-import { PUBLIC_INTERFACE_VERSION } from "@aihot/contracts/http-policy";
-import { SEO_TITLES, SITE, withSubject } from "@aihot/site";
-import { ENGLISH } from "@aihot/contracts/english";
+import { PUBLIC_INTERFACE_VERSION } from "@techinhot/contracts/http-policy";
+import { SEO_TITLES, SITE, withSubject } from "@techinhot/site";
+import { ENGLISH } from "@techinhot/contracts/english";
 import { apiGet, cachedPage } from "../lib/api.server";
 import { pageReuse } from "../lib/page-reuse";
 import { breadcrumbLd, listPath, pageMeta, siteUrl } from "../lib/seo";

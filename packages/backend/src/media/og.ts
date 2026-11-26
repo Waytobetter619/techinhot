@@ -7,8 +7,8 @@ import { createHash, randomUUID } from "node:crypto";
 import satori from "satori";
 import sharp from "sharp";
 import { config, REPO_ROOT } from "../config.ts";
-import { needsEnglish } from "@aihot/contracts/english";
-import { SITE } from "@aihot/site";
+import { needsEnglish } from "@techinhot/contracts/english";
+import { SITE } from "@techinhot/site";
 
 export const OG_TEMPLATE_VERSION = "og-2026-09-29.1";
 /**

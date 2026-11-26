@@ -8,7 +8,7 @@
 // its heat (recallFactsByPosts): posts about one happening paraphrase each other more closely than
 // they paraphrase its reports.
 import { sql } from "../db.ts";
-import { beijingDate } from "@aihot/contracts/time";
+import { beijingDate } from "@techinhot/contracts/time";
 import { sha256 } from "../lib/ids.ts";
 import { embeddingsAvailable, ensureEmbeddings } from "../providers/embeddings.ts";
 import { GROUP_BODY_CHARS, lexicalSimilarity, reportText, signalText, type CandidateView, type ReportView, type ReadingContext } from "./relate.ts";

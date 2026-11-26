@@ -4,12 +4,12 @@ import { tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
-import { MCP_TOOL_NAMES } from "@aihot/contracts/mcp";
-import { closeDb, sql } from "@aihot/backend/db";
-import { upsertMaterial } from "@aihot/backend/content/materials";
-import { setSeoIndexed } from "@aihot/backend/admin/content";
-import { publishArticle } from "@aihot/backend/publication/publish";
-import { stopBoss } from "@aihot/backend/jobs/queue";
+import { MCP_TOOL_NAMES } from "@techinhot/contracts/mcp";
+import { closeDb, sql } from "@techinhot/backend/db";
+import { upsertMaterial } from "@techinhot/backend/content/materials";
+import { setSeoIndexed } from "@techinhot/backend/admin/content";
+import { publishArticle } from "@techinhot/backend/publication/publish";
+import { stopBoss } from "@techinhot/backend/jobs/queue";
 import { buildApp } from "../apps/api/src/app.ts";
 
 const key = tag();

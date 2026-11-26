@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import type { MediaView } from "@aihot/contracts/site";
+import type { MediaView } from "@techinhot/contracts/site";
 import { Lightbox } from "../../components/ui/Lightbox";
 import { Picture } from "../../components/ui/Picture";
 import { useT } from "../../lib/i18n";

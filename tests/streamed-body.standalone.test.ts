@@ -3,7 +3,7 @@
 // cleanup exposes unrelated hidden text. Missing boundary markers and script examples must stay inert.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { readable } from "@aihot/backend/content/extract";
+import { readable } from "@techinhot/backend/content/extract";
 
 const prose = "This original article explains how agents coordinate their work, preserving evidence and reviewing changes before publication. ".repeat(12);
 const content = `<article><h1>Agent collaboration</h1><p>${prose}</p></article>`;

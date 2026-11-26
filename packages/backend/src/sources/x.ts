@@ -2,7 +2,7 @@
 // continuations; other replies stay excluded. Plain accounts share length-bounded search shards.
 import { marked } from "marked";
 import { searchTweets, tweetMedia, tweetText, type SdArticle, type SdArticleImage, type SdTweet } from "../providers/socialdata.ts";
-import { shownAddress } from "@aihot/contracts/addresses";
+import { shownAddress } from "@techinhot/contracts/addresses";
 import { escHtml, sanitizeBody } from "../content/sanitize.ts";
 import { X_ARTICLE_LINK } from "../content/posts.ts";
 import { ProviderRejectedError } from "../providers/receipts.ts";

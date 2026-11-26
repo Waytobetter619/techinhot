@@ -5,12 +5,12 @@ import { gate, Reply, stub, tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import http from "node:http";
 import { after, before, test } from "node:test";
-import { config } from "@aihot/backend/config";
-import { closeDb, sql } from "@aihot/backend/db";
-import { stopBoss, QUEUES } from "@aihot/backend/jobs/queue";
-import { collectSource } from "@aihot/backend/sources/collect";
-import { upsertMaterial, identityKeyFor } from "@aihot/backend/content/materials";
-import { collectFindings } from "@aihot/backend/operations/alerts";
+import { config } from "@techinhot/backend/config";
+import { closeDb, sql } from "@techinhot/backend/db";
+import { stopBoss, QUEUES } from "@techinhot/backend/jobs/queue";
+import { collectSource } from "@techinhot/backend/sources/collect";
+import { upsertMaterial, identityKeyFor } from "@techinhot/backend/content/materials";
+import { collectFindings } from "@techinhot/backend/operations/alerts";
 
 const T = tag();
 const X_SOURCE = `test-x-${T}`;
@@ -649,7 +649,7 @@ test("the first import keeps its count and age limits; later runs take what was 
   for (const row of rows.slice(90, 95)) row.date = new Date(Date.now() - 3 * 86400000).toISOString();
   rows[95]!.date = new Date(Date.now() - 47 * 3600000).toISOString();
   for (const row of rows.slice(96)) row.date = null;
-  const { id, listing } = await tailSource("initial", "rss", rows, { _aihot: { initialBackfillLimit: 7, initialBackfillMonths: 12 } }, false);
+  const { id, listing } = await tailSource("initial", "rss", rows, { _techinhot: { initialBackfillLimit: 7, initialBackfillMonths: 12 } }, false);
   assert.equal((await collectSource(id)).created, 7);
   assert.equal((await cursor(id)).rss, undefined);
   const imported = await sql`SELECT url,backfill,backfill_reason FROM articles WHERE source_id=${id}`;

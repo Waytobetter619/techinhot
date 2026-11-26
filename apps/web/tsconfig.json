@@ -36,7 +36,7 @@
     "resolveJsonModule": true,
     "esModuleInterop": true,
     "paths": {
-      "@aihot/web/*": [
+      "@techinhot/web/*": [
         "./app/*"
       ]
     }

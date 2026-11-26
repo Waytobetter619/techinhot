@@ -1,8 +1,8 @@
 import { redirect, useLoaderData } from "react-router";
-import { SITE } from "@aihot/site";
+import { SITE } from "@techinhot/site";
 import type { Route } from "./+types/home";
-import type { TimelineResponse } from "@aihot/contracts/site";
-import { displayTagIn } from "@aihot/contracts/taxonomy";
+import type { TimelineResponse } from "@techinhot/contracts/site";
+import { displayTagIn } from "@techinhot/contracts/taxonomy";
 import { cachedPage, loadOr404, pagePathname } from "../lib/api.server";
 import { pageReuse } from "../lib/page-reuse";
 import { filterKeep, filterParams, hasFeedFilters, itemListLd, listPath, pageMeta, readFilters, siteLd } from "../lib/seo";

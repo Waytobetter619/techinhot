@@ -1,4 +1,4 @@
-import { localizePath } from "@aihot/contracts/reader-pages";
+import { localizePath } from "@techinhot/contracts/reader-pages";
 // The English edition's answers (/api/site/en/…, only where the site has an English edition): the same answers
 // as the Chinese ones, with each Chinese text the site wrote (titles, summaries, reasons, event digests, report
 // paragraphs, source names) replaced by its English. The worker (editorial/english.ts) translates the Chinese
@@ -12,14 +12,14 @@ import type {
   PoolResponse, ReportCitation, ReportDetail, ReportIndexResponse, ReportLatestPage, ReportNavigationResponse,
   SearchSuggestions, SiteItemDetail, SiteStats, SourceRef, StoryDetail, StoryFollowupsResponse, StoryReportView, TimelineResponse,
   TopicGroup, TopicLink, TopicPage, TopicSummary, TopicsResponse,
-} from "@aihot/contracts/site";
-import { REPORT_NAMES_EN } from "@aihot/contracts/site";
-import { ENGLISH, HAN, needsEnglish } from "@aihot/contracts/english";
+} from "@techinhot/contracts/site";
+import { REPORT_NAMES_EN } from "@techinhot/contracts/site";
+import { ENGLISH, HAN, needsEnglish } from "@techinhot/contracts/english";
 
 export { HAN, needsEnglish };
-import { sectionLabelIn, topicDefinition, topicName } from "@aihot/contracts/taxonomy";
-import { TOPIC_GROUP_EN } from "@aihot/industry/english";
-import { SITE, withSubject } from "@aihot/site";
+import { sectionLabelIn, topicDefinition, topicName } from "@techinhot/contracts/taxonomy";
+import { TOPIC_GROUP_EN } from "@techinhot/industry/english";
+import { SITE, withSubject } from "@techinhot/site";
 import { sql } from "../db.ts";
 import { sha256 } from "../lib/ids.ts";
 import { mentionsIn } from "./mentions.ts";
@@ -501,7 +501,7 @@ export const v1PeriodIndex: Overlay<Awaited<ReturnType<typeof v1Periods>>> = (r,
   ...r, items: r.items.map((e) => ({ ...e, headline: c.one("headline", e.headline) })),
 });
 
-const LINK_KEYS = new Set(["aihot", "story", "api", "url", "link"]);
+const LINK_KEYS = new Set(["techinhot", "story", "api", "url", "link"]);
 
 /**
  * An English answer's links: the pages it links to at their English addresses, and its v1 addresses asked in English

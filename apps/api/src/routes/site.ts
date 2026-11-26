@@ -2,27 +2,27 @@
 // Reads through the same public read layer as v1; no cookies are read or set. A site with an English edition
 // also answers what readers read in English, under /api/site/en/* (publication/english.ts).
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import { readingApi, READER_LANGUAGES } from "@aihot/contracts/english";
-import type { Locale } from "@aihot/contracts/i18n";
-import { isCategoryKey, isChannelKey, type CategoryKey, type ChannelKey } from "@aihot/contracts/taxonomy";
-import type { ReportIndexResponse, ReportLatestPage, ReportNavigationResponse, SearchSuggestions, SiteContact } from "@aihot/contracts/site";
-import { InvalidCursorError } from "@aihot/backend/lib/cursor";
-import { exportMarkdown, loadItemDetail } from "@aihot/backend/publication/detail";
-import { itemUrl } from "@aihot/backend/publication/links";
-import { loadPool, SearchBusyError } from "@aihot/backend/publication/pool";
-import { loadTimeline } from "@aihot/backend/publication/timeline";
-import { loadStoryFollowups } from "@aihot/backend/publication/followups";
-import { loadGroupReports } from "@aihot/backend/publication/groups";
-import { hotSearchLinks, loadHotStrip } from "@aihot/backend/publication/hot";
-import { loadChangelog, siteMeta } from "@aihot/backend/site/meta";
-import { loadContact, loadMakerAvatar } from "@aihot/backend/site/contact";
-import { loadSiteStats } from "@aihot/backend/site/stats";
-import { itemAvailability } from "@aihot/backend/publication/availability";
-import { listTopicSummaries, loadTopicPage, topicBrowseLinks } from "@aihot/backend/publication/topics";
-import * as english from "@aihot/backend/publication/english";
+import { readingApi, READER_LANGUAGES } from "@techinhot/contracts/english";
+import type { Locale } from "@techinhot/contracts/i18n";
+import { isCategoryKey, isChannelKey, type CategoryKey, type ChannelKey } from "@techinhot/contracts/taxonomy";
+import type { ReportIndexResponse, ReportLatestPage, ReportNavigationResponse, SearchSuggestions, SiteContact } from "@techinhot/contracts/site";
+import { InvalidCursorError } from "@techinhot/backend/lib/cursor";
+import { exportMarkdown, loadItemDetail } from "@techinhot/backend/publication/detail";
+import { itemUrl } from "@techinhot/backend/publication/links";
+import { loadPool, SearchBusyError } from "@techinhot/backend/publication/pool";
+import { loadTimeline } from "@techinhot/backend/publication/timeline";
+import { loadStoryFollowups } from "@techinhot/backend/publication/followups";
+import { loadGroupReports } from "@techinhot/backend/publication/groups";
+import { hotSearchLinks, loadHotStrip } from "@techinhot/backend/publication/hot";
+import { loadChangelog, siteMeta } from "@techinhot/backend/site/meta";
+import { loadContact, loadMakerAvatar } from "@techinhot/backend/site/contact";
+import { loadSiteStats } from "@techinhot/backend/site/stats";
+import { itemAvailability } from "@techinhot/backend/publication/availability";
+import { listTopicSummaries, loadTopicPage, topicBrowseLinks } from "@techinhot/backend/publication/topics";
+import * as english from "@techinhot/backend/publication/english";
 import { registerFeedback } from "./feedback.ts";
-import { loadHot, loadStoryDetail, resolveStory } from "@aihot/backend/publication/stories";
-import { listReports, loadReport, reportNavigation, loadReportNavigation, loadReportMonth, type ReportKind } from "@aihot/backend/publication/reports";
+import { loadHot, loadStoryDetail, resolveStory } from "@techinhot/backend/publication/stories";
+import { listReports, loadReport, reportNavigation, loadReportNavigation, loadReportMonth, type ReportKind } from "@techinhot/backend/publication/reports";
 import { looseQuery, QueryError, sendJsonWithEtag, sendProblem } from "../http/respond.ts";
 
 type Handler = (req: FastifyRequest, reply: FastifyReply) => Promise<unknown>;

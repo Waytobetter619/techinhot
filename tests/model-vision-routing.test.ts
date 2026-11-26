@@ -3,10 +3,10 @@
 import "./setup.ts";
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
-import { closeDb, sql } from "@aihot/backend/db";
-import { modelsOverview, switchModel } from "@aihot/backend/admin/models";
-import { CAPABILITIES, capabilityAcceptsModel, invalidateModelCache, modelFor, modelSources } from "@aihot/backend/editorial/models";
-import { MODELS } from "@aihot/backend/providers/llm";
+import { closeDb, sql } from "@techinhot/backend/db";
+import { modelsOverview, switchModel } from "@techinhot/backend/admin/models";
+import { CAPABILITIES, capabilityAcceptsModel, invalidateModelCache, modelFor, modelSources } from "@techinhot/backend/editorial/models";
+import { MODELS } from "@techinhot/backend/providers/llm";
 
 after(closeDb);
 

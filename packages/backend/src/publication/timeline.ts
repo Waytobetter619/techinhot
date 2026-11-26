@@ -1,7 +1,7 @@
 // Selected news timeline: ordinary reports fold by fact; standalone and independent-source articles
 // keep their own cards. Each ordinary fact stays at its first appearance.
-import type { GroupInfo, TimelineCard, TimelineFilters, TimelineResponse } from "@aihot/contracts/site";
-import { beijingDate, beijingMidnight } from "@aihot/contracts/time";
+import type { GroupInfo, TimelineCard, TimelineFilters, TimelineResponse } from "@techinhot/contracts/site";
+import { beijingDate, beijingMidnight } from "@techinhot/contracts/time";
 import { sql } from "../db.ts";
 import { cachedByKey } from "../lib/cache.ts";
 import { pickRepresentative, REPRESENTATIVE_COLUMNS, type RepresentativeRow } from "./representative.ts";

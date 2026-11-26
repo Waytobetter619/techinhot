@@ -7,7 +7,7 @@
 // Theme-aware, paused off screen; reduced motion draws it still. The canvas only illustrates: what it
 // says is also written in the page.
 import { useEffect, useRef, type ReactNode } from "react";
-import { SITE, withSubject } from "@aihot/site";
+import { SITE, withSubject } from "@techinhot/site";
 import { EDITION } from "../report/format";
 import { watchAppearance } from "../../lib/local-state";
 import { MOTION, reducedMotion, seededRandom } from "../../lib/motion";

@@ -5,7 +5,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Sheet } from "../../components/ui/Sheet";
 import { IconBookmark, IconExternal, IconList, IconShare } from "../../components/icons";
 import { useStar } from "../feed/parts";
-import type { FeedItemSummary } from "@aihot/contracts/site";
+import type { FeedItemSummary } from "@techinhot/contracts/site";
 import { useT } from "../../lib/i18n";
 
 type Starrable = Pick<FeedItemSummary, "id" | "title" | "summary" | "source" | "publishedAt" | "score" | "selected">;

@@ -2,13 +2,13 @@
 // and an audit trail for every manual change.
 // Development may impersonate an admin with DEV_AUTH_ROLE=admin; production refuses to start with it.
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
-import { safeReturn } from "@aihot/contracts/admin";
+import { safeReturn } from "@techinhot/contracts/admin";
 import { audit } from "../audit.ts";
 import { config, credential } from "../config.ts";
 import { sql } from "../db.ts";
 import { sha256 } from "../lib/ids.ts";
 
-export const SESSION_COOKIE = "aihot_admin";
+export const SESSION_COOKIE = "techinhot_admin";
 export const SESSION_DAYS = 30;
 export interface AdminPrincipal {
   userId: number | null;

@@ -73,7 +73,7 @@ const ensured = new Set<string>();
 export async function getBoss({ supervise = false } = {}): Promise<PgBoss> {
   if (boss) return boss;
   starting ??= (async () => {
-    const b = new PgBoss({ connectionString: config.databaseUrl, max: 4, schema: "pgboss", application_name: "aihot-jobs", schedule: supervise, supervise });
+    const b = new PgBoss({ connectionString: config.databaseUrl, max: 4, schema: "pgboss", application_name: "techinhot-jobs", schedule: supervise, supervise });
     b.on("error", (err) => console.error("[pg-boss]", logError(err)));
     try {
       await b.start();

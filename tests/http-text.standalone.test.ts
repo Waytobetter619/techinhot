@@ -3,8 +3,8 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import { MockAgent, getGlobalDispatcher, setGlobalDispatcher } from "undici";
-import { config } from "@aihot/backend/config";
-import { guardedFetch } from "@aihot/backend/lib/http-fetch";
+import { config } from "@techinhot/backend/config";
+import { guardedFetch } from "@techinhot/backend/lib/http-fetch";
 
 const previous = getGlobalDispatcher();
 const previousPrivate = config.allowPrivateNetworkFetch;

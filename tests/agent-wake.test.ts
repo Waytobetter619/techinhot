@@ -5,14 +5,14 @@ import { tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import http from "node:http";
 import { after, before, beforeEach, test } from "node:test";
-import { sql, closeDb } from "@aihot/backend/db";
-import { getBoss, stopBoss } from "@aihot/backend/jobs/queue";
-import { installModules, type ServerModule } from "@aihot/backend/modules";
-import type { Finding } from "@aihot/backend/notify/feishu";
-import { wakeAgent, wakeDigest, flushAgentEvents } from "@aihot/backend/notify/agent";
-import { checkAlerts, collectFindings, holdAlert, sendDigest } from "@aihot/backend/operations/alerts";
-import { checkWorkerHeartbeat } from "@aihot/backend/operations/watch";
-import { ADMIN } from "@aihot/site";
+import { sql, closeDb } from "@techinhot/backend/db";
+import { getBoss, stopBoss } from "@techinhot/backend/jobs/queue";
+import { installModules, type ServerModule } from "@techinhot/backend/modules";
+import type { Finding } from "@techinhot/backend/notify/feishu";
+import { wakeAgent, wakeDigest, flushAgentEvents } from "@techinhot/backend/notify/agent";
+import { checkAlerts, collectFindings, holdAlert, sendDigest } from "@techinhot/backend/operations/alerts";
+import { checkWorkerHeartbeat } from "@techinhot/backend/operations/watch";
+import { ADMIN } from "@techinhot/site";
 const T=tag(), KEY=`test-hub-${T}`;
 // A site with admin pages links its runs page; one without links the public health check.
 const LINK = ADMIN ? "/admin/runs" : "/api/health";
@@ -268,7 +268,7 @@ test('digest wakes link to the runs page, or the health check on a site without 
 });
 
 test('daily retention drops events the hub took over a month ago, never ones still waiting to be delivered', async () => {
- const { dailyRetention } = await import('@aihot/backend/operations/retention');
+ const { dailyRetention } = await import('@techinhot/backend/operations/retention');
  const now = new Date('2035-05-20T00:00:00Z'), old = '2035-04-10T00:00:00Z', recent = '2035-05-10T00:00:00Z';
  const event = { id: 'x', type: 'alert.today', subject: 's', summary: 's', detail: '', link: '' };
  for (const [name, accepted, queuedAt] of [['old-taken', true, old], ['old-waiting', false, old], ['recent-taken', true, recent]] as const) {

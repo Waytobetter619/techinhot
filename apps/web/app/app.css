@@ -545,18 +545,18 @@
 }
 
 /* One-off marks of a change: a swapped icon, a count or star that took the press, a confirmation, a line drawn. */
-@keyframes aihot-swap-in { from { opacity: 0; scale: 0.7; } }
-@keyframes aihot-bump { from { scale: 0.7; } }
-@keyframes aihot-pop-in { from { opacity: 0; scale: 0.6; } }
-@keyframes aihot-reveal { from { clip-path: inset(-12px 100% -12px -12px); } to { clip-path: inset(-12px -12px -12px -12px); } }
-@keyframes aihot-fade-in { from { opacity: 0; } }
+@keyframes techinhot-swap-in { from { opacity: 0; scale: 0.7; } }
+@keyframes techinhot-bump { from { scale: 0.7; } }
+@keyframes techinhot-pop-in { from { opacity: 0; scale: 0.6; } }
+@keyframes techinhot-reveal { from { clip-path: inset(-12px 100% -12px -12px); } to { clip-path: inset(-12px -12px -12px -12px); } }
+@keyframes techinhot-fade-in { from { opacity: 0; } }
 /* A swapped icon or label (copy → copied). */
-.anim-swap-in { animation: aihot-swap-in var(--dur-feedback) var(--ease-out-quart) both; }
+.anim-swap-in { animation: techinhot-swap-in var(--dur-feedback) var(--ease-out-quart) both; }
 /* A mark that took the press (a star saved), and the one confirmation of a finished task (feedback sent). */
-.anim-bump { animation: aihot-bump var(--dur-move) var(--ease-spring) both; }
-.anim-pop-in { animation: aihot-pop-in var(--dur-travel) var(--ease-spring) both; }
+.anim-bump { animation: techinhot-bump var(--dur-move) var(--ease-spring) both; }
+.anim-pop-in { animation: techinhot-pop-in var(--dur-travel) var(--ease-spring) both; }
 /* A drawing's line laid down once (a chart's curve); the one length outside the scale, as it is read, not felt. */
-.anim-reveal { animation: aihot-reveal var(--dur-draw) var(--ease-out-quart) both; }
+.anim-reveal { animation: techinhot-reveal var(--dur-draw) var(--ease-out-quart) both; }
 /* A fold closing (lib/disclosure.ts keeps it open until it has folded): its mark turns back, and what shows only
    while it is open goes, with the fold rather than after it. Outside the layers, so it outranks group-open:. */
 details.disclosure[data-closing="1"] > summary .turn {
@@ -570,7 +570,7 @@ details.disclosure[data-closing="1"] > summary .while-closed {
 }
 
 /* Content replacing other content in place (a switched view, a chart's new range): it fades in where it is. */
-.anim-fade-in { animation: aihot-fade-in var(--dur-move) var(--ease-out-quart) both; }
+.anim-fade-in { animation: techinhot-fade-in var(--dur-move) var(--ease-out-quart) both; }
 
 /* The theme switch cross-fades the whole document. */
 ::view-transition-old(root),
@@ -588,26 +588,26 @@ details.disclosure[data-closing="1"] > summary .while-closed {
 }
 @media (max-width: 699px) {
   :root[data-vt="push"]::view-transition-old(root) {
-    animation: aihot-page-out-left var(--dur-travel) var(--ease-drawer) both;
+    animation: techinhot-page-out-left var(--dur-travel) var(--ease-drawer) both;
   }
   :root[data-vt="push"]::view-transition-new(root) {
-    animation: aihot-page-in-right var(--dur-travel) var(--ease-drawer) both;
+    animation: techinhot-page-in-right var(--dur-travel) var(--ease-drawer) both;
     box-shadow: -10px 0 28px rgba(0, 0, 0, 0.12);
   }
   :root[data-vt="back"]::view-transition-old(root) {
     z-index: 1;
-    animation: aihot-page-out-right var(--dur-travel) var(--ease-drawer) both;
+    animation: techinhot-page-out-right var(--dur-travel) var(--ease-drawer) both;
     box-shadow: -10px 0 28px rgba(0, 0, 0, 0.12);
   }
   :root[data-vt="back"]::view-transition-new(root) {
-    animation: aihot-page-in-left var(--dur-travel) var(--ease-drawer) both;
+    animation: techinhot-page-in-left var(--dur-travel) var(--ease-drawer) both;
   }
 }
-@keyframes aihot-page-in-right { from { transform: translateX(100%); } }
+@keyframes techinhot-page-in-right { from { transform: translateX(100%); } }
 /* The page left behind dims a little as it drifts under the new one, and brightens as it comes back. */
-@keyframes aihot-page-out-left { to { transform: translateX(-28%); filter: brightness(0.94); } }
-@keyframes aihot-page-out-right { to { transform: translateX(100%); } }
-@keyframes aihot-page-in-left { from { transform: translateX(-28%); filter: brightness(0.94); } }
+@keyframes techinhot-page-out-left { to { transform: translateX(-28%); filter: brightness(0.94); } }
+@keyframes techinhot-page-out-right { to { transform: translateX(100%); } }
+@keyframes techinhot-page-in-left { from { transform: translateX(-28%); filter: brightness(0.94); } }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

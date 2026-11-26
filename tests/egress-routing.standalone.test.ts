@@ -5,9 +5,9 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { connect, type AddressInfo } from "node:net";
 import { after, test } from "node:test";
 import { MockAgent, getGlobalDispatcher, setGlobalDispatcher } from "undici";
-import { DEPLOYMENT } from "@aihot/site";
-import { config } from "@aihot/backend/config";
-import { guardedFetch } from "@aihot/backend/lib/http-fetch";
+import { DEPLOYMENT } from "@techinhot/site";
+import { config } from "@techinhot/backend/config";
+import { guardedFetch } from "@techinhot/backend/lib/http-fetch";
 
 const deployment = DEPLOYMENT as unknown as { directFetchHosts?: string[] };
 const previousHosts = deployment.directFetchHosts;

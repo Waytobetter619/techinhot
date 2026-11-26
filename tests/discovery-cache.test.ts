@@ -3,7 +3,7 @@
 import { tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
-import { sql, closeDb } from "@aihot/backend/db";
+import { sql, closeDb } from "@techinhot/backend/db";
 import { buildApp } from "../apps/api/src/app.ts";
 
 const app = await buildApp();

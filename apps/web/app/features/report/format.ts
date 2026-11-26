@@ -1,10 +1,10 @@
 // Names, dates and grouping for daily, weekly and monthly reports.
-import { REPORT_NAMES, REPORT_NAMES_EN, reportDateLabel, reportDateLabelEn, type ReportNavigationEntry, type ReportKind } from "@aihot/contracts/site";
-import { beijingDate, isoWeekLabel, isoWeekRange, longDateEn, monthDay as engineMonthDay, monthDayEn } from "@aihot/contracts/time";
-import { EDITION_WHEN, REPORTS, SITE, subjectAfter } from "@aihot/site";
-import { ENGLISH } from "@aihot/contracts/english";
-import { RELEASE } from "@aihot/industry/taxonomy";
-import { RELEASE_UNIT_EN } from "@aihot/industry/english";
+import { REPORT_NAMES, REPORT_NAMES_EN, reportDateLabel, reportDateLabelEn, type ReportNavigationEntry, type ReportKind } from "@techinhot/contracts/site";
+import { beijingDate, isoWeekLabel, isoWeekRange, longDateEn, monthDay as engineMonthDay, monthDayEn } from "@techinhot/contracts/time";
+import { EDITION_WHEN, REPORTS, SITE, subjectAfter } from "@techinhot/site";
+import { ENGLISH } from "@techinhot/contracts/english";
+import { RELEASE } from "@techinhot/industry/taxonomy";
+import { RELEASE_UNIT_EN } from "@techinhot/industry/english";
 import { monthDay, weekdayLong, weekdayShort } from "../../lib/format.ts";
 import { feedPath, L, pagePath, translator, zh, type Locale, type Phrase } from "../../lib/i18n.ts";
 

@@ -1,5 +1,5 @@
 import { matchPath } from "react-router";
-import { MODULES } from "@aihot/site/modules";
+import { MODULES } from "@techinhot/site/modules";
 import { ENGLISH } from "./english.ts";
 import { inLanguage, localeOf, type Locale } from "./i18n.ts";
 

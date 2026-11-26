@@ -3,17 +3,17 @@
 import { tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
-import { closeDb, sql } from "@aihot/backend/db";
-import { QUEUES, stopBoss } from "@aihot/backend/jobs/queue";
-import { upsertMaterial } from "@aihot/backend/content/materials";
-import { publisherOwnsUrl } from "@aihot/backend/content/provenance";
-import { publishArticle } from "@aihot/backend/publication/publish";
-import { loadPool } from "@aihot/backend/publication/pool";
-import { ingestItems } from "@aihot/backend/ingest/items";
-import { queueProcessing, settleNonEditorial } from "@aihot/backend/jobs/content";
-import { collectSource } from "@aihot/backend/sources/collect";
-import { updateSource } from "@aihot/backend/admin/sources";
-import { groupArticle } from "@aihot/backend/events/group";
+import { closeDb, sql } from "@techinhot/backend/db";
+import { QUEUES, stopBoss } from "@techinhot/backend/jobs/queue";
+import { upsertMaterial } from "@techinhot/backend/content/materials";
+import { publisherOwnsUrl } from "@techinhot/backend/content/provenance";
+import { publishArticle } from "@techinhot/backend/publication/publish";
+import { loadPool } from "@techinhot/backend/publication/pool";
+import { ingestItems } from "@techinhot/backend/ingest/items";
+import { queueProcessing, settleNonEditorial } from "@techinhot/backend/jobs/content";
+import { collectSource } from "@techinhot/backend/sources/collect";
+import { updateSource } from "@techinhot/backend/admin/sources";
+import { groupArticle } from "@techinhot/backend/events/group";
 
 after(async () => { await stopBoss(); await closeDb(); });
 

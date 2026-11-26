@@ -4,7 +4,7 @@
 // (ABOUT.maker).
 import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
-import { ABOUT } from "@aihot/site";
+import { ABOUT } from "@techinhot/site";
 import { REPO_ROOT } from "../config.ts";
 import { sql } from "../db.ts";
 import { proxiedImage } from "../media/imgproxy.ts";

@@ -4,8 +4,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import Fastify from "fastify";
 import { sendPageMarkdown } from "../apps/api/src/http/respond.ts";
-import { ENGLISH } from "@aihot/contracts/english";
-import { SITE } from "@aihot/site";
+import { ENGLISH } from "@techinhot/contracts/english";
+import { SITE } from "@techinhot/site";
 import { pageMeta, siteUrl } from "../apps/web/app/lib/seo.ts";
 
 test("Markdown responses carry canonical/noindex, ETag/304 and HEAD without an attachment", async (t) => {

@@ -5,12 +5,12 @@ import { spawn } from "node:child_process";
 import { once } from "node:events";
 import http from "node:http";
 import { after, test } from "node:test";
-import { config } from "@aihot/backend/config";
-import { getBoss, enqueue, QUEUES, recordRun, stopBoss } from "@aihot/backend/jobs/queue";
+import { config } from "@techinhot/backend/config";
+import { getBoss, enqueue, QUEUES, recordRun, stopBoss } from "@techinhot/backend/jobs/queue";
 
-import { closeDb, sql } from "@aihot/backend/db";
-import { closeInterruptedRuns, runOwner } from "@aihot/backend/jobs/runs";
-import { BudgetExceededError } from "@aihot/backend/providers/receipts";
+import { closeDb, sql } from "@techinhot/backend/db";
+import { closeInterruptedRuns, runOwner } from "@techinhot/backend/jobs/runs";
+import { BudgetExceededError } from "@techinhot/backend/providers/receipts";
 
 after(async () => { await stopBoss(); await closeDb(); });
 
@@ -46,10 +46,10 @@ test("recovery closes a killed process's runs, preserves live and foreign owners
   const port = (server.address() as { port: number }).port;
   await sql`INSERT INTO sources(id,name,kind,config) VALUES(${id},${id},'rss',${sql.json({ feedUrl: `http://127.0.0.1:${port}/feed` })})`;
   const script = `
-    import { config } from '@aihot/backend/config';
-    import { sql } from '@aihot/backend/db';
-    import { recordRun } from '@aihot/backend/jobs/queue';
-    import { collectSource } from '@aihot/backend/sources/collect';
+    import { config } from '@techinhot/backend/config';
+    import { sql } from '@techinhot/backend/db';
+    import { recordRun } from '@techinhot/backend/jobs/queue';
+    import { collectSource } from '@techinhot/backend/sources/collect';
     config.allowPrivateNetworkFetch = true;
     const id = process.argv[1];
     const pending = recordRun(id, () => collectSource(id));
@@ -102,7 +102,7 @@ test("recovery closes a killed process's runs, preserves live and foreign owners
 test("a failed first database connection does not poison all later queue requests", async () => {
   const original = config.databaseUrl;
   const missing = new URL(original);
-  missing.pathname = "/aihot_missing_queue_recovery_test";
+  missing.pathname = "/techinhot_missing_queue_recovery_test";
   config.databaseUrl = missing.toString();
   try {
     await assert.rejects(getBoss(), /does not exist/);

@@ -4,14 +4,14 @@
 // reading the v1 JSON, whose fields do not change. On a site with an English edition each answer is also
 // in English (lang=en): its data comes in English from publication/english.ts (v1InEnglish, "text"), its
 // words are written here, and every address it offers asks in English again.
-import { ACCESS, EDITION_WHEN, ITEM_COPY, POLICY, SITE, subjectAfter } from "@aihot/site";
-import { CATEGORIES } from "@aihot/industry/taxonomy";
-import { ENGLISH } from "@aihot/contracts/english";
-import { translator, type Locale } from "@aihot/contracts/i18n";
-import { MCP_TOOL_NAMES as T } from "@aihot/contracts/mcp";
-import { REPORT_NAMES_EN } from "@aihot/contracts/site";
-import { categoryLabel, isCategoryKey, PUBLIC_API_CATEGORY_KEYS, toPublicApiCategory, type PublicApiCategoryKey } from "@aihot/contracts/taxonomy";
-import { beijingDate, beijingTime, beijingWeekday, weekdayEn } from "@aihot/contracts/time";
+import { ACCESS, EDITION_WHEN, ITEM_COPY, POLICY, SITE, subjectAfter } from "@techinhot/site";
+import { CATEGORIES } from "@techinhot/industry/taxonomy";
+import { ENGLISH } from "@techinhot/contracts/english";
+import { translator, type Locale } from "@techinhot/contracts/i18n";
+import { MCP_TOOL_NAMES as T } from "@techinhot/contracts/mcp";
+import { REPORT_NAMES_EN } from "@techinhot/contracts/site";
+import { categoryLabel, isCategoryKey, PUBLIC_API_CATEGORY_KEYS, toPublicApiCategory, type PublicApiCategoryKey } from "@techinhot/contracts/taxonomy";
+import { beijingDate, beijingTime, beijingWeekday, weekdayEn } from "@techinhot/contracts/time";
 import { serverModules } from "../modules.ts";
 import { siteUrl } from "./links.ts";
 import type { V1ItemPayload } from "./items.ts";
@@ -69,7 +69,7 @@ const category = (key: string | null, lang: Locale) => (key && isCategoryKey(key
 function itemLines(items: V1ItemPayload[], lang: Locale): string[] {
   const t = translator(lang);
   return items.flatMap((it, i) => [
-    `${i + 1}. [${linkText(it.title)}](${it.links.aihot})`,
+    `${i + 1}. [${linkText(it.title)}](${it.links.techinhot})`,
     `   ${[
       publicSourceName(it.source.name),
       it.publishedAt ? t(`发布于 ${stamp(it.publishedAt)}`, `published ${stamp(it.publishedAt)}`) : t(`${SITE.name} 收录于 ${stamp(it.discoveredAt)}`, `collected by ${SITE.name} ${stamp(it.discoveredAt)}`),
@@ -166,7 +166,7 @@ export function hotAnswer(res: HotTopics, limit: number, via: Via, lang: Locale 
     const sources = [...new Set(x.sourceNames.map(publicSourceName))];
     const names = sources.length > 6 ? t(`${sources.slice(0, 6).join("、")} 等`, `${sources.slice(0, 6).join(", ")} and more`) : sources.join(t("、", ", "));
     return [
-      t(`第 ${x.rank} 名：[${linkText(x.title)}](${x.links.aihot})`, `#${x.rank}: [${linkText(x.title)}](${x.links.aihot})`),
+      t(`第 ${x.rank} 名：[${linkText(x.title)}](${x.links.techinhot})`, `#${x.rank}: [${linkText(x.title)}](${x.links.techinhot})`),
       t(`   信源：${names}（${x.sourceCount} 个）· 最新进展 ${stamp(x.latestAt)}`, `   Sources: ${names} (${x.sourceCount}) · latest ${stamp(x.latestAt)}`),
       via === "http"
         ? t(`   来龙去脉：${agentUrl(`/stories/${publicId}`)}`, `   Full story: ${agentUrl(`/stories/${publicId}`, lang)}`)
@@ -198,7 +198,7 @@ export function storyAnswer(s: Story, limit: number, via: Via, lang: Locale = "z
     "",
     ...(s.digest ? [t(`事件综述：${s.digest}`, `AI digest: ${s.digest}`), ""] : []),
     t("报道时间线（从新到旧）：", "Coverage timeline (newest first):"),
-    ...reports.map((r, i) => `${i + 1}. ${stamp(r.publishedAt)} · ${publicSourceName(r.source.name)}${r.source.firstParty ? t("（一手）", " (first-party)") : ""} · [${linkText(r.title)}](${r.links.aihot})`),
+    ...reports.map((r, i) => `${i + 1}. ${stamp(r.publishedAt)} · ${publicSourceName(r.source.name)}${r.source.firstParty ? t("（一手）", " (first-party)") : ""} · [${linkText(r.title)}](${r.links.techinhot})`),
     ...(neighbours.length ? ["", t("相关事件：", "Related stories:"), ...neighbours.map((n) => `- ${n.title}${t("：", ": ")}${via === "http" ? agentUrl(`/stories/${n.publicId}`, lang) : nextArgs(`public_id=${n.publicId}`, lang)}`)] : []),
   ];
   return answer([
@@ -208,7 +208,7 @@ export function storyAnswer(s: Story, limit: number, via: Via, lang: Locale = "z
       `${s.status === "active" ? "持续更新" : "历史事件"} · ${s.reportCount} 篇报道 · ${s.sourceCount} 个信源 · 首次报道 ${stamp(s.firstReportAt)}（北京时间）`,
       `${s.status === "active" ? "Developing" : "Past story"} · ${count(s.reportCount, "report", "reports")} · ${count(s.sourceCount, "source", "sources")} · first reported ${stamp(s.firstReportAt)} (${BEIJING_EN})`,
     ),
-    t(`事件页：${s.links.aihot}`, `Story page: ${s.links.aihot}`),
+    t(`事件页：${s.links.techinhot}`, `Story page: ${s.links.techinhot}`),
   ], data, [
     t("先讲最新进展，再按时间讲清来龙去脉；综述里点明的矛盾或未证实之处要照实说。", "Start with the latest development, then tell the background in order; report any contradiction or unconfirmed point the digest flags as it is."),
     t("标「一手」的是当事公司或本人的发布，引用时优先用它们。", "Items marked “first-party” come from the company or person involved; prefer them when quoting."),
@@ -222,13 +222,13 @@ export function storyAnswer(s: Story, limit: number, via: Via, lang: Locale = "z
   ], lang);
 }
 
-type Links = { aihot: string | null; original: string };
+type Links = { techinhot: string | null; original: string };
 /** The v1 daily report (its sections are read from stored JSON, so v1Daily leaves them untyped). */
 export interface DailyReport {
   date: string;
   windowStart: string;
   windowEnd: string;
-  links: { aihot: string };
+  links: { techinhot: string };
   lead: { title: string; leadParagraph: string } | null;
   sections: { label: string; items: { id?: string | null; title: string; summary: string; source: { id?: string; name: string }; links: Links }[] }[];
   flashes: { id?: string | null; title: string; publishedAt: string; source: { id?: string; name: string }; links: Links }[];
@@ -249,7 +249,7 @@ function noteLines(note: DailyNote | undefined, lang: Locale): string[] {
 export function dailyAnswer(r: DailyReport, via: Via, notes: Map<string, DailyNote> = new Map(), leadItemId?: string | null, lang: Locale = "zh"): string {
   const t = translator(lang);
   const data: string[] = [];
-  const itemKey = (it: { id?: string | null; links: Links }) => it.id ?? it.links.aihot ?? it.links.original;
+  const itemKey = (it: { id?: string | null; links: Links }) => it.id ?? it.links.techinhot ?? it.links.original;
   // The lead is the issue's first entry in its own words: name it, not its summary twice.
   const own = leadItemId
     ? r.sections.some((s) => s.items.some((it) => it.id === leadItemId))
@@ -259,7 +259,7 @@ export function dailyAnswer(r: DailyReport, via: Via, notes: Map<string, DailyNo
   for (const s of r.sections) {
     data.push(label(s.label));
     s.items.forEach((it, i) => {
-      const link = it.links.aihot ?? it.links.original;
+      const link = it.links.techinhot ?? it.links.original;
       const note = notes.get(itemKey(it)) ?? notes.get(link);
       const others = note?.otherSources ? t(` · 另外 ${note.otherSources} 家也报道了`, ` · ${count(note.otherSources, "other source", "other sources")} covered it too`) : "";
       data.push(`${i + 1}. [${linkText(it.title)}](${link}) · ${publicSourceName(it.source.name)}${others}`, ...(it.summary ? [`   ${it.summary}`] : []), ...noteLines(note, lang));
@@ -270,18 +270,18 @@ export function dailyAnswer(r: DailyReport, via: Via, notes: Map<string, DailyNo
   const listed = new Set(r.sections.flatMap((s) => s.items.map(itemKey)));
   const more = (r.highlights ?? []).filter((h) => !listed.has(itemKey(h)));
   if (more.length) {
-    data.push(label(t("今日看点", "Also worth a look")), ...more.flatMap((h) => [`- [${linkText(h.title)}](${h.links.aihot ?? h.links.original}) · ${publicSourceName(h.source.name)}`, ...(h.summary ? [`  ${h.summary}`] : [])]), "");
+    data.push(label(t("今日看点", "Also worth a look")), ...more.flatMap((h) => [`- [${linkText(h.title)}](${h.links.techinhot ?? h.links.original}) · ${publicSourceName(h.source.name)}`, ...(h.summary ? [`  ${h.summary}`] : [])]), "");
   }
   if (r.flashes.length) {
-    data.push(label(t("快讯", "Briefs")), ...r.flashes.map((f) => `- ${stamp(f.publishedAt)} · [${linkText(f.title)}](${f.links.aihot ?? f.links.original}) · ${publicSourceName(f.source.name)}`), "");
+    data.push(label(t("快讯", "Briefs")), ...r.flashes.map((f) => `- ${stamp(f.publishedAt)} · [${linkText(f.title)}](${f.links.techinhot ?? f.links.original}) · ${publicSourceName(f.source.name)}`), "");
   }
   const when = ENGLISH?.editionWhen.daily ?? EDITION_WHEN.daily;
   return answer([
     t(`# ${SITE.name} 日报 · ${r.date}（${beijingWeekday(r.date)}）`, `# ${SITE.name} ${REPORT_NAMES_EN.daily} · ${r.date} (${weekdayEn(r.date)})`),
     "",
     t(
-      `收录北京时间 ${stamp(r.windowStart)} 至 ${stamp(r.windowEnd)} 的动态，${EDITION_WHEN.daily} 发布。日报页：${r.links.aihot}`,
-      `Covers ${stamp(r.windowStart)} to ${stamp(r.windowEnd)} (${BEIJING_EN}); published ${when}. Daily page: ${r.links.aihot}`,
+      `收录北京时间 ${stamp(r.windowStart)} 至 ${stamp(r.windowEnd)} 的动态，${EDITION_WHEN.daily} 发布。日报页：${r.links.techinhot}`,
+      `Covers ${stamp(r.windowStart)} to ${stamp(r.windowEnd)} (${BEIJING_EN}); published ${when}. Daily page: ${r.links.techinhot}`,
     ),
     ...(data.length ? [] : [t("这一期暂时没有可以展示的条目。", "This issue has nothing to show yet.")]),
   ], data.length ? data : null, [
@@ -304,7 +304,7 @@ export interface PeriodReport {
   month?: string;
   periodStart: string | null;
   periodEnd: string | null;
-  links: { aihot: string };
+  links: { techinhot: string };
   headline: string | null;
   overview: string | null;
   sections: { label: string; summary: string | null; items: { title: string; summary: string; source: { name: string }; links: Links; publishedAt: string | null }[] }[];
@@ -323,7 +323,7 @@ export function periodAnswer(r: PeriodReport, kind: "weekly" | "monthly", via: V
   for (const s of r.sections) {
     data.push(t(`【${s.label}】`, `[${s.label}]`), ...(s.summary ? [t(`导读：${s.summary}`, `Intro: ${s.summary}`)] : []));
     s.items.forEach((it, i) => {
-      const link = it.links.aihot ?? it.links.original;
+      const link = it.links.techinhot ?? it.links.original;
       const when = it.publishedAt ? t(`（${beijingDate(it.publishedAt).slice(5)}）`, ` (${beijingDate(it.publishedAt).slice(5)})`) : "";
       data.push(`${i + 1}. [${linkText(it.title)}](${link}) · ${publicSourceName(it.source.name)}${when}`, ...(it.summary ? [`   ${it.summary}`] : []));
     });
@@ -337,7 +337,7 @@ export function periodAnswer(r: PeriodReport, kind: "weekly" | "monthly", via: V
   return answer([
     `# ${SITE.name} ${name} · ${key}`,
     "",
-    t(`从${days}的日报里选出的重点，${EDITION_WHEN[kind]}（北京时间）发布。${name}页：${r.links.aihot}`, `The top stories chosen from the dailies of ${days}, published ${when}. ${name} page: ${r.links.aihot}`),
+    t(`从${days}的日报里选出的重点，${EDITION_WHEN[kind]}（北京时间）发布。${name}页：${r.links.techinhot}`, `The top stories chosen from the dailies of ${days}, published ${when}. ${name} page: ${r.links.techinhot}`),
     ...(data.length ? [] : [t("这一期暂时没有可以展示的条目。", "This issue has nothing to show yet.")]),
   ], data.length ? data : null, [
     t("先讲头条和总述，再按栏目挑重点；用户要全文再全部列出。", "Start with the lead story and the overview, then pick highlights section by section; list everything only if the user asks."),

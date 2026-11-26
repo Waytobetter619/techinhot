@@ -10,13 +10,13 @@ test("API startup is quiet and an unexpected error retains the request, stack an
   const script = `
     import assert from "node:assert/strict";
     import { buildApp } from ${JSON.stringify(new URL("../apps/api/src/app.ts", import.meta.url).href)};
-    import { installModules } from "@aihot/backend/modules";
-    import { mcpToolName } from "@aihot/contracts/mcp";
+    import { installModules } from "@techinhot/backend/modules";
+    import { mcpToolName } from "@techinhot/contracts/mcp";
     import { z } from "zod";
     import { Readable } from "node:stream";
     import { publicHandler } from ${JSON.stringify(new URL("../apps/api/src/routes/v1.ts", import.meta.url).href)};
     import { siteHandler } from ${JSON.stringify(new URL("../apps/api/src/routes/site.ts", import.meta.url).href)};
-    import { SearchBusyError } from "@aihot/backend/publication/pool";
+    import { SearchBusyError } from "@techinhot/backend/publication/pool";
     installModules([{ name: "logging-test", agent: { abilities: [{
       path: "/log-check", title: "log check", ask: "log check", answer: async () => "", etagPrefix: "log", cacheControl: "no-store",
       mcp: { tool: "log_check", use: "for tests", description: "log check", input: z.strictObject({}), run: async () => { throw new Error("mcp upstream failure"); } },
@@ -51,7 +51,7 @@ test("API startup is quiet and an unexpected error retains the request, stack an
       assert.equal(busy.json().code, "temporarily_unavailable");
       assert.equal(busy.json().reason, undefined);
     }
-    const mcp = await app.inject({ method: "POST", url: "/api/mcp?aihot_actor=private-actor", headers: {
+    const mcp = await app.inject({ method: "POST", url: "/api/mcp?techinhot_actor=private-actor", headers: {
       host: "localhost", "content-type": "application/json", accept: "application/json, text/event-stream", "mcp-protocol-version": "2026-07-28", "mcp-method": "tools/call", "mcp-name": mcpToolName("log_check"),
     }, payload: { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: mcpToolName("log_check"), arguments: {},
       _meta: { "io.modelcontextprotocol/protocolVersion": "2026-07-28", "io.modelcontextprotocol/clientCapabilities": {} },
@@ -64,7 +64,7 @@ test("API startup is quiet and an unexpected error retains the request, stack an
   `;
   const result = spawnSync(process.execPath, ["--input-type=module", "-e", script], {
     cwd: new URL("..", import.meta.url), encoding: "utf8", timeout: 15000,
-    env: { ...process.env, DATABASE_URL: "postgres://127.0.0.1/aihot_logging_test", AIHOT_CREDENTIALS_DIR: "/nonexistent-test-credentials", LOG_LEVEL: "info" },
+    env: { ...process.env, DATABASE_URL: "postgres://127.0.0.1/techinhot_logging_test", TECHINHOT_CREDENTIALS_DIR: "/nonexistent-test-credentials", LOG_LEVEL: "info" },
   });
   assert.equal(result.status, 0, result.stderr);
   assert.equal(result.stderr, "");

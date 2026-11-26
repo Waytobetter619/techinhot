@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { afterEach, mock, test } from "node:test";
 import { createRenderErrorHandler } from "../apps/web/app/lib/render-recovery.ts";
 
-const KEY = "aihot-render-recovery-release";
+const KEY = "techinhot-render-recovery-release";
 const ORIGIN = "https://news.example.com";
 const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
 afterEach(() => {

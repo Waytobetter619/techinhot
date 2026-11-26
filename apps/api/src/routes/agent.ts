@@ -3,15 +3,15 @@
 // agents read without updating. On a site with an English edition the engine's answers take lang=en; the
 // modules' abilities answer in Chinese only and refuse it.
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import { PUBLIC_API_CATEGORY_KEYS, type PublicApiCategoryKey } from "@aihot/contracts/taxonomy";
-import { isValidDate } from "@aihot/contracts/time";
-import { AGENT_ITEM_LIMIT, agentGuide, dailyAnswer, hotAnswer, latestAnswer, periodAnswer, searchAnswer, searchItems, storyAnswer } from "@aihot/backend/publication/agent";
-import { v1Items } from "@aihot/backend/publication/v1";
-import { resolveStory, v1HotTopics, v1Story } from "@aihot/backend/publication/stories";
-import { dailyWithNotes, isPeriodKey, v1Period } from "@aihot/backend/publication/reports";
-import * as english from "@aihot/backend/publication/english";
-import { REPORT_NAMES_EN } from "@aihot/contracts/site";
-import { serverModules } from "@aihot/backend/modules";
+import { PUBLIC_API_CATEGORY_KEYS, type PublicApiCategoryKey } from "@techinhot/contracts/taxonomy";
+import { isValidDate } from "@techinhot/contracts/time";
+import { AGENT_ITEM_LIMIT, agentGuide, dailyAnswer, hotAnswer, latestAnswer, periodAnswer, searchAnswer, searchItems, storyAnswer } from "@techinhot/backend/publication/agent";
+import { v1Items } from "@techinhot/backend/publication/v1";
+import { resolveStory, v1HotTopics, v1Story } from "@techinhot/backend/publication/stories";
+import { dailyWithNotes, isPeriodKey, v1Period } from "@techinhot/backend/publication/reports";
+import * as english from "@techinhot/backend/publication/english";
+import { REPORT_NAMES_EN } from "@techinhot/contracts/site";
+import { serverModules } from "@techinhot/backend/modules";
 import { QueryError, sendProblem, sendTextWithEtag, strictQuery } from "../http/respond.ts";
 import { enumParam, inLanguage, intParam, LANG, publicHandler, readerQuery, V1_OPERATIONS } from "./v1.ts";
 

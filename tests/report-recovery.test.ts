@@ -3,10 +3,10 @@
 import { editionAt, stub, tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
-import { closeDb, sql } from "@aihot/backend/db";
-import { addDays } from "@aihot/contracts/time";
-import { stopBoss } from "@aihot/backend/jobs/queue";
-import { composeDaily, composeDueReports, composeWeekly, composeMonthly } from "@aihot/backend/reports/compose";
+import { closeDb, sql } from "@techinhot/backend/db";
+import { addDays } from "@techinhot/contracts/time";
+import { stopBoss } from "@techinhot/backend/jobs/queue";
+import { composeDaily, composeDueReports, composeWeekly, composeMonthly } from "@techinhot/backend/reports/compose";
 
 const T = tag();
 const SOURCE = `report-recovery-${T}`;

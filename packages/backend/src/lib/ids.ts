@@ -24,4 +24,4 @@ export function shortHash(value: string, length = 16): string {
   return sha256(value).slice(0, length);
 }
 
-export { stableJson } from "@aihot/contracts/sync";
+export { stableJson } from "@techinhot/contracts/sync";

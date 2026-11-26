@@ -1,8 +1,8 @@
-import { SITE } from "@aihot/site";
+import { SITE } from "@techinhot/site";
 import { useState, type ReactNode } from "react";
-import { CATEGORY_KEYS, CATEGORY_LABELS } from "@aihot/contracts/taxonomy";
+import { CATEGORY_KEYS, CATEGORY_LABELS } from "@techinhot/contracts/taxonomy";
 import type { Route } from "./+types/content-item";
-import type { AdminContentChain, AdminPresentationRefresh } from "@aihot/contracts/admin";
+import type { AdminContentChain, AdminPresentationRefresh } from "@techinhot/contracts/admin";
 import { adminGet } from "../../lib/admin.server";
 import { useAdminAction } from "../../features/admin/action";
 import { bj, money } from "../../features/admin/format";

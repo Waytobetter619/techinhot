@@ -1,4 +1,4 @@
-import { SITE } from "@aihot/site";
+import { SITE } from "@techinhot/site";
 import badge from "./police-badge.png";
 
 /** The filing numbers mainland-China sites must show at the bottom of the page, each linked to its registry:

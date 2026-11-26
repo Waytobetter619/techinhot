@@ -9,7 +9,7 @@
 // (its outcome unknown) waits until that request is released (operations/recover.ts), then goes alone once more and
 // no more: a lost answer is paid for again at most once, as everywhere else. After three attempts it stays Chinese.
 import { z } from "zod";
-import { ENGLISH } from "@aihot/contracts/english";
+import { ENGLISH } from "@techinhot/contracts/english";
 import { sql, type Db } from "../db.ts";
 import { chatJson } from "../providers/llm.ts";
 import { completeReceipt, failedReceiptId, failureKind, ProviderRejectedError } from "../providers/receipts.ts";

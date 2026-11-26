@@ -22,7 +22,7 @@ interface ItemIn {
   url?: unknown;
   publishedAt?: unknown;
   author?: unknown;
-  raw?: { _aihot?: { backfill?: boolean; baseline?: boolean } } & Record<string, unknown>;
+  raw?: { _techinhot?: { backfill?: boolean; baseline?: boolean } } & Record<string, unknown>;
 }
 
 export async function ingestItems(body: { sourceId?: unknown; sourceName?: unknown; items?: unknown }): Promise<{ ok: true; created: number }> {
@@ -50,7 +50,7 @@ export async function ingestItems(body: { sourceId?: unknown; sourceName?: unkno
     if (!url || seen.has(url)) continue;
     seen.add(url);
     const publication = readPublicationDate(typeof it.publishedAt === "string" ? it.publishedAt : null, "+00:00");
-    const flags = it.raw?._aihot ?? {};
+    const flags = it.raw?._techinhot ?? {};
     const res = await upsertMaterial({
       sourceId: source!.id,
       // Normalize only for deduplication. Ownership needs the reported origin (including www and

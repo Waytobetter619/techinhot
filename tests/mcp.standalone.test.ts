@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import Fastify from "fastify";
 import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
-import { MCP_TOOLS } from "@aihot/contracts/mcp";
+import { MCP_TOOLS } from "@techinhot/contracts/mcp";
 import { registerMcp } from "../apps/api/src/routes/mcp.ts";
 
 // The SDK advertises tools.listChanged unless told otherwise, and a 2026-07-28 client that handles list

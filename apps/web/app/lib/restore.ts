@@ -4,7 +4,7 @@
 import { useEffect } from "react";
 import { sessionCache } from "./session-cache";
 
-const PREFIX = "aihot:list:";
+const PREFIX = "techinhot:list:";
 const MAX_AGE_MS = 30 * 60 * 1000;
 
 export interface ListSnapshot<T> {

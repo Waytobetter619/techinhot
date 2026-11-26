@@ -5,7 +5,7 @@ import { HydratedRouter } from "react-router/dom";
 import { createRenderErrorHandler } from "./lib/render-recovery";
 
 // Capture once before hydration; this belongs to the document, not later navigation responses.
-const documentRelease = document.querySelector('meta[name="aihot-release"]')?.getAttribute("content") ?? null;
+const documentRelease = document.querySelector('meta[name="techinhot-release"]')?.getAttribute("content") ?? null;
 const onError = createRenderErrorHandler(documentRelease);
 
 startTransition(() => {

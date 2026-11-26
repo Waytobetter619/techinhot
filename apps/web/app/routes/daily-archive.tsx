@@ -1,11 +1,11 @@
 import { useLoaderData } from "react-router";
 import { IntentLink } from "../components/ui/IntentLink";
-import { REPORT_NAMES_EN, type ReportIndexEntry, type ReportIndexResponse } from "@aihot/contracts/site";
-import { SITE, withSubject } from "@aihot/site";
+import { REPORT_NAMES_EN, type ReportIndexEntry, type ReportIndexResponse } from "@techinhot/contracts/site";
+import { SITE, withSubject } from "@techinhot/site";
 import { apiGet, cachedPage, pagePathname } from "../lib/api.server";
 import { pageReuse } from "../lib/page-reuse";
 import { archiveLd, breadcrumbLd, pageMeta } from "../lib/seo";
-import { beijingDate } from "@aihot/contracts/time";
+import { beijingDate } from "@techinhot/contracts/time";
 import { weekdayShort } from "../lib/format";
 import { ReportLayout } from "../features/report/ReportLayout";
 import { archiveGroups, entriesUnit } from "../features/report/format";

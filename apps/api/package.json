@@ -1,5 +1,5 @@
 {
-  "name": "@aihot/api",
+  "name": "@techinhot/api",
   "private": true,
   "type": "module",
   "exports": {
@@ -10,10 +10,10 @@
     "start": "node src/main.ts"
   },
   "dependencies": {
-    "@aihot/backend": "*",
-    "@aihot/contracts": "*",
-    "@aihot/industry": "*",
-    "@aihot/site": "*",
+    "@techinhot/backend": "*",
+    "@techinhot/contracts": "*",
+    "@techinhot/industry": "*",
+    "@techinhot/site": "*",
     "@modelcontextprotocol/server": "2.3.0",
     "fastify": "5.12.7",
     "zod": "4.6.6"

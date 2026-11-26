@@ -1,6 +1,6 @@
 import { useId, useMemo, useState, type ReactNode } from "react";
-import type { HeatPoint } from "@aihot/contracts/site";
-import { beijingDate, beijingTime } from "@aihot/contracts/time";
+import type { HeatPoint } from "@techinhot/contracts/site";
+import { beijingDate, beijingTime } from "@techinhot/contracts/time";
 import { monthDay, monthDayTime } from "../../lib/format";
 import { useEntrance } from "../../lib/hydration";
 import { L, useLocale, useT, type Locale } from "../../lib/i18n";

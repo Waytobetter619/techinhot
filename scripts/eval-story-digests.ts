@@ -11,14 +11,14 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { parseArgs } from "node:util";
-import { REPO_ROOT } from "@aihot/backend/config";
-import { closeDb, sql } from "@aihot/backend/db";
-import { promptFromText } from "@aihot/backend/editorial/prompts";
-import { DIGEST_PROMPT_VERSION, DIGEST_SAMPLING, DIGEST_SYSTEM, DigestSchema, buildStoryDigestInput } from "@aihot/backend/events/digest";
-import { sha256 } from "@aihot/backend/lib/ids";
-import { chatJson } from "@aihot/backend/providers/llm";
-import { completeReceipt, failedReceiptId } from "@aihot/backend/providers/receipts";
-import { digestReports } from "@aihot/backend/publication/story-evidence";
+import { REPO_ROOT } from "@techinhot/backend/config";
+import { closeDb, sql } from "@techinhot/backend/db";
+import { promptFromText } from "@techinhot/backend/editorial/prompts";
+import { DIGEST_PROMPT_VERSION, DIGEST_SAMPLING, DIGEST_SYSTEM, DigestSchema, buildStoryDigestInput } from "@techinhot/backend/events/digest";
+import { sha256 } from "@techinhot/backend/lib/ids";
+import { chatJson } from "@techinhot/backend/providers/llm";
+import { completeReceipt, failedReceiptId } from "@techinhot/backend/providers/receipts";
+import { digestReports } from "@techinhot/backend/publication/story-evidence";
 import {
   caseFromStory,
   digestComparisonMarkdown,

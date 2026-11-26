@@ -7,12 +7,12 @@ import { tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { after, before, test } from "node:test";
-import { closeDb, sql } from "@aihot/backend/db";
-import { upsertMaterial } from "@aihot/backend/content/materials";
-import { stopBoss } from "@aihot/backend/jobs/queue";
-import { publishArticle } from "@aihot/backend/publication/publish";
-import { textToHtml } from "@aihot/backend/content/sanitize";
-import { addressRuns, shortAddresses } from "@aihot/contracts/addresses";
+import { closeDb, sql } from "@techinhot/backend/db";
+import { upsertMaterial } from "@techinhot/backend/content/materials";
+import { stopBoss } from "@techinhot/backend/jobs/queue";
+import { publishArticle } from "@techinhot/backend/publication/publish";
+import { textToHtml } from "@techinhot/backend/content/sanitize";
+import { addressRuns, shortAddresses } from "@techinhot/contracts/addresses";
 import { buildApp } from "../apps/api/src/app.ts";
 
 const T = tag();

@@ -9,10 +9,10 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import * as cheerio from "cheerio";
-import type { SiteItemDetail, StoryDetail } from "@aihot/contracts/site";
-import { beijingDate } from "@aihot/contracts/time";
-import { ENGLISH } from "@aihot/contracts/english";
-import { ITEM_COPY, withSubject } from "@aihot/site";
+import type { SiteItemDetail, StoryDetail } from "@techinhot/contracts/site";
+import { beijingDate } from "@techinhot/contracts/time";
+import { ENGLISH } from "@techinhot/contracts/english";
+import { ITEM_COPY, withSubject } from "@techinhot/site";
 import { fakeApi, FIXTURE_AT, itemDetail, startWebServer, type WebServer } from "../apps/web/tests/web-server.ts";
 
 const agent = { slug: "agent", name: "Agent 智能体" };

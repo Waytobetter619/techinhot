@@ -2,8 +2,8 @@
 // published with the code. Same shape and rules as industry/sources.json (only ids not there yet are added,
 // so admin edits are never undone). Re-runnable:  node --env-file=.env scripts/import-sources.ts <file.json>
 import { readFileSync } from "node:fs";
-import { closeDb, sql } from "@aihot/backend/db";
-import { assertSupportedConfig } from "@aihot/backend/sources/config-keys";
+import { closeDb, sql } from "@techinhot/backend/db";
+import { assertSupportedConfig } from "@techinhot/backend/sources/config-keys";
 
 interface ImportSource {
   id: string;

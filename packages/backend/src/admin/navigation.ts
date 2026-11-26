@@ -1,4 +1,4 @@
-import type { AdminNavCounts } from "@aihot/contracts/admin";
+import type { AdminNavCounts } from "@techinhot/contracts/admin";
 import { sql } from "../db.ts";
 import { awaitingRelease } from "../providers/receipts.ts";
 

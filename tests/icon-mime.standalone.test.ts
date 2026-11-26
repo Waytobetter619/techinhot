@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import sharp from "sharp";
-import { resizeImage } from "@aihot/backend/media/images";
+import { resizeImage } from "@techinhot/backend/media/images";
 
 const png = await sharp({ create: { width: 128, height: 128, channels: 4, background: "#176b75" } }).png().toBuffer();
 

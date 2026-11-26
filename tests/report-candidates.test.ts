@@ -3,12 +3,12 @@ import { editionAt, gate, tag } from "./setup.ts";
 // A selected item released across the daily edition time must appear in the next issue exactly once.
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
-import { closeDb, sql } from "@aihot/backend/db";
-import { upsertMaterial } from "@aihot/backend/content/materials";
-import { stopBoss } from "@aihot/backend/jobs/queue";
-import { publishArticle, publishArticleTx } from "@aihot/backend/publication/publish";
-import { composeDaily } from "@aihot/backend/reports/compose";
-import { candidates } from "@aihot/backend/reports/edition";
+import { closeDb, sql } from "@techinhot/backend/db";
+import { upsertMaterial } from "@techinhot/backend/content/materials";
+import { stopBoss } from "@techinhot/backend/jobs/queue";
+import { publishArticle, publishArticleTx } from "@techinhot/backend/publication/publish";
+import { composeDaily } from "@techinhot/backend/reports/compose";
+import { candidates } from "@techinhot/backend/reports/edition";
 
 const T = tag();
 const SOURCE = `test-report-boundary-${T}`;

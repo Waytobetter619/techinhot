@@ -18,7 +18,7 @@ function run(source: string): string {
 test("API error logs keep database codes and frames without row values or query parameters", () => {
   const output = run(`
     import { buildApp } from ${JSON.stringify(API_APP_URL)};
-    import { sql, closeDb } from '@aihot/backend/db';
+    import { sql, closeDb } from '@techinhot/backend/db';
     const app = await buildApp();
     const marker = ${JSON.stringify(MARKER)};
     for (const kind of ['unique', 'input']) {
@@ -45,7 +45,7 @@ test("API error logs keep database codes and frames without row values or query 
 test("the queue's PostgreSQL driver also keeps values out of worker error logs", () => {
   const output = run(`
     import { PgBoss } from 'pg-boss';
-    import { logError } from '@aihot/backend/lib/log-error';
+    import { logError } from '@techinhot/backend/lib/log-error';
     const boss = new PgBoss({connectionString:process.env.DATABASE_URL});
     await boss.start();
     try {

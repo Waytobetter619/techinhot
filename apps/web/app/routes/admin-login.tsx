@@ -2,11 +2,11 @@
 // straight to the API, which sets the session cookie and sends the browser on.
 import { data, redirect, useLoaderData } from "react-router";
 import type { Route } from "./+types/admin-login";
-import { ADMIN, SITE } from "@aihot/site";
-import { safeReturn, SIGN_IN_HOME } from "@aihot/contracts/admin";
+import { ADMIN, SITE } from "@techinhot/site";
+import { safeReturn, SIGN_IN_HOME } from "@techinhot/contracts/admin";
 import { apiGet } from "../lib/api.server";
 import { adminSignedIn } from "../lib/admin.server";
-import { Wordmark } from "@aihot/site/brand/Logo.tsx";
+import { Wordmark } from "@techinhot/site/brand/Logo.tsx";
 import { buttonClass } from "../components/ui/Controls";
 
 const ERRORS: Record<string, string> = {

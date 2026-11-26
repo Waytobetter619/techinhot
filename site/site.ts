@@ -2,7 +2,7 @@
 // 网页和后端都读它；改完重新构建（docker compose up --build）即可生效。
 // 域名不在这里：部署时用环境变量 SITE_URL 设置。
 
-import type { Founder } from "@aihot/contracts/site-config";
+import type { Founder } from "@techinhot/contracts/site-config";
 
 /** 英文版（/en/…）上本站自己写的文案；不做英文版就保持 null，网站只有中文版。 */
 export const ENGLISH = null;
@@ -280,7 +280,7 @@ export const ACCESS = {
 
 /** 这个部署自己的几处安排（选填）。 */
 export const DEPLOYMENT = {
-  /** 凭据分组文件（models.env、collectors.env……）默认放在哪个目录，相对仓库根目录；环境变量 AIHOT_CREDENTIALS_DIR 优先，都没有就只读环境变量。 */
+  /** 凭据分组文件（models.env、collectors.env……）默认放在哪个目录，相对仓库根目录；环境变量 TECHINHOT_CREDENTIALS_DIR 优先，都没有就只读环境变量。 */
   credentialsDir: null as string | null,
   /** 凭据分组的文件名（放在凭据目录下，选填）：没写的分组用“分组名.env”，比如 models.env。 */
   credentialFiles: {} as Partial<Record<string, string>>,

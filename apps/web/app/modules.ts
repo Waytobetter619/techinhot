@@ -6,7 +6,7 @@
 // page's code: the page waits for its parts while its own code loads (site-modules.ts `loadParts`) and then
 // renders them like any import.
 import type { ComponentType, ReactNode } from "react";
-import type { TopicSummary } from "@aihot/contracts/site";
+import type { TopicSummary } from "@techinhot/contracts/site";
 import type { NavItem, Tab } from "./components/shell/nav";
 import type { Text } from "./lib/i18n";
 

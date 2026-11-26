@@ -9,21 +9,21 @@ import * as cheerio from "cheerio";
 import { marked } from "marked";
 import { after, before, test } from "node:test";
 import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
-import { MCP_TOOL_NAMES } from "@aihot/contracts/mcp";
-import { config } from "@aihot/backend/config";
-import { closeDb, sql } from "@aihot/backend/db";
-import { overrideFields, setVisibility } from "@aihot/backend/admin/content";
-import { updateSource } from "@aihot/backend/admin/sources";
-import { upsertMaterial } from "@aihot/backend/content/materials";
-import { stopBoss } from "@aihot/backend/jobs/queue";
-import { publishArticle, republishSource } from "@aihot/backend/publication/publish";
-import { computeHotRanking } from "@aihot/backend/events/hot";
-import { latestHotRanking } from "@aihot/backend/publication/hot";
-import { loadPool } from "@aihot/backend/publication/pool";
-import { digestReports } from "@aihot/backend/publication/story-evidence";
-import { v1Items } from "@aihot/backend/publication/v1";
-import { SELECTION } from "@aihot/industry/selection";
-import { loadItemShare } from "@aihot/backend/publication/og";
+import { MCP_TOOL_NAMES } from "@techinhot/contracts/mcp";
+import { config } from "@techinhot/backend/config";
+import { closeDb, sql } from "@techinhot/backend/db";
+import { overrideFields, setVisibility } from "@techinhot/backend/admin/content";
+import { updateSource } from "@techinhot/backend/admin/sources";
+import { upsertMaterial } from "@techinhot/backend/content/materials";
+import { stopBoss } from "@techinhot/backend/jobs/queue";
+import { publishArticle, republishSource } from "@techinhot/backend/publication/publish";
+import { computeHotRanking } from "@techinhot/backend/events/hot";
+import { latestHotRanking } from "@techinhot/backend/publication/hot";
+import { loadPool } from "@techinhot/backend/publication/pool";
+import { digestReports } from "@techinhot/backend/publication/story-evidence";
+import { v1Items } from "@techinhot/backend/publication/v1";
+import { SELECTION } from "@techinhot/industry/selection";
+import { loadItemShare } from "@techinhot/backend/publication/og";
 import { buildApp } from "../apps/api/src/app.ts";
 
 const T = tag();
@@ -421,7 +421,7 @@ test("v1 story matches the website's content and fallback ordering", async () =>
   assert.equal(v1.latest, site.latest);
   assert.equal(site.latestReport.id, second);
   assert.deepEqual(v1.reports.map(({ links: { original: _, ...links }, ...r }: any) => ({ ...r, links })), site.timeline.slice(0, 50).map((r: any) => ({ id: r.id, title: r.title, summary: r.summary,
-    source: { id: r.source.id, name: r.source.name, firstParty: r.source.firstParty }, publishedAt: r.publishedAt, links: { aihot: `${config.siteUrl}/items/${r.id}` } })));
+    source: { id: r.source.id, name: r.source.name, firstParty: r.source.firstParty }, publishedAt: r.publishedAt, links: { techinhot: `${config.siteUrl}/items/${r.id}` } })));
 });
 
 // An event's public id is kept by search engines and installed clients: once merged, it must lead to the
@@ -526,7 +526,7 @@ test("minimal sync projection preserves snapshot fields, pagination bindings and
   const full = JSON.parse((await get('/api/v1/selected/snapshot?fields=default&limit=1000')).body);
   const minimal = JSON.parse((await get('/api/v1/selected/snapshot?fields=minimal&limit=1000')).body);
   const project = (i: any) => ({ id: i.id, title: i.title, source: i.source, publishedAt: i.publishedAt,
-    discoveredAt: i.discoveredAt, category: i.category, score: i.score, selected: i.selected, links: { aihot: i.links.aihot } });
+    discoveredAt: i.discoveredAt, category: i.category, score: i.score, selected: i.selected, links: { techinhot: i.links.techinhot } });
   assert.deepEqual(minimal.items, full.items.map(project));
   assert.ok(minimal.items.some((i: any) => i.id === id));
   for (const fields of ['default', 'minimal']) {

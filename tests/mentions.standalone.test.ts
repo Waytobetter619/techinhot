@@ -3,7 +3,7 @@
 // wins over a name inside it, and a Latin name must stand as a whole word.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { linkMentions, prepareMentionLookup, withoutSharedNames, type MentionRun, type MentionTarget } from "@aihot/contracts/mentions";
+import { linkMentions, prepareMentionLookup, withoutSharedNames, type MentionRun, type MentionTarget } from "@techinhot/contracts/mentions";
 
 const targets: MentionTarget[] = [
   { href: "/models/opus", names: ["Claude Opus 5.5"] },

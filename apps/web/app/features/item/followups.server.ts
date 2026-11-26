@@ -1,4 +1,4 @@
-import type { SiteItemDetail, StoryFollowupsResponse } from "@aihot/contracts/site";
+import type { SiteItemDetail, StoryFollowupsResponse } from "@techinhot/contracts/site";
 import { apiGet } from "../../lib/api.server";
 import { apiIn, type Locale } from "../../lib/i18n";
 

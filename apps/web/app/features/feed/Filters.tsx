@@ -2,13 +2,13 @@
 // button on phones), the phone bar of 精选 and 全部, and search.
 import { useEffect, useRef, useState } from "react";
 import { Form, useNavigation, useSearchParams } from "react-router";
-import { CATEGORY_KEYS, categoryLabel, channelLabel, displayTagIn, type CategoryKey, type ChannelKey } from "@aihot/contracts/taxonomy";
-import { SITE } from "@aihot/site";
+import { CATEGORY_KEYS, categoryLabel, channelLabel, displayTagIn, type CategoryKey, type ChannelKey } from "@techinhot/contracts/taxonomy";
+import { SITE } from "@techinhot/site";
 import { IconClose, IconFilter, IconSearch } from "../../components/icons";
 import { Presence } from "../../components/ui/Presence";
 import { PillTabs } from "../../components/ui/Tabs";
 import { ChoiceTick, Sheet, sheetChoice } from "../../components/ui/Sheet";
-import { Wordmark } from "@aihot/site/brand/Logo.tsx";
+import { Wordmark } from "@techinhot/site/brand/Logo.tsx";
 import { BarButton, PhoneBar } from "../../components/shell/PhoneBar";
 import { openSearch } from "../search/SearchOverlay";
 import { feedListPath } from "../../lib/seo";

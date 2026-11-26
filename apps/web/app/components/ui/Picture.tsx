@@ -1,5 +1,5 @@
 import type { ImgHTMLAttributes } from "react";
-import { avifCandidates } from "@aihot/contracts/site";
+import { avifCandidates } from "@techinhot/contracts/site";
 
 /**
  * A proxied image whose responsive set is offered as AVIF first; browsers without AVIF load the img's own

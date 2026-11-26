@@ -4,7 +4,7 @@
 // remembered in this browser.
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router";
-import { ENGLISH } from "@aihot/contracts/english";
+import { ENGLISH } from "@techinhot/contracts/english";
 import { IconArrowRight, IconClose } from "../icons";
 import { Presence } from "../ui/Presence";
 import { KEYS, readRaw, writeRaw } from "../../lib/local-state";
@@ -13,7 +13,7 @@ import { counterpart, useLocale } from "../../lib/i18n";
 /** Whether any of the browser's languages is Chinese, in any script or region. */
 const readsChinese = () => (navigator.languages?.length ? navigator.languages : [navigator.language]).some((l) => /^zh(?:-|$)/i.test(l));
 
-const DISMISSED = "aihot:english-hint-dismissed";
+const DISMISSED = "techinhot:english-hint-dismissed";
 
 /** This browser has said no to the hint (it closes at once if it is showing). */
 export function dismissEnglishHint() {

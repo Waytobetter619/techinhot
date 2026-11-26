@@ -10,7 +10,7 @@ import { config, credential } from "../config.ts";
 import { normalizeVideos } from "../content/video.ts";
 import { isNonArticleImage } from "../lib/image-url.ts";
 import { isXVideoUrl } from "../lib/video-url.ts";
-import { AVIF_MODE_SUFFIX, avifCandidates } from "@aihot/contracts/site";
+import { AVIF_MODE_SUFFIX, avifCandidates } from "@techinhot/contracts/site";
 import { AVIF_MODES, IMAGE_WIDTHS, RESPONSIVE_MODES, type ProxyMode, type ResponsiveImageKind } from "./renditions.ts";
 export type { ProxyMode } from "./renditions.ts";
 

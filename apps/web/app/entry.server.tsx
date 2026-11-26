@@ -14,7 +14,7 @@ export const instrumentations: ServerInstrumentation[] = [{
       async request(handle, { context }) {
         const result = await handle();
         const headers = context?.get(documentRead);
-        if (headers) void apiGet("/api/site/meta", { headers: { ...headers, "x-aihot-ssr-status": String(result.statusCode) } }).catch(() => {});
+        if (headers) void apiGet("/api/site/meta", { headers: { ...headers, "x-techinhot-ssr-status": String(result.statusCode) } }).catch(() => {});
       },
     });
   },

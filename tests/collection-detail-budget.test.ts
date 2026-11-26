@@ -4,10 +4,10 @@ import { tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import http from "node:http";
 import { after, test } from "node:test";
-import { config } from "@aihot/backend/config";
-import { closeDb, sql } from "@aihot/backend/db";
-import { shutdownSignal, stopBoss } from "@aihot/backend/jobs/queue";
-import { collectSource } from "@aihot/backend/sources/collect";
+import { config } from "@techinhot/backend/config";
+import { closeDb, sql } from "@techinhot/backend/db";
+import { shutdownSignal, stopBoss } from "@techinhot/backend/jobs/queue";
+import { collectSource } from "@techinhot/backend/sources/collect";
 
 const T = tag();
 const publishedAt = new Date(Date.now() - 60_000).toISOString();

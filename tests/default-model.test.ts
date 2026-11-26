@@ -4,11 +4,11 @@ import { stub, tag } from "./setup.ts";
 import { analysisStep, SELECTING_SCORE, type AnalysisStep } from "./analysis-steps.ts";
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { closeDb, sql } from "@aihot/backend/db";
-import { upsertMaterial } from "@aihot/backend/content/materials";
-import { analyzeArticle } from "@aihot/backend/editorial/analyze";
-import { CAPABILITIES, type Capability } from "@aihot/backend/editorial/models";
-import { stopBoss } from "@aihot/backend/jobs/queue";
+import { closeDb, sql } from "@techinhot/backend/db";
+import { upsertMaterial } from "@techinhot/backend/content/materials";
+import { analyzeArticle } from "@techinhot/backend/editorial/analyze";
+import { CAPABILITIES, type Capability } from "@techinhot/backend/editorial/models";
+import { stopBoss } from "@techinhot/backend/jobs/queue";
 
 // Nothing chosen per step: every capability falls back to the `default` model (a step the site
 // gives a model of its own is sent back to it by its environment variable).

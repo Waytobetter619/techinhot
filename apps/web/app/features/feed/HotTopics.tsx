@@ -1,4 +1,4 @@
-import type { HotStripEntry } from "@aihot/contracts/site";
+import type { HotStripEntry } from "@techinhot/contracts/site";
 import { IconArrowRight, IconMinus, IconTrendDown, IconTrendUp } from "../../components/icons";
 import { Faces } from "../hot/Faces";
 import { Link } from "../../lib/link";

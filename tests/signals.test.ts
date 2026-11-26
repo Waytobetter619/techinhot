@@ -6,14 +6,14 @@
 import { stub, tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { closeDb, sql } from "@aihot/backend/db";
-import { upsertMaterial } from "@aihot/backend/content/materials";
-import { mergeStories, moveToFact, requestRegroup } from "@aihot/backend/events/corrections";
-import { groupArticle } from "@aihot/backend/events/group";
-import { heatRows } from "@aihot/backend/events/hot";
-import { queueProcessing, settleNonEditorial } from "@aihot/backend/jobs/content";
-import { stopBoss } from "@aihot/backend/jobs/queue";
-import { publishArticle } from "@aihot/backend/publication/publish";
+import { closeDb, sql } from "@techinhot/backend/db";
+import { upsertMaterial } from "@techinhot/backend/content/materials";
+import { mergeStories, moveToFact, requestRegroup } from "@techinhot/backend/events/corrections";
+import { groupArticle } from "@techinhot/backend/events/group";
+import { heatRows } from "@techinhot/backend/events/hot";
+import { queueProcessing, settleNonEditorial } from "@techinhot/backend/jobs/content";
+import { stopBoss } from "@techinhot/backend/jobs/queue";
+import { publishArticle } from "@techinhot/backend/publication/publish";
 
 const T = tag();
 const EDITORIAL = `test-sig-ed-${T}`;

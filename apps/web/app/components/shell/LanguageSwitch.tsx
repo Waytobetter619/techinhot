@@ -1,6 +1,6 @@
 import { useLocation } from "react-router";
-import { SITE } from "@aihot/site";
-import { ENGLISH } from "@aihot/contracts/english";
+import { SITE } from "@techinhot/site";
+import { ENGLISH } from "@techinhot/contracts/english";
 import { counterpart, useLocale, useT, zh, type Locale } from "../../lib/i18n";
 import { dismissEnglishHint } from "./EnglishHint";
 

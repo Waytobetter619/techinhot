@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { HOT_FACE_LIMIT, type HotParticipant } from "@aihot/contracts/site";
+import { HOT_FACE_LIMIT, type HotParticipant } from "@techinhot/contracts/site";
 import { SourceAvatar } from "../../components/ui/SourceAvatar";
 import { Presence } from "../../components/ui/Presence";
 import { useT } from "../../lib/i18n";

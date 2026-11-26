@@ -18,7 +18,7 @@
 // (isHistorical) founds no event. A report about to open a card is compared with the cards readers
 // already see (cards.ts). Runs serially (queue concurrency 1).
 import { modelFor, modelRoute } from "../editorial/models.ts";
-import { beijingDate, beijingMidnight } from "@aihot/contracts/time";
+import { beijingDate, beijingMidnight } from "@techinhot/contracts/time";
 import { sql, type Db, type Tx } from "../db.ts";
 import { newShortId, newUuid } from "../lib/ids.ts";
 import { collapseWhitespace } from "../lib/text.ts";

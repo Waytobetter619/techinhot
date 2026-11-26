@@ -74,7 +74,7 @@ after(async () => {
 async function readerWith(read: string[]) {
   const context = await chrome.newContext();
   await context.addInitScript((ids) => {
-    try { window.localStorage.setItem("aihot-read-items", JSON.stringify(ids)); } catch { /* storage unavailable */ }
+    try { window.localStorage.setItem("techinhot-read-items", JSON.stringify(ids)); } catch { /* storage unavailable */ }
   }, read);
   return context;
 }
@@ -197,7 +197,7 @@ test("all-read pages stop at the automatic bound and can continue manually witho
   const page = await context.newPage();
   try {
     await page.goto(`${origin}/?tag=boundary`);
-    const raw = await page.evaluate(() => localStorage.getItem("aihot-read-items"));
+    const raw = await page.evaluate(() => localStorage.getItem("techinhot-read-items"));
     await page.getByRole("button", { name: "只看未读" }).click();
     const more = page.getByRole("button", { name: "加载更多", exact: true });
     await expect(more).toBeVisible();
@@ -206,6 +206,6 @@ test("all-read pages stop at the automatic bound and can continue manually witho
     await expect(page.getByText("这批精选都读过了", { exact: true })).toBeVisible();
     await more.click();
     await expect(page.getByRole("link", { name: "批次 5", exact: true })).toBeVisible();
-    assert.equal(await page.evaluate(() => localStorage.getItem("aihot-read-items")), raw);
+    assert.equal(await page.evaluate(() => localStorage.getItem("techinhot-read-items")), raw);
   } finally { await context.close(); }
 });

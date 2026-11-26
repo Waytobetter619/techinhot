@@ -3,7 +3,7 @@
 // evidence, `fact_articles fa`); no other module spells visibility, the release time or the composite
 // rule in SQL, and grouping takes the composite rule from here too. What a publication holds is
 // derived once, at publish time, by publish.ts and rules.ts.
-import { SELECTION } from "@aihot/industry/selection";
+import { SELECTION } from "@techinhot/industry/selection";
 import { sql } from "../db.ts";
 import { independentSelectedSources } from './rules.ts';
 

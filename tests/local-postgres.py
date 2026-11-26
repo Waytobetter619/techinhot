@@ -45,7 +45,7 @@ def stop_if_idle(control, leases, ctl, bin_dir, data, connection):
 
 def use_server(bin_dir, data, host):
     os.umask(0o077)
-    state = Path.home() / "Library/Caches/aihot-test-postgres"
+    state = Path.home() / "Library/Caches/techinhot-test-postgres"
     state.mkdir(parents=True, exist_ok=True)
     ctl = [str(bin_dir / "pg_ctl"), "-D", str(data)]
     connection = ["-h", host, "-p", "5432", "-d", "postgres"]

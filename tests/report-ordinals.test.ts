@@ -6,11 +6,11 @@
 import { tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import type { ReportKind } from "@aihot/contracts/site";
-import { beijingAt, isoWeekLabel } from "@aihot/contracts/time";
-import { closeDb, sql } from "@aihot/backend/db";
-import { listReports, loadReport, loadReportMonth, loadReportNavigation, reportIndexRows, v1Daily } from "@aihot/backend/publication/reports";
-import { composeDaily } from "@aihot/backend/reports/compose";
+import type { ReportKind } from "@techinhot/contracts/site";
+import { beijingAt, isoWeekLabel } from "@techinhot/contracts/time";
+import { closeDb, sql } from "@techinhot/backend/db";
+import { listReports, loadReport, loadReportMonth, loadReportNavigation, reportIndexRows, v1Daily } from "@techinhot/backend/publication/reports";
+import { composeDaily } from "@techinhot/backend/reports/compose";
 import { buildApp } from "../apps/api/src/app.ts";
 
 const T = tag();

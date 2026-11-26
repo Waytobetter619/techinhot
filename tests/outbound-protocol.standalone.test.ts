@@ -28,8 +28,8 @@ for (const route of ["direct", "proxy", "secure-proxy", "dns"] as const) {
       import net from 'node:net';
       import tls from 'node:tls';
       import { createRequire } from 'node:module';
-      import { guardedFetch } from '@aihot/backend/lib/http-fetch';
-      import { createEgressProxy, createEgressResolver } from '@aihot/backend/lib/egress-proxy';
+      import { guardedFetch } from '@techinhot/backend/lib/http-fetch';
+      import { createEgressProxy, createEgressResolver } from '@techinhot/backend/lib/egress-proxy';
       const { fetch } = createRequire(new URL('./packages/backend/package.json', import.meta.url))('undici');
       const route = process.env.TEST_OUTBOUND_ROUTE;
       const options = { key: readFileSync(process.env.TEST_TLS_KEY), cert: readFileSync(process.env.NODE_EXTRA_CA_CERTS), allowHTTP1: true };

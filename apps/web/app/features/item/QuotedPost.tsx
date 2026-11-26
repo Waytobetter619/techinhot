@@ -1,7 +1,7 @@
 // The post an X item quotes, as X shows it under the post: who wrote it, what they said and a way to
 // it. The item's own text and translation often only make sense next to it.
-import type { QuotedPostView, XPostView } from "@aihot/contracts/site";
-import { shortAddresses } from "@aihot/contracts/addresses";
+import type { QuotedPostView, XPostView } from "@techinhot/contracts/site";
+import { shortAddresses } from "@techinhot/contracts/addresses";
 import { IconArrowUpRight, IconChevronRight } from "../../components/icons";
 import { useT } from "../../lib/i18n";
 

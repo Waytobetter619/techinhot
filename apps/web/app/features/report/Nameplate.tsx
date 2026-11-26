@@ -1,11 +1,11 @@
 // The report nameplates (site/brand/nameplates/, made by scripts/nameplates.ts from the pack's
 // subject word). Each logotype is cached on its own; the two paths take the theme's ink and accent.
-import daily from "@aihot/site/brand/nameplates/daily.svg?url&no-inline";
-import weekly from "@aihot/site/brand/nameplates/weekly.svg?url&no-inline";
-import monthly from "@aihot/site/brand/nameplates/monthly.svg?url&no-inline";
-import archive from "@aihot/site/brand/nameplates/archive.svg?url&no-inline";
-import viewBoxes from "@aihot/site/brand/nameplates/index.json";
-import { SITE } from "@aihot/site";
+import daily from "@techinhot/site/brand/nameplates/daily.svg?url&no-inline";
+import weekly from "@techinhot/site/brand/nameplates/weekly.svg?url&no-inline";
+import monthly from "@techinhot/site/brand/nameplates/monthly.svg?url&no-inline";
+import archive from "@techinhot/site/brand/nameplates/archive.svg?url&no-inline";
+import viewBoxes from "@techinhot/site/brand/nameplates/index.json";
+import { SITE } from "@techinhot/site";
 import { useLocale } from "../../lib/i18n";
 
 const NAMEPLATES = {

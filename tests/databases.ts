@@ -86,7 +86,7 @@ export async function globalSetup() {
 }
 
 // Each file's scratch folder is named after the runner, so a run removes only its own leftovers.
-const scratchPrefix = (runner: number) => `aihot-test-${runner}-`;
+const scratchPrefix = (runner: number) => `techinhot-test-${runner}-`;
 
 export async function globalTeardown() {
   try {
@@ -110,7 +110,7 @@ if (process.env.NODE_TEST_CONTEXT && isMainThread) {
   }
   const scratch = mkdtempSync(path.join(tmpdir(), scratchPrefix(process.ppid)));
   for (const dir of ["data", "tmp"]) mkdirSync(path.join(scratch, dir));
-  process.env.AIHOT_DATA_DIR = path.join(scratch, "data");
+  process.env.TECHINHOT_DATA_DIR = path.join(scratch, "data");
   process.env.TMPDIR = path.join(scratch, "tmp"); // os.tmpdir(): whatever the file creates goes with it
   process.on("exit", () => rmSync(scratch, { recursive: true, force: true }));
 }

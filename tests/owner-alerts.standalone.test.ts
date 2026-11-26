@@ -6,8 +6,8 @@
 import { Reply, stub, tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, beforeEach, test } from "node:test";
-import { closeDb } from "@aihot/backend/db";
-import { sendAlert } from "@aihot/backend/notify/feishu";
+import { closeDb } from "@techinhot/backend/db";
+import { sendAlert } from "@techinhot/backend/notify/feishu";
 
 const T = tag();
 const envNames = ["FEISHU_APP_ID", "FEISHU_APP_SECRET", "FEISHU_ALERT_CHAT_ID", "FEISHU_ALERT_WEBHOOK_URL", "FEISHU_INTERNAL_CHAT_ID",

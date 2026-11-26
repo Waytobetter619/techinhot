@@ -8,9 +8,9 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { after, before, test } from 'node:test';
 import Fastify from 'fastify';
-import { closeDb } from '@aihot/backend/db';
-import { ENGLISH } from '@aihot/contracts/english';
-import { resolveRedirect } from '@aihot/contracts/http-policy';
+import { closeDb } from '@techinhot/backend/db';
+import { ENGLISH } from '@techinhot/contracts/english';
+import { resolveRedirect } from '@techinhot/contracts/http-policy';
 import { registerOg } from '../apps/api/src/routes/og.ts';
 import { startWebServer, type WebServer } from '../apps/web/tests/web-server.ts';
 

@@ -1,9 +1,9 @@
-import { SITE } from "@aihot/site";
+import { SITE } from "@techinhot/site";
 import { Fragment, useState } from "react";
 import { useSearchParams } from "react-router";
-import { CATEGORY_LABELS } from "@aihot/contracts/taxonomy";
+import { CATEGORY_LABELS } from "@techinhot/contracts/taxonomy";
 import type { Route } from "./+types/selectbench-run";
-import type { AdminSelectBenchCases, AdminSelectBenchDecision } from "@aihot/contracts/admin";
+import type { AdminSelectBenchCases, AdminSelectBenchDecision } from "@techinhot/contracts/admin";
 import { adminGet } from "../../lib/admin.server";
 import { bj, num, pct } from "../../features/admin/format";
 import { AdminPage, Badge, Card, Empty, FilterChips, Select } from "../../features/admin/ui";

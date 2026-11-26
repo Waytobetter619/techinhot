@@ -25,12 +25,12 @@ jobs:
         image: postgres:17-alpine
         env:
           POSTGRES_PASSWORD: ci
-          POSTGRES_DB: aihot_ci
+          POSTGRES_DB: techinhot_ci
         ports: ["5432:5432"]
         options: >-
           --health-cmd "pg_isready -U postgres" --health-interval 2s --health-timeout 5s --health-retries 30
     env:
-      DATABASE_URL: postgres://postgres:ci@127.0.0.1:5432/aihot_ci
+      DATABASE_URL: postgres://postgres:ci@127.0.0.1:5432/techinhot_ci
       SITE_URL: http://127.0.0.1:3000
       API_BASE_URL: http://127.0.0.1:3001
       SESSION_SECRET: ci-session-secret-0123456789abcdef
@@ -67,13 +67,13 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
       - name: Build web
-        run: npm run build -w @aihot/web
+        run: npm run build -w @techinhot/web
       - name: Browser test engines
         run: npx playwright install --with-deps chromium webkit
       - name: Web tests
         run: npm run test:web
 
-      # Each test file runs on its own copy of aihot_ci (tests/databases.ts), which the run migrates and
+      # Each test file runs on its own copy of techinhot_ci (tests/databases.ts), which the run migrates and
       # leaves empty; the smoke check then reads that empty database.
       - name: Backend tests
         run: npm test
@@ -115,7 +115,7 @@ jobs:
           for i in $(seq 1 90); do curl -fsS -o /dev/null http://127.0.0.1:3000/api/health 2>/dev/null && break; sleep 2; done
           docker compose ps
           docker compose run --rm --no-deps --entrypoint node setup scripts/smoke.ts --base http://web:3000
-          docker compose exec -T db psql -U aihot -d aihot -Atc "select count(*) from sources" | grep -qx "$(node -p "require('./industry/sources.json').sources.length")"
+          docker compose exec -T db psql -U techinhot -d techinhot -Atc "select count(*) from sources" | grep -qx "$(node -p "require('./industry/sources.json').sources.length")"
       - name: Logs
         if: failure()
         run: docker compose logs --tail 80

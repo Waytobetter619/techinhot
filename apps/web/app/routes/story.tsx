@@ -2,16 +2,16 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode }
 import { IntentLink } from "../components/ui/IntentLink";
 import { useLoaderData, useLocation } from "react-router";
 import type { Route } from "./+types/story";
-import { STORY_INDEX_MIN_SOURCES, type StoryDetail, type StoryReportView } from "@aihot/contracts/site";
-import { topicName } from "@aihot/contracts/taxonomy";
-import { SITE } from "@aihot/site";
-import { linkMentions } from "@aihot/contracts/mentions";
-import { addressRuns } from "@aihot/contracts/addresses";
+import { STORY_INDEX_MIN_SOURCES, type StoryDetail, type StoryReportView } from "@techinhot/contracts/site";
+import { topicName } from "@techinhot/contracts/taxonomy";
+import { SITE } from "@techinhot/site";
+import { linkMentions } from "@techinhot/contracts/mentions";
+import { addressRuns } from "@techinhot/contracts/addresses";
 import { MentionText } from "../components/ui/MentionText";
 import { cachedPage, loadOr404, pagePathname } from "../lib/api.server";
 import { pageReuse } from "../lib/page-reuse";
 import { breadcrumbLd, pageMeta, storyArticleLd, storyLd, titled, titleCacheSeconds } from "../lib/seo";
-import { beijingDate, beijingTime } from "@aihot/contracts/time";
+import { beijingDate, beijingTime } from "@techinhot/contracts/time";
 import { byBeijingDay, monthDay, monthDayTime, relativeTime } from "../lib/format";
 import { useCurrentSection, useHeightTween, useSwapped } from "../lib/motion";
 import { HeatChart } from "../features/story/HeatChart";
@@ -155,7 +155,7 @@ type Filter = "all" | "official" | "selected";
 type Order = "desc" | "asc";
 
 // The report filter and shared reading order, per history entry: back from a report restores the view.
-const viewCache = sessionCache<{ savedAt: number; filter: Filter; order: Order }>("aihot:story-view:", 30 * 60 * 1000);
+const viewCache = sessionCache<{ savedAt: number; filter: Filter; order: Order }>("techinhot:story-view:", 30 * 60 * 1000);
 
 export default function StoryPage() {
   const t = useT();

@@ -14,8 +14,8 @@
 // The shared hub owns serial execution and retry; accepted events are never dispatched again here.
 // Delivery goes through sendAlert (alert webhook or ops chat, internal-chat fallback; off unless FEISHU_INTERNAL_ENABLED).
 import { randomUUID } from "node:crypto";
-import { addDays, beijingAt, beijingDate, beijingDay, beijingStamp, isValidDate } from "@aihot/contracts/time";
-import { ALERTS, EDITION_TIMES } from "@aihot/site";
+import { addDays, beijingAt, beijingDate, beijingDay, beijingStamp, isValidDate } from "@techinhot/contracts/time";
+import { ALERTS, EDITION_TIMES } from "@techinhot/site";
 import { audit } from "../audit.ts";
 import { sql } from "../db.ts";
 import { agentConfigured, agentTransportFindings, flushAgentEvents, handoffs, wakeAgent, wakeDigest } from "../notify/agent.ts";

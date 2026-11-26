@@ -1,7 +1,7 @@
 // Selection evaluation cases (one human gold decision per line) and their metrics. Whether a case is
 // selected is the site's own rule (editorial/analyze.ts), never a copy of it.
 import { z } from "zod";
-import { scoresSelect, type AnalysisRun } from "@aihot/backend/editorial/analyze";
+import { scoresSelect, type AnalysisRun } from "@techinhot/backend/editorial/analyze";
 import { binaryMetrics, nonEmpty, nullableString, parseCasesJsonl, round, SamplingContext } from "./eval-tools.ts";
 
 /** "either": both decisions are acceptable; such cases stay out of the decisive metrics. */

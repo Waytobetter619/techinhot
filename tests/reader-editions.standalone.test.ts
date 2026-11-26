@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { RouteConfigEntry } from "@react-router/dev/routes";
-import { ENGLISH } from "@aihot/contracts/english";
-import { inLanguage } from "@aihot/contracts/i18n";
-import { READER_PAGES, localizePath } from "@aihot/contracts/reader-pages";
-import { MODULES } from "@aihot/site/modules";
+import { ENGLISH } from "@techinhot/contracts/english";
+import { inLanguage } from "@techinhot/contracts/i18n";
+import { READER_PAGES, localizePath } from "@techinhot/contracts/reader-pages";
+import { MODULES } from "@techinhot/site/modules";
 import routes from "../apps/web/app/routes.ts";
 
 test("both editions reach the same route module and links agree with the registered pages", () => {

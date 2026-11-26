@@ -1,6 +1,6 @@
 // A classification correction moves the same frozen entry; it never composes another issue or pays
 // a writer. The override, publication, report revisions and audit commit in the caller's transaction.
-import { RELEASE } from "@aihot/industry/taxonomy";
+import { RELEASE } from "@techinhot/industry/taxonomy";
 import type { Tx } from "../db.ts";
 import { isRelease } from "../editorial/vocabulary.ts";
 import { emit } from "../modules.ts";

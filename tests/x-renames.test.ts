@@ -4,12 +4,12 @@
 import { Reply, stub, tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { config } from "@aihot/backend/config";
-import { closeDb, sql } from "@aihot/backend/db";
-import { stopBoss } from "@aihot/backend/jobs/queue";
-import { republishKey } from "@aihot/backend/jobs/publication";
-import { followXRenames } from "@aihot/backend/sources/x-renames";
-import { ProviderRejectedError } from "@aihot/backend/providers/receipts";
+import { config } from "@techinhot/backend/config";
+import { closeDb, sql } from "@techinhot/backend/db";
+import { stopBoss } from "@techinhot/backend/jobs/queue";
+import { republishKey } from "@techinhot/backend/jobs/publication";
+import { followXRenames } from "@techinhot/backend/sources/x-renames";
+import { ProviderRejectedError } from "@techinhot/backend/providers/receipts";
 
 const DAY = 86400_000;
 const PRIVATE_MESSAGE = "Forbidden: Requested resource cannot be viewed due to user's privacy settings";

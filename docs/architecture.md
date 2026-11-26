@@ -61,7 +61,7 @@ flowchart LR
 
 ## 模块
 
-框架里没有、只有你这个站要的功能（比如一个专门的榜单或监控页），做成模块：一个功能一个文件夹 `modules/<名字>/`，是一个名为 `@aihot/<名字>` 的 npm 包，装着它自己的后端、接口、页面、样式、数据库迁移和测试。
+框架里没有、只有你这个站要的功能（比如一个专门的榜单或监控页），做成模块：一个功能一个文件夹 `modules/<名字>/`，是一个名为 `@techinhot/<名字>` 的 npm 包，装着它自己的后端、接口、页面、样式、数据库迁移和测试。
 
 | 文件 | 内容 |
 |---|---|
@@ -103,8 +103,8 @@ flowchart LR
 
 ```bash
 npm run typecheck
-DATABASE_URL=postgres://127.0.0.1:5432/myhot_test npm test
-npm run build -w @aihot/web && npm run test:web
+DATABASE_URL=postgres://127.0.0.1:5432/techinhot_test npm test
+npm run build -w @techinhot/web && npm run test:web
 ```
 
 `DATABASE_URL` 指向的库名必须以 `_test` 或 `_ci` 结尾；没有会自动创建并迁移。每个测试文件在它的一份副本上并行运行，所以数据库账号要有建库权限（`CREATEDB`）。测试不访问任何外部服务：模型和付费接口都由本地假服务回答。

@@ -16,6 +16,3 @@ apps/web/.react-router/
 package/
 fontsource-noto-sans-sc-*.tgz
 
-# Local Windows runtime: portable PostgreSQL binaries and the data directory
-runtime/
-runtime-*.md

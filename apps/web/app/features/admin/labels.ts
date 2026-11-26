@@ -1,5 +1,5 @@
 // Shared admin vocabulary.
-import { SELECTION } from "@aihot/industry/selection";
+import { SELECTION } from "@techinhot/industry/selection";
 
 export const KIND_LABEL: Record<string, string> = { rss: "RSS", web_list: "网页列表", json_list: "JSON", x_search: "X", mp_account: "公众号", external: "外部上报" };
 export const MODE_LABEL: Record<string, string> = { editorial: "精选", hot_signal: "氛围", isolated: "不进新闻" };

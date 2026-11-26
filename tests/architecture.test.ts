@@ -11,7 +11,7 @@ import { after, test } from "node:test";
 import { fontSizeViolations } from "./font-size.ts";
 import { cssMotionTokens, motionViolations } from "./motion.ts";
 import { routerLinkViolations, webTextViolations } from "./web-text.ts";
-import { closeDb, sql } from "@aihot/backend/db";
+import { closeDb, sql } from "@techinhot/backend/db";
 
 after(closeDb);
 
@@ -57,7 +57,7 @@ const specifiers = (text: string) => [...text.matchAll(/\b(?:from|import)\s*\(?\
 
 /** A specifier as a path under packages/backend/src (`events/group.ts`), or null outside the backend. */
 function backendPath(file: string, spec: string): string | null {
-  if (spec.startsWith("@aihot/backend/")) return `${spec.slice("@aihot/backend/".length)}.ts`;
+  if (spec.startsWith("@techinhot/backend/")) return `${spec.slice("@techinhot/backend/".length)}.ts`;
   if (!spec.startsWith(".")) return null;
   const target = path.posix.relative(BACKEND, path.posix.join(path.posix.dirname(file), spec));
   return target.startsWith("..") ? null : target;
@@ -68,7 +68,7 @@ function violations(files: Array<{ file: string; text: string }>, broken: (file:
 }
 
 test("the web reaches the backend only over HTTP", () => {
-  const found = violations([...sources("apps/web"), ...moduleWeb()], (_file, spec) => spec.startsWith("@aihot/backend") || spec.includes("packages/backend") || spec === "postgres" || spec === "pg-boss");
+  const found = violations([...sources("apps/web"), ...moduleWeb()], (_file, spec) => spec.startsWith("@techinhot/backend") || spec.includes("packages/backend") || spec === "postgres" || spec === "pg-boss");
   assert.deepEqual(found, [], "apps/web imports backend code; read it through /api/site or /api/admin instead");
 });
 
@@ -260,7 +260,7 @@ test("modules do not import other modules", () => {
       const target = path.posix.join(path.posix.dirname(file), spec).split("/");
       return target[0] === "modules" && target[1] !== owner;
     }
-    const target = /^@aihot\/([^/]+)/.exec(spec)?.[1];
+    const target = /^@techinhot\/([^/]+)/.exec(spec)?.[1];
     return !!target && installed.includes(target) && target !== owner;
   });
   assert.deepEqual(found, [], "compose modules in site/modules instead of importing their implementation");
@@ -319,7 +319,7 @@ test("scripts read the reduced-motion preference only through lib/motion.ts", ()
 });
 
 test("a gray page is only for previewers: its loader goes through grayGet and answers with GRAY_HEADERS", async () => {
-  const { MODULES } = await import("@aihot/site/modules");
+  const { MODULES } = await import("@techinhot/site/modules");
   const gray = MODULES.flatMap((m) => (m.pages ?? []).flatMap((p) => ("layout" in p ? p.pages : [p])).filter((p) => p.gray).map((p) => `modules/${m.name}/${p.file}`));
   for (const file of gray) {
     const text = readFileSync(path.join(ROOT, file), "utf8");
@@ -339,7 +339,7 @@ test("pages are prefetched only through IntentLink", () => {
 });
 
 test("admin page loaders use adminPageGet and GRAY_HEADERS", async () => {
-  const { MODULES } = await import("@aihot/site/modules");
+  const { MODULES } = await import("@techinhot/site/modules");
   const pages = MODULES.flatMap((m) => (m.pages ?? []).flatMap((p) => ("layout" in p ? p.pages : [p])).filter((p) => p.admin).map((p) => `modules/${m.name}/${p.file}`));
   for (const file of pages) {
     const text = readFileSync(path.join(ROOT, file), "utf8");

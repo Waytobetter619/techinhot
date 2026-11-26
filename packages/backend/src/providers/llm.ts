@@ -3,8 +3,8 @@
 // site, an environment variable or the admin's model page picks one of the site's named presets
 // (site/models.ts).
 import type { z } from "zod";
-import type { ModelPreset } from "@aihot/contracts/site-config";
-import { PRESETS } from "@aihot/site/models";
+import type { ModelPreset } from "@techinhot/contracts/site-config";
+import { PRESETS } from "@techinhot/site/models";
 import { config, credential } from "../config.ts";
 import { sha256 } from "../lib/ids.ts";
 import {

@@ -1,4 +1,4 @@
-import type { StoryFollowup, StoryFollowupsResponse, StoryRef } from "@aihot/contracts/site";
+import type { StoryFollowup, StoryFollowupsResponse, StoryRef } from "@techinhot/contracts/site";
 import { MoreLink } from "../../components/ui/Page";
 import { relativeTime } from "../../lib/format";
 import { Link } from "../../lib/link";

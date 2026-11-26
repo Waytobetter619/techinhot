@@ -1,4 +1,4 @@
-import type { MentionRun } from "@aihot/contracts/mentions";
+import type { MentionRun } from "@techinhot/contracts/mentions";
 import { Link } from "../../lib/link";
 
 /**

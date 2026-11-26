@@ -3,11 +3,11 @@
 // (CopyTag) when it has one.
 import { Fragment, useRef, useState } from "react";
 import { useHeightTween, useSwapped } from "../../lib/motion";
-import { PUBLIC_INTERFACE_VERSION } from "@aihot/contracts/http-policy";
-import { MCP_TOOL_NAMES as T, MCP_TOOLS } from "@aihot/contracts/mcp";
-import { feedCategoryLabel, feedCategoryLabelIn, PUBLIC_API_CATEGORY_KEYS } from "@aihot/contracts/taxonomy";
-import { ACCESS, AGENT, EDITION_TIMES, EDITION_WHEN, POLICY, REPORTS, SITE, subjectAfter, withSubject } from "@aihot/site";
-import { ENGLISH } from "@aihot/contracts/english";
+import { PUBLIC_INTERFACE_VERSION } from "@techinhot/contracts/http-policy";
+import { MCP_TOOL_NAMES as T, MCP_TOOLS } from "@techinhot/contracts/mcp";
+import { feedCategoryLabel, feedCategoryLabelIn, PUBLIC_API_CATEGORY_KEYS } from "@techinhot/contracts/taxonomy";
+import { ACCESS, AGENT, EDITION_TIMES, EDITION_WHEN, POLICY, REPORTS, SITE, subjectAfter, withSubject } from "@techinhot/site";
+import { ENGLISH } from "@techinhot/contracts/english";
 import { CodeBlock, CopyButton } from "./CodeBlock";
 import { PillTabs } from "../../components/ui/Tabs";
 import type { AgentPanelProps } from "../../modules";

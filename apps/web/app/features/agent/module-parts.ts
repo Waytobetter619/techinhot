@@ -1,4 +1,4 @@
-import { namesEn } from "@aihot/contracts/i18n";
+import { namesEn } from "@techinhot/contracts/i18n";
 // The site's modules' parts of the agent page (AgentPart), loaded with the page.
 import { L, type Phrase } from "../../lib/i18n";
 import type { AgentPart } from "../../modules";

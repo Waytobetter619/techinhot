@@ -6,13 +6,13 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useLocation, useNavigation } from "react-router";
 import { Collapse } from "../../components/ui/Presence";
 import { ToggleChip } from "../../components/ui/Controls";
-import type { TimelineCard, TimelineFilters, TimelineResponse } from "@aihot/contracts/site";
+import type { TimelineCard, TimelineFilters, TimelineResponse } from "@techinhot/contracts/site";
 import { FeedItem } from "./FeedItem";
 import { IconChevronDown } from "../../components/icons";
-import { SITE } from "@aihot/site";
-import { RingMark } from "@aihot/site/brand/Logo.tsx";
+import { SITE } from "@techinhot/site";
+import { RingMark } from "@techinhot/site/brand/Logo.tsx";
 import { EmptyState } from "../../components/ui/Page";
-import { beijingDate, beijingTime, monthDay, monthDayEn } from "@aihot/contracts/time";
+import { beijingDate, beijingTime, monthDay, monthDayEn } from "@techinhot/contracts/time";
 import { byBeijingDay, weekdayLong, weekdayShort } from "../../lib/format";
 import { apiIn, useLocale, useT } from "../../lib/i18n";
 import { isHydrated } from "../../lib/hydration";

@@ -1,9 +1,9 @@
 import { Fragment, useCallback, useMemo, useRef, useState, type ReactNode } from "react";
 import { IntentLink } from "../components/ui/IntentLink";
 import { useLoaderData } from "react-router";
-import type { SiteContact, SiteStats } from "@aihot/contracts/site";
-import { ABOUT, POLICY, REPORTS, SEO_TITLES, SITE, subjectAfter } from "@aihot/site";
-import { ENGLISH } from "@aihot/contracts/english";
+import type { SiteContact, SiteStats } from "@techinhot/contracts/site";
+import { ABOUT, POLICY, REPORTS, SEO_TITLES, SITE, subjectAfter } from "@techinhot/site";
+import { ENGLISH } from "@techinhot/contracts/english";
 import type { Route } from "./+types/about";
 import { apiGet, cachedPage, pagePathname } from "../lib/api.server";
 import { pageReuse } from "../lib/page-reuse";

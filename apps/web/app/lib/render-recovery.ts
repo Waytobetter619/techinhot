@@ -2,7 +2,7 @@
 import { isRouteErrorResponse } from "react-router";
 import type { HydrationOptions } from "react-dom/client";
 
-const RECOVERY_RELEASE_KEY = "aihot-render-recovery-release";
+const RECOVERY_RELEASE_KEY = "techinhot-render-recovery-release";
 
 export function createRenderErrorHandler(documentRelease: string | null) {
   let checking = false;

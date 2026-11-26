@@ -2,9 +2,9 @@
 // their nav names, instead of the site's. Only the admins a site module names get past its loader; everyone else
 // gets the site's 404. The engine's own admin pages keep their layout (layout.tsx).
 import { data, Outlet, useNavigation } from "react-router";
-import { SITE } from "@aihot/site";
-import { RingMark } from "@aihot/site/brand/Logo.tsx";
-import { MODULES } from "@aihot/site/modules";
+import { SITE } from "@techinhot/site";
+import { RingMark } from "@techinhot/site/brand/Logo.tsx";
+import { MODULES } from "@techinhot/site/modules";
 import { NavigationProgress } from "../../components/shell/Chrome";
 import { adminPageAccess, GRAY_HEADERS } from "../../lib/admin.server";
 import { Link, NavLink } from "../../lib/link";

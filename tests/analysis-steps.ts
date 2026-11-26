@@ -2,8 +2,8 @@
 // its own system prompt, rendered from the industry pack, and the thresholds come from the pack too: a
 // test that recognises a request by its whole prompt and scores against the pack's threshold keeps
 // working when a site rewrites the prompts and recalibrates the thresholds for its own industry.
-import { MEND_SYSTEM, SCORE_SYSTEM, selectionThreshold, STRUCTURE_SYSTEM } from "@aihot/backend/editorial/analyze";
-import { PREFILTER_SYSTEM, UNDERSTAND_SYSTEM } from "@aihot/backend/editorial/writing";
+import { MEND_SYSTEM, SCORE_SYSTEM, selectionThreshold, STRUCTURE_SYSTEM } from "@techinhot/backend/editorial/analyze";
+import { PREFILTER_SYSTEM, UNDERSTAND_SYSTEM } from "@techinhot/backend/editorial/writing";
 
 export type AnalysisStep = "prefilter" | "score" | "structure" | "understand" | "summarize" | "wording";
 

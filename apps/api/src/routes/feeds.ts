@@ -1,10 +1,10 @@
-import { inLanguage } from "@aihot/contracts/i18n";
+import { inLanguage } from "@techinhot/contracts/i18n";
 // RSS routes. Unknown query parameters are accepted and never change content. On a site with an English edition every
 // feed is also at /en/feed…, in English (publication/feeds.ts).
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import { READER_LANGUAGES } from "@aihot/contracts/english";
-import { feedCacheControl, isFeedCategory, itemFeed, reportFeed, type FeedLanguage, type ItemFeedKind } from "@aihot/backend/publication/feeds";
-import { serverModules } from "@aihot/backend/modules";
+import { READER_LANGUAGES } from "@techinhot/contracts/english";
+import { feedCacheControl, isFeedCategory, itemFeed, reportFeed, type FeedLanguage, type ItemFeedKind } from "@techinhot/backend/publication/feeds";
+import { serverModules } from "@techinhot/backend/modules";
 import { applyPublicHeaders, sendTextWithEtag } from "../http/respond.ts";
 
 async function sendFeed(req: FastifyRequest, reply: FastifyReply, xml: string, cacheControl: string, lang: FeedLanguage) {

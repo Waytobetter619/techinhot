@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useLocation } from "react-router";
 import { Collapse } from "../../components/ui/Presence";
 import { Sheet } from "../../components/ui/Sheet";
-import type { GroupInfo, GroupReport, GroupReportsResponse, TimelineFilters } from "@aihot/contracts/site";
+import type { GroupInfo, GroupReport, GroupReportsResponse, TimelineFilters } from "@techinhot/contracts/site";
 import { IconArrowUpRight, IconChevronDown, IconChevronRight } from "../../components/icons";
 import { monthDayTime } from "../../lib/format";
 import { useReadSet } from "../../lib/local-state";
@@ -27,7 +27,7 @@ const labelOf = (group: GroupInfo, t: Translate) => {
 // The groups left open in each history entry, with what they showed (null: still loading): back from an
 // item finds them open again. In memory for back within the app; in session storage for a page the
 // browser reloaded on back/forward.
-const openGroups = sessionCache<{ savedAt: number; groups: Record<string, GroupReport[] | null> }>("aihot:open-groups:", 30 * 60 * 1000);
+const openGroups = sessionCache<{ savedAt: number; groups: Record<string, GroupReport[] | null> }>("techinhot:open-groups:", 30 * 60 * 1000);
 
 /** Keeps what an open group shows for its history entry; `undefined` forgets a closed one. */
 function remember(entry: string, key: string, reports: GroupReport[] | null | undefined) {

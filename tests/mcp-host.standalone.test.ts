@@ -10,8 +10,8 @@ import { request } from "node:http";
 import { after, test } from "node:test";
 import { promisify } from "node:util";
 import Fastify from "fastify";
-import { DEPLOYMENT } from "@aihot/site";
-import { config } from "@aihot/backend/config";
+import { DEPLOYMENT } from "@techinhot/site";
+import { config } from "@techinhot/backend/config";
 import { registerMcp } from "../apps/api/src/routes/mcp.ts";
 
 const initialize = {

@@ -1,4 +1,4 @@
-import { beijingDate, beijingTime, beijingWeekday, monthDay as engineMonthDay, monthDayEn, weekdayEn } from "@aihot/contracts/time";
+import { beijingDate, beijingTime, beijingWeekday, monthDay as engineMonthDay, monthDayEn, weekdayEn } from "@techinhot/contracts/time";
 import { translator, zh, type Locale } from "./i18n.ts";
 
 /**

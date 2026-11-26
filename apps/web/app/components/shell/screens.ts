@@ -61,7 +61,7 @@ export function historyIndex(): number {
 }
 
 // Session storage, so a page the browser reloads still knows what lies behind it. Not a contract.
-const SCREENS_KEY = "aihot:screens";
+const SCREENS_KEY = "techinhot:screens";
 const MAX_SCREENS = 60;
 
 // A name is kept as the words shown (a string), so a release before or after this one reads it; an entry may still

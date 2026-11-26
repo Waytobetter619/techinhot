@@ -6,9 +6,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import * as cheerio from "cheerio";
-import { readable } from "@aihot/backend/content/extract";
-import { bodyToMarkdown } from "@aihot/backend/content/markdown";
-import { sanitizeBody } from "@aihot/backend/content/sanitize";
+import { readable } from "@techinhot/backend/content/extract";
+import { bodyToMarkdown } from "@techinhot/backend/content/markdown";
+import { sanitizeBody } from "@techinhot/backend/content/sanitize";
 
 const prose = "The article explains the research methods, results and limitations, with original evidence for its conclusions. ".repeat(6);
 const marker = "SECONDARY_MARKER: this block sits inside the article. ".repeat(6);

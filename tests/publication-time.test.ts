@@ -4,8 +4,8 @@
 import { tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { closeDb, sql } from "@aihot/backend/db";
-import { stopBoss } from "@aihot/backend/jobs/queue";
+import { closeDb, sql } from "@techinhot/backend/db";
+import { stopBoss } from "@techinhot/backend/jobs/queue";
 import { buildApp } from "../apps/api/src/app.ts";
 
 const T = tag();

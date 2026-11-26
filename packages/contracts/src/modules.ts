@@ -12,7 +12,7 @@ export interface ModulePage {
   id?: string;
   /**
    * Not public yet: served at /preview/<path> to previewers (signed-in admins or people approved by a site module), 404 to everyone else (its loader uses
-   * the web app's grayGet). Launching a page is deleting this, with what else skill launch-aihot-feature lists.
+   * the web app's grayGet). Launching a page is deleting this, with what else skill launch-techinhot-feature lists.
    */
   gray?: true;
   /**

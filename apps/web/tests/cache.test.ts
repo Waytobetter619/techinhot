@@ -1,11 +1,11 @@
-// Run after `npm run build -w @aihot/web`. Real production server/router, synthetic HTTP API only.
+// Run after `npm run build -w @techinhot/web`. Real production server/router, synthetic HTTP API only.
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { ADMIN } from "@aihot/site";
-import { SIGN_IN_HOME } from "@aihot/contracts/admin";
-import { ENGLISH } from "@aihot/contracts/english";
-import { isPrivatePage } from "@aihot/contracts/http-policy";
-import { CATEGORY_KEYS } from "@aihot/contracts/taxonomy";
+import { ADMIN } from "@techinhot/site";
+import { SIGN_IN_HOME } from "@techinhot/contracts/admin";
+import { ENGLISH } from "@techinhot/contracts/english";
+import { isPrivatePage } from "@techinhot/contracts/http-policy";
+import { CATEGORY_KEYS } from "@techinhot/contracts/taxonomy";
 import { UNSAFE_decodeViaTurboStream } from "react-router";
 import { fakeApi, startWebServer, type WebServer } from "./web-server.ts";
 
@@ -231,7 +231,7 @@ test("browser caching preserves noindex and private sign-in responses", async ()
 test("a signed-in admin is sent past the sign-in page", { skip: !ADMIN && "this site has no admin pages" }, async () => {
   const api = fakeApi((url, res, req) => {
     if (url.pathname === "/api/admin/me") {
-      if (req.headers.cookie?.includes("aihot_admin=fixture")) return { name: "Fixture admin", csrf: "fixture", dev: false };
+      if (req.headers.cookie?.includes("techinhot_admin=fixture")) return { name: "Fixture admin", csrf: "fixture", dev: false };
       res.statusCode = 401;
       return { code: "unauthorized" };
     }
@@ -239,12 +239,12 @@ test("a signed-in admin is sent past the sign-in page", { skip: !ADMIN && "this 
   });
   const signedIn = await startWebServer(api);
   try {
-    const res = await fetch(`${signedIn.origin}/admin/login?return=%2Fadmin%2Fcontent`, { headers: { cookie: "aihot_admin=fixture" }, redirect: "manual" });
+    const res = await fetch(`${signedIn.origin}/admin/login?return=%2Fadmin%2Fcontent`, { headers: { cookie: "techinhot_admin=fixture" }, redirect: "manual" });
     assert.equal(res.status, 302);
     assert.equal(res.headers.get("location"), "/admin/content");
     await res.text();
     for (const [target, location] of [["javascript:alert(1)", SIGN_IN_HOME], ["//evil.example/admin", SIGN_IN_HOME], ["/x/..//evil.example", SIGN_IN_HOME], ["https://evil.example/admin", "/admin"], ["/free-preview", "/free-preview"]]) {
-      const away = await fetch(`${signedIn.origin}/admin/login?return=${encodeURIComponent(target!)}`, { headers: { cookie: "aihot_admin=fixture" }, redirect: "manual" });
+      const away = await fetch(`${signedIn.origin}/admin/login?return=${encodeURIComponent(target!)}`, { headers: { cookie: "techinhot_admin=fixture" }, redirect: "manual" });
       assert.equal(away.headers.get("location"), location, target);
       await away.text();
     }

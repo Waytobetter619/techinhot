@@ -7,11 +7,11 @@ import { analysisStep, SELECTING_SCORE, type AnalysisStep } from "./analysis-ste
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { after, before, test } from "node:test";
-import { sql, closeDb } from "@aihot/backend/db";
-import { stopBoss } from "@aihot/backend/jobs/queue";
-import { upsertMaterial } from "@aihot/backend/content/materials";
-import { markStalePendingReceipts } from "@aihot/backend/providers/receipts";
-import { autoReleaseUnknownReceipts } from "@aihot/backend/operations/recover";
+import { sql, closeDb } from "@techinhot/backend/db";
+import { stopBoss } from "@techinhot/backend/jobs/queue";
+import { upsertMaterial } from "@techinhot/backend/content/materials";
+import { markStalePendingReceipts } from "@techinhot/backend/providers/receipts";
+import { autoReleaseUnknownReceipts } from "@techinhot/backend/operations/recover";
 
 const T = tag();
 const SOURCE = `test-analyze-kill-${T}`;
@@ -39,9 +39,9 @@ const children = new Set<ReturnType<typeof spawn>>();
 // analyze.test.ts also covers pg-boss delivery and graceful queue shutdown.
 function worker(articleId: string) {
   const script = `
-    import { processArticle } from '@aihot/backend/jobs/content';
-    import { stopBoss } from '@aihot/backend/jobs/queue';
-    import { closeDb } from '@aihot/backend/db';
+    import { processArticle } from '@techinhot/backend/jobs/content';
+    import { stopBoss } from '@techinhot/backend/jobs/queue';
+    import { closeDb } from '@techinhot/backend/db';
     try {
       process.send({ result: await processArticle(process.env.TEST_ARTICLE_ID) });
     } catch (error) {
@@ -54,7 +54,7 @@ function worker(articleId: string) {
   `;
   const env: NodeJS.ProcessEnv = {
     ...process.env, TEST_ARTICLE_ID: articleId, MODEL_CALLS_ENABLED: "true", COLLECT_ENABLED: "false",
-    AIHOT_CREDENTIALS_DIR: "/nonexistent-test-credentials", FEISHU_INTERNAL_ENABLED: "false",
+    TECHINHOT_CREDENTIALS_DIR: "/nonexistent-test-credentials", FEISHU_INTERNAL_ENABLED: "false",
   };
   pointModels(provider.url, ["qwen3.7-flash", "glm-5.3-flash", "deepseek-flash", "mimo-v2.6-flash"], env);
   const child = spawn(process.execPath, ["--input-type=module", "-e", script], { cwd: process.cwd(), env, stdio: ["ignore", "ignore", "pipe", "ipc"] });

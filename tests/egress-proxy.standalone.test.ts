@@ -6,7 +6,7 @@ import { createServer, request as httpRequest } from "node:http";
 import net from "node:net";
 import { after, test } from "node:test";
 import { createRequire } from "node:module";
-import { createEgressProxy, createEgressResolver } from "@aihot/backend/lib/egress-proxy";
+import { createEgressProxy, createEgressResolver } from "@techinhot/backend/lib/egress-proxy";
 
 // The MCP client has its own undici version; exercise the backend's actual HTTP implementation.
 const { fetch } = createRequire(new URL("../packages/backend/package.json", import.meta.url))("undici");

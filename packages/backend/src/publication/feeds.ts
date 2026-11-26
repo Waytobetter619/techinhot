@@ -5,11 +5,11 @@
 // linking to the English pages: an article enters it once its title and summary are in English, an issue once
 // its headline and lead are (with the entries already in English); a full feed carries the original text there
 // (a body written in Chinese, none).
-import { inLanguage, L, type Locale } from "@aihot/contracts/i18n";
-import { ENGLISH, needsEnglish } from "@aihot/contracts/english";
-import { REPORT_NAMES_EN } from "@aihot/contracts/site";
-import { feedCategoryLabelIn, PUBLIC_API_CATEGORY_KEYS, toPublicApiCategory, type PublicApiCategoryKey } from "@aihot/contracts/taxonomy";
-import { EDITION_WHEN, REPORTS, SITE, subjectAfter } from "@aihot/site";
+import { inLanguage, L, type Locale } from "@techinhot/contracts/i18n";
+import { ENGLISH, needsEnglish } from "@techinhot/contracts/english";
+import { REPORT_NAMES_EN } from "@techinhot/contracts/site";
+import { feedCategoryLabelIn, PUBLIC_API_CATEGORY_KEYS, toPublicApiCategory, type PublicApiCategoryKey } from "@techinhot/contracts/taxonomy";
+import { EDITION_WHEN, REPORTS, SITE, subjectAfter } from "@techinhot/site";
 import { config } from "../config.ts";
 import { sql } from "../db.ts";
 import { escapeXml } from "../lib/text.ts";
@@ -150,7 +150,7 @@ const FEED_IMAGE_SECONDS = 7 * 86400;
  * English, the original, unless it is written in Chinese (then none). It ends with an attribution line (also
  * a mark on copies taken from the feed).
  */
-function fullContent(r: FeedRow, aihot: string, lang: FeedLanguage): string | null {
+function fullContent(r: FeedRow, techinhot: string, lang: FeedLanguage): string | null {
   const en = lang === "en";
   let html: string | null = null;
   const x = r.channel === "x" ? xView({ x_post: r.x_post ?? null, x_article: r.x_article ?? null, zh_text: r.zh_text ?? null, quoted_zh: r.quoted_zh ?? null }) : null;
@@ -179,26 +179,26 @@ function fullContent(r: FeedRow, aihot: string, lang: FeedLanguage): string | nu
   // In English, a body written in Chinese is not carried: judged by its words, as a declared language can be wrong.
   if (en && isChineseText(html.replace(/<[^>]+>/g, " "))) return null;
   const credit = en
-    ? `<p>— Collected by ${escapeXml(SITE.name)}; the full page and more ${escapeXml(SITE.subject)} news at <a href="${aihot}">${aihot}</a></p>`
-    : `<p>—— 本文由 ${escapeXml(SITE.name)} 聚合整理，完整版与${escapeXml(subjectAfter("更多", "动态"))}见 <a href="${aihot}">${aihot}</a></p>`;
+    ? `<p>— Collected by ${escapeXml(SITE.name)}; the full page and more ${escapeXml(SITE.subject)} news at <a href="${techinhot}">${techinhot}</a></p>`
+    : `<p>—— 本文由 ${escapeXml(SITE.name)} 聚合整理，完整版与${escapeXml(subjectAfter("更多", "动态"))}见 <a href="${techinhot}">${techinhot}</a></p>`;
   return `${proxyBodyImages(html, true, FEED_IMAGE_SECONDS)}${credit}`;
 }
 
 function itemXml(r: FeedRow, includeContent: boolean, lang: FeedLanguage): string {
-  const aihot = siteUrl(inLanguage(`/items/${r.id}`, lang));
+  const techinhot = siteUrl(inLanguage(`/items/${r.id}`, lang));
   const summary = r.summary ?? "";
-  const description = `<p>${escapeXml(summary)}</p>\n<p>🔗 <a href="${escapeXml(r.url)}">${lang === "en" ? "Read the original" : "阅读原文"}</a></p>\n<p>via ${escapeXml(SITE.name)} · <a href="${aihot}">${aihot}</a></p>`;
+  const description = `<p>${escapeXml(summary)}</p>\n<p>🔗 <a href="${escapeXml(r.url)}">${lang === "en" ? "Read the original" : "阅读原文"}</a></p>\n<p>via ${escapeXml(SITE.name)} · <a href="${techinhot}">${techinhot}</a></p>`;
   const publicCategory = toPublicApiCategory(r.category);
   const category = publicCategory ? `\n      <category>${escapeXml(feedCategoryLabelIn(publicCategory, lang))}</category>` : "";
   let content = "";
   if (includeContent && r.syndicate) {
-    const html = fullContent(r, aihot, lang);
+    const html = fullContent(r, techinhot, lang);
     if (html) content = `\n      <content:encoded>${cdata(html)}</content:encoded>`;
   }
   const pubDate = r.published_at ? `\n      <pubDate>${rfc822(r.published_at)}</pubDate>` : "";
   return `    <item>
       <title>${cdata(r.title)}</title>
-      <link>${aihot}</link>
+      <link>${techinhot}</link>
       <description>${cdata(description)}</description>${content}${category}${pubDate}
       <guid isPermaLink="false">${escapeXml(r.id)}</guid>
       <author>${escapeXml(AUTHOR)} (${escapeXml(r.source_name)})</author>

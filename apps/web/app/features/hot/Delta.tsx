@@ -1,4 +1,4 @@
-import type { HotEntryView } from "@aihot/contracts/site";
+import type { HotEntryView } from "@techinhot/contracts/site";
 import { useT } from "../../lib/i18n";
 
 /** Change against six hours before the ranking: up in the hot tone, down quiet, new stories marked new, none while sources are behind. */

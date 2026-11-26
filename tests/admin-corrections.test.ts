@@ -1,17 +1,17 @@
 import { pollFor } from "./poll.ts";
 import { createHmac } from "node:crypto";
-import { config } from "@aihot/backend/config";
+import { config } from "@techinhot/backend/config";
 import { tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
-import { sql, closeDb } from "@aihot/backend/db";
-import { createSource, updateSource } from "@aihot/backend/admin/sources";
-import { overrideFields, rerun, setSeoIndexed, setVisibility } from "@aihot/backend/admin/content";
-import { upsertMaterial } from "@aihot/backend/content/materials";
-import { publishArticle } from "@aihot/backend/publication/publish";
-import { getBoss, stopBoss } from "@aihot/backend/jobs/queue";
-import { sha256 } from "@aihot/backend/lib/ids";
-import { ADMIN } from "@aihot/site";
+import { sql, closeDb } from "@techinhot/backend/db";
+import { createSource, updateSource } from "@techinhot/backend/admin/sources";
+import { overrideFields, rerun, setSeoIndexed, setVisibility } from "@techinhot/backend/admin/content";
+import { upsertMaterial } from "@techinhot/backend/content/materials";
+import { publishArticle } from "@techinhot/backend/publication/publish";
+import { getBoss, stopBoss } from "@techinhot/backend/jobs/queue";
+import { sha256 } from "@techinhot/backend/lib/ids";
+import { ADMIN } from "@techinhot/site";
 import { buildApp } from "../apps/api/src/app.ts";
 import { registerAdmin } from "../apps/api/src/routes/admin.ts";
 
@@ -147,7 +147,7 @@ test("bad admin input is a client error and never starts processing", async () =
   config.adminPassword = "admin-corrections-test-password";
   const binding = createHmac("sha256", process.env.SESSION_SECRET!).update(JSON.stringify(["admin-session-v1", "password", config.adminPassword])).digest("hex");
   await sql`INSERT INTO admin_sessions (id_hash, user_id, csrf_token, expires_at, auth_method, auth_binding) VALUES (${sha256(token)}, ${user!.id}, 'review-csrf', now() + interval '1 hour', 'password', ${binding})`;
-  const headers = { cookie: `aihot_admin=${token}`, "x-csrf-token": "review-csrf", "idempotency-key": `invalid-${T}` };
+  const headers = { cookie: `techinhot_admin=${token}`, "x-csrf-token": "review-csrf", "idempotency-key": `invalid-${T}` };
   const source = await app.inject({ method: "POST", url: "/api/admin/sources", headers, payload: { id: "bad" } });
   assert.equal(source.statusCode, 400);
   const id = await article();
@@ -159,9 +159,9 @@ test("bad admin input is a client error and never starts processing", async () =
 });
 
 test("contentChain sees provenance audits, isolates selected deliveries, tag override keeps entity:* and modelsOverview prices retired models by recorded service", async () => {
-  const { contentChain } = await import("@aihot/backend/admin/content");
-  const { modelsOverview } = await import("@aihot/backend/admin/models");
-  const { audit } = await import("@aihot/backend/audit");
+  const { contentChain } = await import("@techinhot/backend/admin/content");
+  const { modelsOverview } = await import("@techinhot/backend/admin/models");
+  const { audit } = await import("@techinhot/backend/audit");
   const id = await article();
   await sql`INSERT INTO analyses (article_id, input_revision, origin, relevance, summary_zh, tags, subjects, selected)
             VALUES (${id}, 1, 'rule', 'pass', '摘要', ARRAY['模型发布'], ARRAY['openai'], false)`;

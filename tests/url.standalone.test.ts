@@ -7,10 +7,10 @@ import dns from "node:dns/promises";
 import { syncBuiltinESMExports } from "node:module";
 import { after, mock, test } from "node:test";
 import { Agent, fetch as undiciFetch } from "undici";
-import { config } from "@aihot/backend/config";
-import { guardedFetch } from "@aihot/backend/lib/http-fetch";
-import { fetchListing } from "@aihot/backend/sources/listing-fetch";
-import { assertPublicUrl, guardedLookup, isBlockedAddress } from "@aihot/backend/lib/url";
+import { config } from "@techinhot/backend/config";
+import { guardedFetch } from "@techinhot/backend/lib/http-fetch";
+import { fetchListing } from "@techinhot/backend/sources/listing-fetch";
+import { assertPublicUrl, guardedLookup, isBlockedAddress } from "@techinhot/backend/lib/url";
 
 let hits = 0;
 const server = http.createServer((_req, res) => { hits++; res.end("public content"); });

@@ -2,7 +2,7 @@
 // External HTML is never executed; images keep their original src and are signed at read time.
 import * as cheerio from "cheerio";
 import sanitizeHtml from "sanitize-html";
-import { addressRuns } from "@aihot/contracts/addresses";
+import { addressRuns } from "@techinhot/contracts/addresses";
 import { isNonArticleImage } from "../lib/image-url.ts";
 import { normalizeVideos } from "./video.ts";
 

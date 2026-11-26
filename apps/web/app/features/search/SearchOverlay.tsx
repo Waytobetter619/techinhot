@@ -3,7 +3,7 @@
 // (/all?q=…). Below the field: this browser's recent searches, topics to browse and what is hot now.
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Form, useLocation, useNavigation } from "react-router";
-import type { SearchSuggestions } from "@aihot/contracts/site";
+import type { SearchSuggestions } from "@techinhot/contracts/site";
 import { IconClose, IconSearch } from "../../components/icons";
 import { topicsInNav } from "../../components/shell/nav";
 import { addRecentSearch, clearRecentSearches, useRecentSearches } from "../../lib/local-state";
@@ -12,7 +12,7 @@ import { Collapse, Presence } from "../../components/ui/Presence";
 import { Link } from "../../lib/link";
 import { apiIn, localizePath, pagePath, useLocale, useT, type Locale } from "../../lib/i18n";
 import { filterKeep, listPath, readFilters } from "../../lib/seo";
-import { topicName } from "@aihot/contracts/taxonomy";
+import { topicName } from "@techinhot/contracts/taxonomy";
 
 // One overlay for the whole site, opened from any bar.
 let overlay: HTMLDivElement | null = null;

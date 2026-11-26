@@ -1,5 +1,5 @@
 // Published dates as list pages, articles and JSON lists print them, read the same on every host.
-import { beijingDate, beijingTime } from "@aihot/contracts/time";
+import { beijingDate, beijingTime } from "@techinhot/contracts/time";
 import type { SourceRow } from "./types.ts";
 
 /** The offset a source's article pages print their dates in: its detail rules' own, else its listing's. */

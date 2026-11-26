@@ -5,8 +5,8 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { WorkOptions } from "pg-boss";
 import type { z } from "zod";
-import type { MentionTarget } from "@aihot/contracts/mentions";
-import type { Brand } from "@aihot/contracts/site";
+import type { MentionTarget } from "@techinhot/contracts/mentions";
+import type { Brand } from "@techinhot/contracts/site";
 import type { Db } from "./db.ts";
 import type { QueueOptions } from "./jobs/queue.ts";
 import type { Finding, FollowUp } from "./notify/feishu.ts";

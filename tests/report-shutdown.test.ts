@@ -4,9 +4,9 @@
 import { editionAt, gate, Reply, stub, tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { closeDb, sql } from "@aihot/backend/db";
-import { shutdownSignal, stopBoss } from "@aihot/backend/jobs/queue";
-import { composeDaily, composeDueReports } from "@aihot/backend/reports/compose";
+import { closeDb, sql } from "@techinhot/backend/db";
+import { shutdownSignal, stopBoss } from "@techinhot/backend/jobs/queue";
+import { composeDaily, composeDueReports } from "@techinhot/backend/reports/compose";
 
 const T = tag();
 const SOURCE = `report-shutdown-${T}`;

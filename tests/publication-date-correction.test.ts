@@ -10,15 +10,15 @@
 import { tag } from './setup.ts';
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
-import { closeDb, sql } from '@aihot/backend/db';
-import { upsertMaterial } from '@aihot/backend/content/materials';
-import { correctPublicationDate, previewPublicationDateCorrection } from '@aihot/backend/admin/content';
-import { publishArticle } from '@aihot/backend/publication/publish';
-import { getBoss, stopBoss } from '@aihot/backend/jobs/queue';
-import { installModules } from '@aihot/backend/modules';
-import { pushSelected } from '@aihot/backend/notify/selected';
+import { closeDb, sql } from '@techinhot/backend/db';
+import { upsertMaterial } from '@techinhot/backend/content/materials';
+import { correctPublicationDate, previewPublicationDateCorrection } from '@techinhot/backend/admin/content';
+import { publishArticle } from '@techinhot/backend/publication/publish';
+import { getBoss, stopBoss } from '@techinhot/backend/jobs/queue';
+import { installModules } from '@techinhot/backend/modules';
+import { pushSelected } from '@techinhot/backend/notify/selected';
 import { randomUUID } from 'node:crypto';
-import { QUEUES } from '@aihot/backend/jobs/queue';
+import { QUEUES } from '@techinhot/backend/jobs/queue';
 
 const T=tag();
 const source=`date-correction-${T}`;

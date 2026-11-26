@@ -7,9 +7,9 @@ import { pollFor } from "./poll.ts";
 import { stub, tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
-import { closeDb, sql } from "@aihot/backend/db";
-import { EMBEDDING_DIMS, ensureEmbeddings } from "@aihot/backend/providers/embeddings";
-import { ModelOutputError, ReceiptBusyError } from "@aihot/backend/providers/receipts";
+import { closeDb, sql } from "@techinhot/backend/db";
+import { EMBEDDING_DIMS, ensureEmbeddings } from "@techinhot/backend/providers/embeddings";
+import { ModelOutputError, ReceiptBusyError } from "@techinhot/backend/providers/receipts";
 
 let answer: unknown;
 const provider = await stub(() => answer);

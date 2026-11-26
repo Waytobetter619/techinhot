@@ -5,12 +5,12 @@ import { syncBuiltinESMExports } from "node:module";
 import { after, mock, test } from "node:test";
 import timersPromises from "node:timers/promises";
 import { MockAgent, getGlobalDispatcher, setGlobalDispatcher } from "undici";
-import { config } from "@aihot/backend/config";
-import { fetchListing } from "@aihot/backend/sources/listing-fetch";
-import { fetchRss } from "@aihot/backend/sources/rss";
-import { fetchWebList } from "@aihot/backend/sources/web-list";
-import { fetchJsonList } from "@aihot/backend/sources/json-list";
-import type { SourceRow } from "@aihot/backend/sources/types";
+import { config } from "@techinhot/backend/config";
+import { fetchListing } from "@techinhot/backend/sources/listing-fetch";
+import { fetchRss } from "@techinhot/backend/sources/rss";
+import { fetchWebList } from "@techinhot/backend/sources/web-list";
+import { fetchJsonList } from "@techinhot/backend/sources/json-list";
+import type { SourceRow } from "@techinhot/backend/sources/types";
 
 const previousDispatcher = getGlobalDispatcher();
 const previousPrivate = config.allowPrivateNetworkFetch;

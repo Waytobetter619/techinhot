@@ -1,4 +1,4 @@
-// Runs the production web server (apps/web/server.ts, after `npm run build -w @aihot/web`) in front of
+// Runs the production web server (apps/web/server.ts, after `npm run build -w @techinhot/web`) in front of
 // a synthetic api, for tests that read pages over HTTP or in a browser; and that api with its reports.
 import { spawn } from "node:child_process";
 import { once } from "node:events";
@@ -8,7 +8,7 @@ import type { AddressInfo } from "node:net";
 import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 import type { DataRouter } from "react-router";
-import type { FeedItemSummary, SiteItemDetail } from "@aihot/contracts/site";
+import type { FeedItemSummary, SiteItemDetail } from "@techinhot/contracts/site";
 
 /** When the synthetic reports were published. */
 export const FIXTURE_AT = "2026-10-04T08:00:00.000Z";

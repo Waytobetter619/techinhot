@@ -3,7 +3,7 @@ import { Presence } from "../ui/Presence";
 import { ThemeSwitch } from "./ThemeSwitch";
 import { FontSelect } from "./FontSelect";
 import { LanguageSwitch } from "./LanguageSwitch";
-import { ENGLISH } from "@aihot/contracts/english";
+import { ENGLISH } from "@techinhot/contracts/english";
 import { webModules } from "../../site-modules";
 import { useT } from "../../lib/i18n";
 

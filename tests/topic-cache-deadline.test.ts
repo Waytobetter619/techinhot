@@ -3,8 +3,8 @@
 import { tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
-import { closeDb, sql } from "@aihot/backend/db";
-import { loadTopicPage, topicPageCounts } from "@aihot/backend/publication/topics";
+import { closeDb, sql } from "@techinhot/backend/db";
+import { loadTopicPage, topicPageCounts } from "@techinhot/backend/publication/topics";
 
 after(closeDb);
 

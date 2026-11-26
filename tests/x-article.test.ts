@@ -8,17 +8,17 @@
 import { stub, tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { config } from "@aihot/backend/config";
-import { closeDb, sql } from "@aihot/backend/db";
-import { extractArticleBody } from "@aihot/backend/content/extract";
-import { upsertMaterial } from "@aihot/backend/content/materials";
-import { loadAnalyzeInput } from "@aihot/backend/editorial/input";
-import { renderContext } from "@aihot/backend/editorial/writing";
-import { queueProcessing } from "@aihot/backend/jobs/content";
-import { QUEUES, stopBoss } from "@aihot/backend/jobs/queue";
-import { collectXShard } from "@aihot/backend/sources/collect";
-import { tweetToCandidate, xArticleHtml } from "@aihot/backend/sources/x";
-import type { SdArticle, SdTweet } from "@aihot/backend/providers/socialdata";
+import { config } from "@techinhot/backend/config";
+import { closeDb, sql } from "@techinhot/backend/db";
+import { extractArticleBody } from "@techinhot/backend/content/extract";
+import { upsertMaterial } from "@techinhot/backend/content/materials";
+import { loadAnalyzeInput } from "@techinhot/backend/editorial/input";
+import { renderContext } from "@techinhot/backend/editorial/writing";
+import { queueProcessing } from "@techinhot/backend/jobs/content";
+import { QUEUES, stopBoss } from "@techinhot/backend/jobs/queue";
+import { collectXShard } from "@techinhot/backend/sources/collect";
+import { tweetToCandidate, xArticleHtml } from "@techinhot/backend/sources/x";
+import type { SdArticle, SdTweet } from "@techinhot/backend/providers/socialdata";
 
 const T = tag();
 const HANDLE = `xa${T}`;

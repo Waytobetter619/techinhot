@@ -5,10 +5,10 @@ import { pollFor } from "./poll.ts";
 import { gate, tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { config } from "@aihot/backend/config";
-import { closeDb, sql } from "@aihot/backend/db";
-import { deliverContent, resendDelivery } from "@aihot/backend/notify/deliver";
-import { pushSelected } from "@aihot/backend/notify/selected";
+import { config } from "@techinhot/backend/config";
+import { closeDb, sql } from "@techinhot/backend/db";
+import { deliverContent, resendDelivery } from "@techinhot/backend/notify/deliver";
+import { pushSelected } from "@techinhot/backend/notify/selected";
 
 const T = tag();
 const TARGET = `test-delivery-${T}`;

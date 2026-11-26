@@ -14,13 +14,13 @@ for (const route of ["direct", "proxy"] as const) {
       import { createServer } from 'node:http';
       import net from 'node:net';
       import { mock } from 'node:test';
-      import { DEPLOYMENT } from '@aihot/site';
-      import { config } from '@aihot/backend/config';
-      import * as egress from '@aihot/backend/lib/egress-proxy';
-      mock.module('@aihot/backend/lib/egress-proxy', { namedExports: {
+      import { DEPLOYMENT } from '@techinhot/site';
+      import { config } from '@techinhot/backend/config';
+      import * as egress from '@techinhot/backend/lib/egress-proxy';
+      mock.module('@techinhot/backend/lib/egress-proxy', { namedExports: {
         ...egress, createEgressResolver: () => async () => ['93.184.216.34']
       }});
-      const { guardedFetch } = await import('@aihot/backend/lib/http-fetch');
+      const { guardedFetch } = await import('@techinhot/backend/lib/http-fetch');
       const route = process.env.TEST_HEADER_ROUTE;
       const sockets = new Set(), requests = [];
       const origin = createServer((req, res) => {

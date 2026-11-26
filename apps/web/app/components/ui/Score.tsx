@@ -1,4 +1,4 @@
-import { ITEM_COPY } from "@aihot/site";
+import { ITEM_COPY } from "@techinhot/site";
 import { useT } from "../../lib/i18n";
 
 /**

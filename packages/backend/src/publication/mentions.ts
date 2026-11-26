@@ -1,7 +1,7 @@
 // The pages names in the site's own text link to (contracts/mentions.ts): the engine's company topics,
 // by the topic's name and the company's organisation names, and the installed modules' pages. A page's
 // payload carries the ones its texts name; the page links them where a reader meets them first.
-import { prepareMentionLookup, withoutSharedNames, type MentionTarget } from "@aihot/contracts/mentions";
+import { prepareMentionLookup, withoutSharedNames, type MentionTarget } from "@techinhot/contracts/mentions";
 import { ENTITIES } from "../editorial/vocabulary.ts";
 import { cached, type Cached } from "../lib/cache.ts";
 import { serverModules, type ServerModule } from "../modules.ts";

@@ -1,5 +1,5 @@
 import type { Route } from "./+types/item-original";
-import type { SiteItemDetail } from "@aihot/contracts/site";
+import type { SiteItemDetail } from "@techinhot/contracts/site";
 import { cachedPage, loadOr404, pagePathname } from "../lib/api.server";
 import { titleCacheSeconds } from "../lib/seo";
 import { apiIn, localeOf } from "../lib/i18n";

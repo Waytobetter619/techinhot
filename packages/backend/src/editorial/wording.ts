@@ -1,7 +1,7 @@
 // Words the site keeps out of what readers read (industry/wording.ts): each use in a written title, summary or
 // reason, named with what to write instead, for the one call that mends them (analyze.ts, mendWording).
-import { READER_WORDING } from "@aihot/industry/wording";
-import { ITEM_COPY } from "@aihot/site";
+import { READER_WORDING } from "@techinhot/industry/wording";
+import { ITEM_COPY } from "@techinhot/site";
 
 export interface ReaderCopy {
   titleZh: string;

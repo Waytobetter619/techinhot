@@ -1,11 +1,11 @@
-import { namesEn } from "@aihot/contracts/i18n";
+import { namesEn } from "@techinhot/contracts/i18n";
 import { useLoaderData } from "react-router";
-import { SITE, subjectAfter, withSubject } from "@aihot/site";
-import { ENGLISH } from "@aihot/contracts/english";
-import { TOPIC_GROUP_EN } from "@aihot/industry/english";
-import { topicDefinition, topicName } from "@aihot/contracts/taxonomy";
+import { SITE, subjectAfter, withSubject } from "@techinhot/site";
+import { ENGLISH } from "@techinhot/contracts/english";
+import { TOPIC_GROUP_EN } from "@techinhot/industry/english";
+import { topicDefinition, topicName } from "@techinhot/contracts/taxonomy";
 import type { Route } from "./+types/topics";
-import type { TopicGroup, TopicSummary, TopicsResponse } from "@aihot/contracts/site";
+import type { TopicGroup, TopicSummary, TopicsResponse } from "@techinhot/contracts/site";
 import { apiGet, cachedPage, pagePathname } from "../lib/api.server";
 import { pageReuse } from "../lib/page-reuse";
 import { breadcrumbLd, pageMeta, siteUrl } from "../lib/seo";

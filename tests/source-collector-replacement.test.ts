@@ -4,11 +4,11 @@
 import { tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
-import { closeDb, sql } from "@aihot/backend/db";
-import { updateSource } from "@aihot/backend/admin/sources";
-import { upsertMaterial } from "@aihot/backend/content/materials";
-import { republishKey } from "@aihot/backend/jobs/publication";
-import { stopBoss } from "@aihot/backend/jobs/queue";
+import { closeDb, sql } from "@techinhot/backend/db";
+import { updateSource } from "@techinhot/backend/admin/sources";
+import { upsertMaterial } from "@techinhot/backend/content/materials";
+import { republishKey } from "@techinhot/backend/jobs/publication";
+import { stopBoss } from "@techinhot/backend/jobs/queue";
 
 after(async () => { await stopBoss(); await closeDb(); });
 async function source(kind = "rss", config: Record<string, unknown> = { feedUrl: `https://example.com/${tag()}` }) {

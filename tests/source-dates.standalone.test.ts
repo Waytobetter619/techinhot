@@ -3,9 +3,9 @@
 // and TZ=Asia/Shanghai to see both).
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { batchUser, describeReport } from "@aihot/backend/events/relate";
-import { readable } from "@aihot/backend/content/extract";
-import { parseLooseDate, readPublicationDate, readRelativeDate, describePublicationTime } from "@aihot/backend/sources/dates";
+import { batchUser, describeReport } from "@techinhot/backend/events/relate";
+import { readable } from "@techinhot/backend/content/extract";
+import { parseLooseDate, readPublicationDate, readRelativeDate, describePublicationTime } from "@techinhot/backend/sources/dates";
 
 const iso = (v: string, offset?: string) => parseLooseDate(v, offset)?.toISOString() ?? null;
 

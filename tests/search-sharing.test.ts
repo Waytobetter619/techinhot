@@ -4,9 +4,9 @@ import { pollFor } from "./poll.ts";
 import { tag, gate } from './setup.ts';
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
-import { sql, closeDb } from '@aihot/backend/db';
-import { loadPool } from '@aihot/backend/publication/pool';
-import { sharedSearch } from '@aihot/backend/lib/cache';
+import { sql, closeDb } from '@techinhot/backend/db';
+import { loadPool } from '@techinhot/backend/publication/pool';
+import { sharedSearch } from '@techinhot/backend/lib/cache';
 import { buildApp } from '../apps/api/src/app.ts';
 
 const app = await buildApp();

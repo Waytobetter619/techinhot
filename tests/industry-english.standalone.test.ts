@@ -2,8 +2,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { CATEGORIES, CATEGORY_TAGS, TAG_DISPLAY, TOPIC_TAGS } from "@aihot/industry/taxonomy";
-import { CATEGORY_EN, TAG_EN, TOPIC_EN, TOPIC_GROUP_EN } from "@aihot/industry/english";
+import { CATEGORIES, CATEGORY_TAGS, TAG_DISPLAY, TOPIC_TAGS } from "@techinhot/industry/taxonomy";
+import { CATEGORY_EN, TAG_EN, TOPIC_EN, TOPIC_GROUP_EN } from "@techinhot/industry/english";
 
 const pack = JSON.parse(readFileSync(new URL("../industry/topics.json", import.meta.url), "utf8")) as {
   groups: Array<{ key: string }>;

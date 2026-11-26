@@ -6,11 +6,11 @@
 // of that original lifetime.
 import { mkdir, readFile, stat, utimes, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { REPORT_NAMES, reportDateLabel, STORY_INDEX_MIN_SOURCES, type ReportKind } from "@aihot/contracts/site";
-import { ENGLISH, needsEnglish } from "@aihot/contracts/english";
-import { hasEnglish } from "@aihot/contracts/reader-pages";
-import { inLanguage, localeOf, pagePath } from "@aihot/contracts/i18n";
-import { ABOUT, ACCESS, AGENT, POLICY, SITE, withSubject } from "@aihot/site";
+import { REPORT_NAMES, reportDateLabel, STORY_INDEX_MIN_SOURCES, type ReportKind } from "@techinhot/contracts/site";
+import { ENGLISH, needsEnglish } from "@techinhot/contracts/english";
+import { hasEnglish } from "@techinhot/contracts/reader-pages";
+import { inLanguage, localeOf, pagePath } from "@techinhot/contracts/i18n";
+import { ABOUT, ACCESS, AGENT, POLICY, SITE, withSubject } from "@techinhot/site";
 import { config, REPO_ROOT } from "../config.ts";
 import { sha256, stableJson } from "../lib/ids.ts";
 import { loadChangelog } from "../site/meta.ts";

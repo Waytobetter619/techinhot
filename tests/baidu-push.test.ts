@@ -14,10 +14,10 @@ import './setup.ts';
 import assert from 'node:assert/strict';
 import { after, afterEach, test } from 'node:test';
 import { randomUUID } from 'node:crypto';
-import { sql, closeDb } from '@aihot/backend/db';
-import { config } from '@aihot/backend/config';
-import { installModules, type SitemapEntry } from '@aihot/backend/modules';
-import { submitBaiduPush } from '@aihot/backend/operations/baidu-push';
+import { sql, closeDb } from '@techinhot/backend/db';
+import { config } from '@techinhot/backend/config';
+import { installModules, type SitemapEntry } from '@techinhot/backend/modules';
+import { submitBaiduPush } from '@techinhot/backend/operations/baidu-push';
 
 const originalFetch = globalThis.fetch;
 after(closeDb);

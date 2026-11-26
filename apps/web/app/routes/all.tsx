@@ -1,11 +1,11 @@
 import { useEffect } from "react";
 import { redirect, useLoaderData, useNavigation, useSearchParams } from "react-router";
 import type { Route } from "./+types/all";
-import type { PoolResponse } from "@aihot/contracts/site";
-import { displayTagIn } from "@aihot/contracts/taxonomy";
-import { SEO_TITLES, SITE, subjectAfter } from "@aihot/site";
-import { ENGLISH } from "@aihot/contracts/english";
-import { beijingTime } from "@aihot/contracts/time";
+import type { PoolResponse } from "@techinhot/contracts/site";
+import { displayTagIn } from "@techinhot/contracts/taxonomy";
+import { SEO_TITLES, SITE, subjectAfter } from "@techinhot/site";
+import { ENGLISH } from "@techinhot/contracts/english";
+import { beijingTime } from "@techinhot/contracts/time";
 import { cachedPage, loadOr404, pagePathname } from "../lib/api.server";
 import { pageReuse } from "../lib/page-reuse";
 import { feedListPath, filterParams, hasFeedFilters, itemListLd, listPath, pageMeta, readFilters } from "../lib/seo";

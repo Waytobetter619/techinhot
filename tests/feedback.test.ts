@@ -20,18 +20,18 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, test, type TestContext } from "node:test";
 import sharp from "sharp";
-import { listFeedback, readFeedbackScreenshot, updateFeedback, banFeedbackEmail, unbanSource, eraseFeedback, banSource } from "@aihot/backend/admin/feedback";
-import { Conflict } from "@aihot/backend/audit";
-import { config } from "@aihot/backend/config";
-import { closeDb, sql } from "@aihot/backend/db";
-import { forwardFeedbackToFeishu } from "@aihot/backend/notify/feishu";
-import { defineServerModule, installModules } from "@aihot/backend/modules";
-import { forwardPendingFeedback, moduleHandlesFeedback, sitePath, sniffImageType, submitFeedback, FeedbackRejected, feedbackSourceHash, feedbackEmailKey } from "@aihot/backend/operations/feedback";
-import { dailyRetention } from "@aihot/backend/operations/retention";
+import { listFeedback, readFeedbackScreenshot, updateFeedback, banFeedbackEmail, unbanSource, eraseFeedback, banSource } from "@techinhot/backend/admin/feedback";
+import { Conflict } from "@techinhot/backend/audit";
+import { config } from "@techinhot/backend/config";
+import { closeDb, sql } from "@techinhot/backend/db";
+import { forwardFeedbackToFeishu } from "@techinhot/backend/notify/feishu";
+import { defineServerModule, installModules } from "@techinhot/backend/modules";
+import { forwardPendingFeedback, moduleHandlesFeedback, sitePath, sniffImageType, submitFeedback, FeedbackRejected, feedbackSourceHash, feedbackEmailKey } from "@techinhot/backend/operations/feedback";
+import { dailyRetention } from "@techinhot/backend/operations/retention";
 import { buildApp } from "../apps/api/src/app.ts";
 import { registerAdmin } from "../apps/api/src/routes/admin.ts";
-import { ADMIN } from "@aihot/site";
-import { passwordLogin, SESSION_COOKIE } from "@aihot/backend/admin/auth";
+import { ADMIN } from "@techinhot/site";
+import { passwordLogin, SESSION_COOKIE } from "@techinhot/backend/admin/auth";
 
 function disableFeedbackForwarding(t: TestContext) {
   const previous = process.env.FEISHU_INTERNAL_ENABLED;
@@ -43,7 +43,7 @@ function disableFeedbackForwarding(t: TestContext) {
 }
 
 const T = tag();
-config.dataDir = mkdtempSync(path.join(tmpdir(), "aihot-feedback-"));
+config.dataDir = mkdtempSync(path.join(tmpdir(), "techinhot-feedback-"));
 process.env.FEISHU_APP_ID = "test-app";
 process.env.FEISHU_APP_SECRET = "test-secret";
 process.env.FEISHU_INTERNAL_CHAT_ID = "oc_test";
@@ -438,7 +438,7 @@ test("persistent repeat abuse is paused once, survives a new process, and never 
   const input = { ip: "203.0.113.182", userAgent: "Firefox", content: "重复提交回归用例" };
   const first = await submitFeedback(input);
   for (let i = 1; i < 20; i++) assert.equal((await submitFeedback(input)).id, first.id);
-  const code = `const {submitFeedback}=await import('@aihot/backend/operations/feedback');const {closeDb}=await import('@aihot/backend/db');try{await submitFeedback(${JSON.stringify(input)});console.log('unexpected accepted')}catch(e){console.log(JSON.stringify({status:e.status,retryAfter:e.retryAfter}))}finally{await closeDb()}`;
+  const code = `const {submitFeedback}=await import('@techinhot/backend/operations/feedback');const {closeDb}=await import('@techinhot/backend/db');try{await submitFeedback(${JSON.stringify(input)});console.log('unexpected accepted')}catch(e){console.log(JSON.stringify({status:e.status,retryAfter:e.retryAfter}))}finally{await closeDb()}`;
   const child = await promisify(execFile)(process.execPath, ["--input-type=module", "-e", code], { env: { ...process.env, FEISHU_INTERNAL_ENABLED: "false" } });
   assert.deepEqual(JSON.parse(child.stdout.trim()), { status: 429, retryAfter: 3600 });
   const source = feedbackSourceHash(input.ip, input.userAgent);

@@ -7,9 +7,9 @@
 // independent participants, first-hand), and the first one leads. Sections are the industry pack's
 // (industry/taxonomy.ts CATEGORIES). A thin issue's highlights are filled from the window's best reports it
 // left out (dailyPicks).
-import { addDays } from "@aihot/contracts/time";
-import { SELECTION } from "@aihot/industry/selection";
-import { CATEGORIES } from "@aihot/industry/taxonomy";
+import { addDays } from "@techinhot/contracts/time";
+import { SELECTION } from "@techinhot/industry/selection";
+import { CATEGORIES } from "@techinhot/industry/taxonomy";
 import { sql } from "../db.ts";
 import { currentSignals } from "../events/hot.ts";
 import { pickRepresentative, representativePriority, REPRESENTATIVE_COLUMNS, type RepresentativeIdentity } from "../publication/representative.ts";

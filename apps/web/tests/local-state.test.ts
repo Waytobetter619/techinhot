@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import { runInNewContext } from "node:vm";
-import { beijingDate, beijingTime } from "@aihot/contracts/time";
+import { beijingDate, beijingTime } from "@techinhot/contracts/time";
 
 const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
 after(() => {
@@ -11,7 +11,7 @@ after(() => {
 
 let instance = 0;
 async function reader(starred: unknown[] = []) {
-  const values = new Map([["aihot-starred-items", JSON.stringify(starred)]]);
+  const values = new Map([["techinhot-starred-items", JSON.stringify(starred)]]);
   const session = new Map<string, string>();
   let denied = false;
   const makeStore = (map: Map<string, string>) => ({
@@ -119,9 +119,9 @@ test("failed bookmark writes and damaged existing data do not report a successfu
 test("the storage keys readers already have data under keep their names", async () => {
   const { state } = await reader();
   const kept = {
-    starred: "aihot-starred-items", read: "aihot-read-items", unreadOnly: "aihot-unread-only", theme: "aihot-theme", font: "aihot-font",
-    changelogSeen: "aihot-changelog-seen-version", feedbackDraft: "aihot-feedback-draft-v1", recentSearches: "aihot-recent-searches",
-    englishHint: "aihot-english-hint-dismissed",
+    starred: "techinhot-starred-items", read: "techinhot-read-items", unreadOnly: "techinhot-unread-only", theme: "techinhot-theme", font: "techinhot-font",
+    changelogSeen: "techinhot-changelog-seen-version", feedbackDraft: "techinhot-feedback-draft-v1", recentSearches: "techinhot-recent-searches",
+    englishHint: "techinhot-english-hint-dismissed",
   } as const;
   for (const [role, key] of Object.entries(kept)) {
     assert.equal(state.KEYS[role as keyof typeof kept], key, `readers' ${role} data is stored under ${key}; renaming the key loses it`);

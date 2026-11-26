@@ -3,17 +3,17 @@
 import { tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { closeDb, sql } from "@aihot/backend/db";
-import { upsertMaterial } from "@aihot/backend/content/materials";
-import { getBoss, stopBoss } from "@aihot/backend/jobs/queue";
-import { checkAlerts, collectFindings, providerStops, sendDigest } from "@aihot/backend/operations/alerts";
-import { CAPABILITIES, invalidateModelCache, modelFor, modelRoute, stepsOnService } from "@aihot/backend/editorial/models";
-import { installModules, serverModules } from "@aihot/backend/modules";
-import { MODELS } from "@aihot/backend/providers/llm";
-import { assertAccepted, paidRequest } from "@aihot/backend/providers/receipts";
-import { READER_WORDING } from "@aihot/industry/wording";
-import { resolveDelivery } from "@aihot/backend/notify/deliver";
-import { runsOverview } from "@aihot/backend/admin/runs";
+import { closeDb, sql } from "@techinhot/backend/db";
+import { upsertMaterial } from "@techinhot/backend/content/materials";
+import { getBoss, stopBoss } from "@techinhot/backend/jobs/queue";
+import { checkAlerts, collectFindings, providerStops, sendDigest } from "@techinhot/backend/operations/alerts";
+import { CAPABILITIES, invalidateModelCache, modelFor, modelRoute, stepsOnService } from "@techinhot/backend/editorial/models";
+import { installModules, serverModules } from "@techinhot/backend/modules";
+import { MODELS } from "@techinhot/backend/providers/llm";
+import { assertAccepted, paidRequest } from "@techinhot/backend/providers/receipts";
+import { READER_WORDING } from "@techinhot/industry/wording";
+import { resolveDelivery } from "@techinhot/backend/notify/deliver";
+import { runsOverview } from "@techinhot/backend/admin/runs";
 
 process.env.COLLECT_ENABLED = "false";
 process.env.MODEL_CALLS_ENABLED = "false";

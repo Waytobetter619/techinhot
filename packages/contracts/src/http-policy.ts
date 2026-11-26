@@ -1,8 +1,8 @@
 // Outward HTTP behaviour, defined once: CORS, the public interface version, redirects and which process
 // owns a path, the engine's and then those of the site's modules. The API server and the web server both
 // read this module.
-import { ABOUT, POLICY, SITE } from "@aihot/site";
-import { MODULES } from "@aihot/site/modules";
+import { ABOUT, POLICY, SITE } from "@techinhot/site";
+import { MODULES } from "@techinhot/site/modules";
 import { hasEnglish, localizePath } from "./reader-pages.ts";
 import { inLanguage, localeOf, pagePath } from "./i18n.ts";
 import { ENGLISH } from "./english.ts";

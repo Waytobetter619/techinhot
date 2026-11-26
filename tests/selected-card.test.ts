@@ -5,14 +5,14 @@
 import { tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { closeDb, sql } from "@aihot/backend/db";
-import { config } from "@aihot/backend/config";
-import { upsertMaterial } from "@aihot/backend/content/materials";
-import { stopBoss } from "@aihot/backend/jobs/queue";
-import { publishArticle } from "@aihot/backend/publication/publish";
-import { selectedContent } from "@aihot/backend/notify/selected-content";
-import { CATEGORIES } from "@aihot/industry/taxonomy";
-import { ITEM_COPY, SITE } from "@aihot/site";
+import { closeDb, sql } from "@techinhot/backend/db";
+import { config } from "@techinhot/backend/config";
+import { upsertMaterial } from "@techinhot/backend/content/materials";
+import { stopBoss } from "@techinhot/backend/jobs/queue";
+import { publishArticle } from "@techinhot/backend/publication/publish";
+import { selectedContent } from "@techinhot/backend/notify/selected-content";
+import { CATEGORIES } from "@techinhot/industry/taxonomy";
+import { ITEM_COPY, SITE } from "@techinhot/site";
 
 config.siteUrl = "https://example.org";
 

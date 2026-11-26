@@ -8,17 +8,17 @@ import { analysisStep, SELECTING_SCORE, type AnalysisStep } from "./analysis-ste
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { after, before, test } from "node:test";
-import { closeDb, sql } from "@aihot/backend/db";
-import { upsertMaterial } from "@aihot/backend/content/materials";
-import { analyzeArticle, buildMaterial, loadAnalyzeInput, normalizeAnalysis, normalizeStructure, runAnalysis, selectionThreshold, StructureSchema, type AnalyzeInputArticle, UNDERSTAND_FLOOR } from "@aihot/backend/editorial/analyze";
-import { createSource, updateSource } from "@aihot/backend/admin/sources";
-import { processArticle, queueProcessing } from "@aihot/backend/jobs/content";
-import { isPoolEligible } from "@aihot/backend/publication/rules";
-import { getBoss, QUEUES, stopBoss } from "@aihot/backend/jobs/queue";
-import { compactAnswerFirstSummary, enforceIdentity, MAX_BODY_CHARS, parseTranslateOutput } from "@aihot/backend/editorial/writing";
-import { READER_WORDING } from "@aihot/industry/wording";
-import { SELECTION } from "@aihot/industry/selection";
-import { ITEM_TYPES } from "@aihot/industry/taxonomy";
+import { closeDb, sql } from "@techinhot/backend/db";
+import { upsertMaterial } from "@techinhot/backend/content/materials";
+import { analyzeArticle, buildMaterial, loadAnalyzeInput, normalizeAnalysis, normalizeStructure, runAnalysis, selectionThreshold, StructureSchema, type AnalyzeInputArticle, UNDERSTAND_FLOOR } from "@techinhot/backend/editorial/analyze";
+import { createSource, updateSource } from "@techinhot/backend/admin/sources";
+import { processArticle, queueProcessing } from "@techinhot/backend/jobs/content";
+import { isPoolEligible } from "@techinhot/backend/publication/rules";
+import { getBoss, QUEUES, stopBoss } from "@techinhot/backend/jobs/queue";
+import { compactAnswerFirstSummary, enforceIdentity, MAX_BODY_CHARS, parseTranslateOutput } from "@techinhot/backend/editorial/writing";
+import { READER_WORDING } from "@techinhot/industry/wording";
+import { SELECTION } from "@techinhot/industry/selection";
+import { ITEM_TYPES } from "@techinhot/industry/taxonomy";
 
 const T = tag();
 const SOURCE = `test-analyze-${T}`;
@@ -343,9 +343,9 @@ const children = new Set<ReturnType<typeof spawn>>();
 
 function worker(queue: string) {
   const script = `
-    import { getBoss, stopBoss, shutdownSignal, QUEUES } from '@aihot/backend/jobs/queue';
-    import { registerContentJobs } from '@aihot/backend/jobs/content';
-    import { closeDb } from '@aihot/backend/db';
+    import { getBoss, stopBoss, shutdownSignal, QUEUES } from '@techinhot/backend/jobs/queue';
+    import { registerContentJobs } from '@techinhot/backend/jobs/content';
+    import { closeDb } from '@techinhot/backend/db';
     QUEUES.analyze = process.env.TEST_ANALYZE_QUEUE;
     let stopping = false;
     process.on('SIGTERM', async () => {
@@ -360,7 +360,7 @@ function worker(queue: string) {
     await registerContentJobs(await getBoss());
     process.send({ ready: true });
   `;
-  const env = { ...process.env, TEST_ANALYZE_QUEUE: queue, MODEL_CALLS_ENABLED: "true", AIHOT_CREDENTIALS_DIR: "/nonexistent-test-credentials" };
+  const env = { ...process.env, TEST_ANALYZE_QUEUE: queue, MODEL_CALLS_ENABLED: "true", TECHINHOT_CREDENTIALS_DIR: "/nonexistent-test-credentials" };
   pointModels(shutdownProvider.url, undefined, env);
   const child = spawn(process.execPath, ["--input-type=module", "-e", script], { cwd: process.cwd(), env, stdio: ["ignore", "pipe", "pipe", "ipc"] });
   children.add(child);

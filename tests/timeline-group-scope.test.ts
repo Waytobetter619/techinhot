@@ -4,8 +4,8 @@
 import { tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
-import { closeDb, sql } from "@aihot/backend/db";
-import { loadTimeline } from "@aihot/backend/publication/timeline";
+import { closeDb, sql } from "@techinhot/backend/db";
+import { loadTimeline } from "@techinhot/backend/publication/timeline";
 
 after(closeDb);
 

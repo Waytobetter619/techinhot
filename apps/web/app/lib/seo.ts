@@ -4,10 +4,10 @@
 import type { MetaDescriptor } from "react-router";
 import {
   REPORT_NAMES, REPORT_NAMES_EN, reportDateLabel, reportDateLabelEn, STORY_INDEX_MIN_SOURCES, type ReportDetail, type StoryDetail, type TimelineFilters,
-} from "@aihot/contracts/site";
-import { isCategoryKey, isChannelKey, sectionLabelIn, topicName } from "@aihot/contracts/taxonomy";
-import { SITE, subjectAfter, withSubject } from "@aihot/site";
-import { ENGLISH, WAITING_ENGLISH_SECONDS, needsEnglish } from "@aihot/contracts/english";
+} from "@techinhot/contracts/site";
+import { isCategoryKey, isChannelKey, sectionLabelIn, topicName } from "@techinhot/contracts/taxonomy";
+import { SITE, subjectAfter, withSubject } from "@techinhot/site";
+import { ENGLISH, WAITING_ENGLISH_SECONDS, needsEnglish } from "@techinhot/contracts/english";
 import { feedPath, hasEnglish, localizePath, ogPath, translator, type Locale, type Text } from "./i18n.ts";
 
 /**

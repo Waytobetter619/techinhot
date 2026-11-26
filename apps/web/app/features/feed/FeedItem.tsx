@@ -3,15 +3,15 @@
 // behind one button that opens a sheet. One markup, two presentations. The card is a link as a whole, so
 // addresses in its text read short as plain words.
 import { memo } from "react";
-import { shortAddresses } from "@aihot/contracts/addresses";
+import { shortAddresses } from "@techinhot/contracts/addresses";
 import { IntentLink } from "../../components/ui/IntentLink";
-import type { GroupInfo, FeedItemSummary, TimelineFilters } from "@aihot/contracts/site";
-import { categoryLabel, displayTagIn } from "@aihot/contracts/taxonomy";
-import { ITEM_COPY } from "@aihot/site";
-import { ENGLISH } from "@aihot/contracts/english";
+import type { GroupInfo, FeedItemSummary, TimelineFilters } from "@techinhot/contracts/site";
+import { categoryLabel, displayTagIn } from "@techinhot/contracts/taxonomy";
+import { ITEM_COPY } from "@techinhot/site";
+import { ENGLISH } from "@techinhot/contracts/english";
 import { SameEventBadge, SelectedBadge } from "../../components/ui/Badge";
 import { ScoreLabel } from "../../components/ui/Score";
-import { beijingTime } from "@aihot/contracts/time";
+import { beijingTime } from "@techinhot/contracts/time";
 import { MediaThumbs, SourceLine, StarButton, readTone } from "./parts";
 import { GroupButton, GroupSources } from "./ReadingGroup";
 import { QuotedLine } from "../item/QuotedPost";

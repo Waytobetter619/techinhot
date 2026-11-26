@@ -5,13 +5,13 @@ import { tag, stub } from "./setup.ts";
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { after, test } from "node:test";
-import { closeDb, sql } from "@aihot/backend/db";
-import { config } from "@aihot/backend/config";
-import { releaseReceipt } from "@aihot/backend/operations/recover";
-import { upsertMaterial } from "@aihot/backend/content/materials";
-import { stopBoss } from "@aihot/backend/jobs/queue";
-import { pushSelected } from "@aihot/backend/notify/selected";
-import { publishArticle } from "@aihot/backend/publication/publish";
+import { closeDb, sql } from "@techinhot/backend/db";
+import { config } from "@techinhot/backend/config";
+import { releaseReceipt } from "@techinhot/backend/operations/recover";
+import { upsertMaterial } from "@techinhot/backend/content/materials";
+import { stopBoss } from "@techinhot/backend/jobs/queue";
+import { pushSelected } from "@techinhot/backend/notify/selected";
+import { publishArticle } from "@techinhot/backend/publication/publish";
 
 const T = tag();
 const SOURCE = `test-ops-${T}`;
@@ -142,7 +142,7 @@ test("a dingtalk target with its channel valve off records a skip and sends noth
 });
 
 test("DingTalk markdown keeps an original link with brackets whole and dates like the Feishu card", async () => {
-  const { dingtalkMarkdown } = await import("@aihot/backend/notify/dingtalk");
+  const { dingtalkMarkdown } = await import("@techinhot/backend/notify/dingtalk");
   const { text } = dingtalkMarkdown({
     title: "t", sourceName: "s", published: "11月7日发布", summary: null, reason: null, reasonLabel: "r",
     articleId: "a1", url: "https://en.wikipedia.org/wiki/Claude_(language_model) x",
@@ -156,7 +156,7 @@ test("a push with no DingTalk form records a skip at an enabled DingTalk target"
   const key = `test-dingtalk-cardonly-${T}`;
   await sql`INSERT INTO notify_targets (key, purpose, kind, enabled, enabled_at, config_ref, note)
             VALUES (${key}, 'content', 'dingtalk_webhook', true, now() - interval '1 day', 'DINGTALK_PUSH_WEBHOOK_URL', 'test')`;
-  const { deliverContent } = await import("@aihot/backend/notify/deliver");
+  const { deliverContent } = await import("@techinhot/backend/notify/deliver");
   const out = await deliverContent({ subjectKind: "test", subjectId: `cardonly-${T}`, dedupeKey: `cardonly-${T}`, contentAt: new Date(), card: { any: 1 }, targetKey: key });
   assert.deepEqual(out, [{ target: key, status: "skipped" }]);
   config.dingtalkContentPushEnabled = false;

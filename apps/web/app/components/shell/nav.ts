@@ -1,7 +1,7 @@
 // Site navigation in one place: the desktop sidebar's sections and the phone tab bar's tabs, the engine's
 // and the site's modules'. An English page leads only to pages that have an English edition.
 import type { ReactNode } from "react";
-import { NAV, SITE, subjectAfter, withSubject } from "@aihot/site";
+import { NAV, SITE, subjectAfter, withSubject } from "@techinhot/site";
 import { webModules } from "../../site-modules";
 import { L, hasEnglish, type Locale, type Phrase, type Text } from "../../lib/i18n";
 import {

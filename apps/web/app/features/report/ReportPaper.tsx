@@ -7,11 +7,11 @@
 // sit in rows of two whose rules run across the page, each story as tall as its neighbour.
 import { IntentLink } from "../../components/ui/IntentLink";
 import { createContext, useContext, useState, type ReactNode } from "react";
-import { REPORT_NAMES, reportDateLabel, reportDateLabelEn, type ReportCitation, type ReportDetail, type ReportNavigationEntry } from "@aihot/contracts/site";
-import { REPORTS, SEO_TITLES, SITE, subjectAfter, withSubject } from "@aihot/site";
-import { ENGLISH } from "@aihot/contracts/english";
-import { linkMentions, type MentionRun } from "@aihot/contracts/mentions";
-import { sectionLabelIn } from "@aihot/contracts/taxonomy";
+import { REPORT_NAMES, reportDateLabel, reportDateLabelEn, type ReportCitation, type ReportDetail, type ReportNavigationEntry } from "@techinhot/contracts/site";
+import { REPORTS, SEO_TITLES, SITE, subjectAfter, withSubject } from "@techinhot/site";
+import { ENGLISH } from "@techinhot/contracts/english";
+import { linkMentions, type MentionRun } from "@techinhot/contracts/mentions";
+import { sectionLabelIn } from "@techinhot/contracts/taxonomy";
 import { MentionText } from "../../components/ui/MentionText";
 import { Badge } from "../../components/ui/Badge";
 import { IconArrowLeft, IconArrowRight, IconArrowUpRight } from "../../components/icons";

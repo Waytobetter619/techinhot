@@ -1,18 +1,18 @@
 // Public API v1 (long-term). Field shapes follow the OpenAPI document at /openapi-v1.json (the paths stay
 // /api/v1); each operation's query parameters and Cache-Control are listed in V1_OPERATIONS.
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import { PUBLIC_API_CATEGORY_KEYS, type PublicApiCategoryKey } from "@aihot/contracts/taxonomy";
-import { ENGLISH } from "@aihot/contracts/english";
-import type { Locale } from "@aihot/contracts/i18n";
-import { config } from "@aihot/backend/config";
-import { InvalidCursorError } from "@aihot/backend/lib/cursor";
-import { SearchBusyError } from "@aihot/backend/publication/pool";
-import { selectedChanges, selectedSnapshot, SnapshotRequiredError, v1Items } from "@aihot/backend/publication/v1";
-import { resolveStory, v1HotTopics, v1Story } from "@aihot/backend/publication/stories";
-import { isPeriodKey, v1Dailies, v1Daily, v1Period, v1Periods } from "@aihot/backend/publication/reports";
-import { isValidDate } from "@aihot/contracts/time";
-import * as english from "@aihot/backend/publication/english";
-import { requestNotice } from "@aihot/backend/modules";
+import { PUBLIC_API_CATEGORY_KEYS, type PublicApiCategoryKey } from "@techinhot/contracts/taxonomy";
+import { ENGLISH } from "@techinhot/contracts/english";
+import type { Locale } from "@techinhot/contracts/i18n";
+import { config } from "@techinhot/backend/config";
+import { InvalidCursorError } from "@techinhot/backend/lib/cursor";
+import { SearchBusyError } from "@techinhot/backend/publication/pool";
+import { selectedChanges, selectedSnapshot, SnapshotRequiredError, v1Items } from "@techinhot/backend/publication/v1";
+import { resolveStory, v1HotTopics, v1Story } from "@techinhot/backend/publication/stories";
+import { isPeriodKey, v1Dailies, v1Daily, v1Period, v1Periods } from "@techinhot/backend/publication/reports";
+import { isValidDate } from "@techinhot/contracts/time";
+import * as english from "@techinhot/backend/publication/english";
+import { requestNotice } from "@techinhot/backend/modules";
 import { applyPublicHeaders, QueryError, sendJsonWithNotice, sendJsonWithEtag, sendProblem, strictQuery } from "../http/respond.ts";
 
 type Handler = (req: FastifyRequest, reply: FastifyReply) => Promise<unknown>;

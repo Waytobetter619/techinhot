@@ -9,7 +9,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, before, test } from "node:test";
-import { upload, type Store } from "@aihot/backend/operations/backup";
+import { upload, type Store } from "@techinhot/backend/operations/backup";
 
 const T = tag();
 const originalFetch = globalThis.fetch;
@@ -75,7 +75,7 @@ globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) =>
 
 let dir = "";
 before(async () => {
-  dir = await mkdtemp(path.join(tmpdir(), "aihot-multipart-"));
+  dir = await mkdtemp(path.join(tmpdir(), "techinhot-multipart-"));
 });
 after(async () => {
   globalThis.fetch = originalFetch;

@@ -1,10 +1,10 @@
 import { Suspense } from "react";
-import { ADMIN, SITE } from "@aihot/site";
+import { ADMIN, SITE } from "@techinhot/site";
 import { Await, data, Outlet, useLocation, useNavigation, type ShouldRevalidateFunction } from "react-router";
 import type { Route } from "./+types/layout";
-import { RingMark } from "@aihot/site/brand/Logo.tsx";
+import { RingMark } from "@techinhot/site/brand/Logo.tsx";
 import { NavigationProgress } from "../../components/shell/Chrome";
-import type { AdminMe, AdminNavCounts } from "@aihot/contracts/admin";
+import type { AdminMe, AdminNavCounts } from "@techinhot/contracts/admin";
 import { Toaster } from "../../features/admin/toast";
 import { adminGet } from "../../lib/admin.server";
 import { NavLink } from "../../lib/link";

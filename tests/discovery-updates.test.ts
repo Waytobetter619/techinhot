@@ -10,11 +10,11 @@ import './setup.ts';
 import assert from 'node:assert/strict';
 import { after, afterEach, test } from 'node:test';
 import { randomUUID } from 'node:crypto';
-import { sql, closeDb } from '@aihot/backend/db';
-import { config } from '@aihot/backend/config';
-import { installModules, type SitemapEntry } from '@aihot/backend/modules';
-import { loadDiscoveryEntries } from '@aihot/backend/publication/sitemap';
-import { submitIndexNow } from '@aihot/backend/operations/indexnow';
+import { sql, closeDb } from '@techinhot/backend/db';
+import { config } from '@techinhot/backend/config';
+import { installModules, type SitemapEntry } from '@techinhot/backend/modules';
+import { loadDiscoveryEntries } from '@techinhot/backend/publication/sitemap';
+import { submitIndexNow } from '@techinhot/backend/operations/indexnow';
 
 const originalFetch = globalThis.fetch;
 const originalEnabled = config.indexNowSubmitEnabled;

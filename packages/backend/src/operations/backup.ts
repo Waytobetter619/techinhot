@@ -9,7 +9,7 @@ import { createReadStream } from "node:fs";
 import { mkdir, readdir, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
-import { beijingDate, beijingWeekday } from "@aihot/contracts/time";
+import { beijingDate, beijingWeekday } from "@techinhot/contracts/time";
 import { config } from "../config.ts";
 import { sql } from "../db.ts";
 import { screenshotsForwarded } from "./feedback.ts";

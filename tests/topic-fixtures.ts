@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { upsertMaterial } from "@aihot/backend/content/materials";
-import { sql } from "@aihot/backend/db";
-import { publishArticle } from "@aihot/backend/publication/publish";
+import { upsertMaterial } from "@techinhot/backend/content/materials";
+import { sql } from "@techinhot/backend/db";
+import { publishArticle } from "@techinhot/backend/publication/publish";
 import { tag } from "./setup.ts";
 
 export const topicTag = tag();

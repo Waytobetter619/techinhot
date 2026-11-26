@@ -6,14 +6,14 @@ import assert from "node:assert/strict";
 import { after, beforeEach, test } from "node:test";
 import { spawn } from "node:child_process";
 import { z } from "zod";
-import { sql, closeDb } from "@aihot/backend/db";
-import { chatJson } from "@aihot/backend/providers/llm";
-import { BudgetExceededError, failureKind, ModelOutputError, ReceiptUnknownError } from "@aihot/backend/providers/receipts";
-import { autoReleaseUnknownReceipts } from "@aihot/backend/operations/recover";
-import { collectFindings } from "@aihot/backend/operations/alerts";
-import { navCounts } from "@aihot/backend/admin/navigation";
-import { runsOverview } from "@aihot/backend/admin/runs";
-import { getBoss, stopBoss } from "@aihot/backend/jobs/queue";
+import { sql, closeDb } from "@techinhot/backend/db";
+import { chatJson } from "@techinhot/backend/providers/llm";
+import { BudgetExceededError, failureKind, ModelOutputError, ReceiptUnknownError } from "@techinhot/backend/providers/receipts";
+import { autoReleaseUnknownReceipts } from "@techinhot/backend/operations/recover";
+import { collectFindings } from "@techinhot/backend/operations/alerts";
+import { navCounts } from "@techinhot/backend/admin/navigation";
+import { runsOverview } from "@techinhot/backend/admin/runs";
+import { getBoss, stopBoss } from "@techinhot/backend/jobs/queue";
 
 const answer = (value: string) => ({ choices: [{ message: { content: JSON.stringify({ value }) } }] });
 let primaryAnswer: () => unknown = () => answer("primary");
@@ -60,7 +60,7 @@ test("ten consecutive failures within five minutes stop primary calls across ste
   assert.equal(primary.hits(), calls);
   assert.equal((await sql`SELECT 1 FROM receipts WHERE subject = ${request("group-during-outage").subject} AND service = 'deepseek'`).length, 0,
     "an open circuit does not reserve budget or record an unsent attempt");
-  const source = `import {z} from 'zod'; import {chatJson} from '@aihot/backend/providers/llm'; import {closeDb} from '@aihot/backend/db'; const r=await chatJson({...${JSON.stringify({ ...request("restart"), schema: undefined })},schema:z.object({value:z.string()})}); console.log(r.model); await closeDb();`;
+  const source = `import {z} from 'zod'; import {chatJson} from '@techinhot/backend/providers/llm'; import {closeDb} from '@techinhot/backend/db'; const r=await chatJson({...${JSON.stringify({ ...request("restart"), schema: undefined })},schema:z.object({value:z.string()})}); console.log(r.model); await closeDb();`;
   const child = spawn(process.execPath, ["--input-type=module", "-e", source], { env: process.env, stdio: ["ignore", "pipe", "pipe"] });
   let output = ""; let errors = "";
   child.stdout.on("data", chunk => { output += chunk; }); child.stderr.on("data", chunk => { errors += chunk; });

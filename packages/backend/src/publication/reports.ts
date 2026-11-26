@@ -1,11 +1,11 @@
 // Reports through the public read layer: website DTOs and the v1 shapes. Only real reports are
 // listed; a missing date is a 404, never another day. Withdrawn citations are marked, not shown.
-import type { ReportCitation, ReportDetail, ReportIndexEntry, ReportNavigationEntry, ReportKind } from "@aihot/contracts/site";
-import { REPORTS, SITE, withSubject } from "@aihot/site";
+import type { ReportCitation, ReportDetail, ReportIndexEntry, ReportNavigationEntry, ReportKind } from "@techinhot/contracts/site";
+import { REPORTS, SITE, withSubject } from "@techinhot/site";
 import { sql } from "../db.ts";
 import { cached, type Cached } from "../lib/cache.ts";
 import { proxiedImage, proxiedImageSet } from "../media/imgproxy.ts";
-import { isoWeekRange, monthRange } from "@aihot/contracts/time";
+import { isoWeekRange, monthRange } from "@techinhot/contracts/time";
 import { dailyUrl, itemUrl, periodUrl } from "./links.ts";
 import { publicSourceName } from "./rules.ts";
 import { listedCondition } from "./scope.ts";
@@ -514,7 +514,7 @@ export async function v1Dailies(limit: number) {
       generatedAt: r.generated_at.toISOString(),
       leadTitle: lead?.title ?? null,
       leadParagraph: lead?.leadParagraph ?? null,
-      links: { aihot: url },
+      links: { techinhot: url },
       attribution: attribution(url),
     };
   });
@@ -544,7 +544,7 @@ export async function dailyWithNotes(date: string | "latest") {
   const avail = await availability([...new Set([...raw, ...raw.flatMap((i: any) => i.related ?? []), ...picks].map((i: any) => i.itemId).filter(Boolean))] as string[]);
   const ok = (i: any) => !i.itemId || (avail.get(i.itemId)?.available ?? true);
   const metadata = (i: any) => citationMetadata(i, avail.get(i.itemId));
-  const links = (i: any) => ({ aihot: i.itemId ? itemUrl(i.itemId) : null, original: metadata(i).sourceUrl });
+  const links = (i: any) => ({ techinhot: i.itemId ? itemUrl(i.itemId) : null, original: metadata(i).sourceUrl });
   const url = dailyUrl(r.key);
   const lead = c.lead || c.leadItemId ? issueLead(c, "daily", goneIn(avail)) : null;
   // 今日看点 as the page lists them after the lead: the entries its highlights name and the reports a thin
@@ -560,7 +560,7 @@ export async function dailyWithNotes(date: string | "latest") {
   for (const i of raw.filter(ok)) {
     const related = (i.related ?? []).filter((x: any) => x.itemId && ok(x)).map((x: any) => ({ title: String(x.title), link: itemUrl(x.itemId) }));
     const otherSources = Number(i.sources) > 1 ? Number(i.sources) - 1 : 0;
-    if (otherSources || related.length || i.followUp) notes.set(i.itemId ? String(i.itemId) : (links(i).aihot ?? links(i).original), { otherSources, related, followUp: i.followUp ?? null });
+    if (otherSources || related.length || i.followUp) notes.set(i.itemId ? String(i.itemId) : (links(i).techinhot ?? links(i).original), { otherSources, related, followUp: i.followUp ?? null });
   }
   const body = {
     schemaVersion: 1 as const,
@@ -569,7 +569,7 @@ export async function dailyWithNotes(date: string | "latest") {
       generatedAt: r.generated_at.toISOString(),
       windowStart: r.window_start.toISOString(),
       windowEnd: r.window_end.toISOString(),
-      links: { aihot: url },
+      links: { techinhot: url },
       attribution: attribution(url),
       lead: lead ? { title: lead.title, leadParagraph: lead.leadParagraph ?? "" } : null,
       sections: (c.sections ?? []).map((s: any) => ({
@@ -690,7 +690,7 @@ export async function v1Periods(kind: PeriodKind, limit: number) {
       ...periodOf(kind, r.key),
       generatedAt: r.generated_at.toISOString(),
       headline: issueLead(r.content, "periodic", index.gone)?.title ?? null,
-      links: { aihot: url },
+      links: { techinhot: url },
       attribution: attribution(url),
     };
   });
@@ -718,7 +718,7 @@ export async function v1Period(kind: PeriodKind, key: string | "latest") {
     generatedAt: r.generated_at.toISOString(),
     windowStart: r.window_start.toISOString(),
     windowEnd: r.window_end.toISOString(),
-    links: { aihot: url },
+    links: { techinhot: url },
     attribution: attribution(url),
     headline: issueLead(c, "periodic", gone)?.title ?? null,
     overview: period.text,
@@ -734,7 +734,7 @@ export async function v1Period(kind: PeriodKind, key: string | "latest") {
           title: String(i.title),
           summary: String(metadata.summary ?? ""),
           source: { ...(sourceId ? { id: sourceId } : {}), name: metadata.sourceName },
-          links: { aihot: i.itemId ? itemUrl(i.itemId) : null, original: metadata.sourceUrl },
+          links: { techinhot: i.itemId ? itemUrl(i.itemId) : null, original: metadata.sourceUrl },
           publishedAt: metadata.publishedAt,
           attribution: attribution(i.itemId ? itemUrl(i.itemId) : url),
         };

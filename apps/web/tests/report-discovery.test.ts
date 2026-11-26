@@ -2,8 +2,8 @@
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
 import * as cheerio from 'cheerio';
-import { ENGLISH } from '@aihot/contracts/english';
-import { MCP_TOOL_NAMES } from '@aihot/contracts/mcp';
+import { ENGLISH } from '@techinhot/contracts/english';
+import { MCP_TOOL_NAMES } from '@techinhot/contracts/mcp';
 import { fakeApi, startWebServer, type WebServer } from './web-server.ts';
 
 let web: WebServer;

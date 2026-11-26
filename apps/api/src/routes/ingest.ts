@@ -3,8 +3,8 @@
 // front that limits them. The site's modules' reporting clients use the same token (authorized below).
 import { timingSafeEqual } from "node:crypto";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import { credential } from "@aihot/backend/config";
-import { IngestError, ingestItems } from "@aihot/backend/ingest/items";
+import { credential } from "@techinhot/backend/config";
+import { IngestError, ingestItems } from "@techinhot/backend/ingest/items";
 
 const PLACEHOLDER = /^(|changeme|change-me|placeholder|xxx+|todo|test|dev|your[-_]?token.*)$/i;
 

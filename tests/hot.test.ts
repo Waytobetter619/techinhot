@@ -6,10 +6,10 @@ import { tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { after, test } from "node:test";
-import { closeDb, sql } from "@aihot/backend/db";
-import { heatRows, snapshotHeat, type HotEntry } from "@aihot/backend/events/hot";
-import { loadHotStrip, rankingParticipants } from "@aihot/backend/publication/hot";
-import { loadHot, loadStoryDetail, v1HotTopics } from "@aihot/backend/publication/stories";
+import { closeDb, sql } from "@techinhot/backend/db";
+import { heatRows, snapshotHeat, type HotEntry } from "@techinhot/backend/events/hot";
+import { loadHotStrip, rankingParticipants } from "@techinhot/backend/publication/hot";
+import { loadHot, loadStoryDetail, v1HotTopics } from "@techinhot/backend/publication/stories";
 import { buildApp } from "../apps/api/src/app.ts";
 
 const T = `hot-${tag()}`;

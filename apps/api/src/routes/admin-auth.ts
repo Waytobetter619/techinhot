@@ -1,9 +1,9 @@
 // Admin sign-in and the /api/admin guard. Public routes never read the session.
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { ZodError } from "zod";
-import { safeReturn, SIGN_IN_HOME } from "@aihot/contracts/admin";
-import { ADMIN } from "@aihot/site";
-import { config } from "@aihot/backend/config";
+import { safeReturn, SIGN_IN_HOME } from "@techinhot/contracts/admin";
+import { ADMIN } from "@techinhot/site";
+import { config } from "@techinhot/backend/config";
 import {
   cookie,
   endSession,
@@ -13,9 +13,9 @@ import {
   SESSION_DAYS,
   sessionPrincipal,
   type AdminPrincipal,
-} from "@aihot/backend/admin/auth";
-import { adminPagePrincipal, previewPrincipal } from "@aihot/backend/admin/preview";
-import type { Previewer } from "@aihot/backend/modules";
+} from "@techinhot/backend/admin/auth";
+import { adminPagePrincipal, previewPrincipal } from "@techinhot/backend/admin/preview";
+import type { Previewer } from "@techinhot/backend/modules";
 import { sendProblem } from "../http/respond.ts";
 
 /**

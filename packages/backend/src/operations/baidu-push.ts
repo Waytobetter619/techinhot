@@ -4,12 +4,12 @@
 // runs submit URLs that joined it since, each once. A request over the remaining quota is refused and voids
 // the rest of the day, so a request never asks for more than Baidu's previous reply said is left; the first
 // request of a Beijing day carries one URL to learn that number.
-import { beijingDate } from "@aihot/contracts/time";
+import { beijingDate } from "@techinhot/contracts/time";
 import { config } from "../config.ts";
 import { sql } from "../db.ts";
 import { siteUrl } from "../publication/links.ts";
 import { loadDiscoveryEntries } from "../publication/sitemap.ts";
-import { localeOf } from "@aihot/contracts/i18n";
+import { localeOf } from "@techinhot/contracts/i18n";
 
 const ENDPOINT = "http://data.zz.baidu.com/urls";
 const MAX_URLS = 2000;

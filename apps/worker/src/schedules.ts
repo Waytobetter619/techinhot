@@ -1,28 +1,28 @@
 // Cron-style schedules (Asia/Shanghai), the engine's and then the site's modules'. Each run is recorded in
 // job_runs; missed slots run once.
 import type { PgBoss } from "pg-boss";
-import { ensureQueue, recordRun } from "@aihot/backend/jobs/queue";
-import { serverModules, type Scheduled } from "@aihot/backend/modules";
-import { sweepUnprocessed } from "@aihot/backend/jobs/content";
-import { translatePending } from "@aihot/backend/editorial/translate";
-import { translateEnglish } from "@aihot/backend/editorial/english";
-import { ENGLISH } from "@aihot/contracts/english";
-import { adaptIntervals, scheduleDueSources } from "@aihot/backend/sources/collect";
-import { scheduleMpReconcile } from "@aihot/backend/sources/mp";
-import { followXRenames } from "@aihot/backend/sources/x-renames";
-import { dajialaConfigured } from "@aihot/backend/providers/dajiala";
-import { refreshSourceIcons } from "@aihot/backend/sources/icons";
-import { computeHotRanking, snapshotHeat } from "@aihot/backend/events/hot";
-import { linkRelatedStories } from "@aihot/backend/events/consolidate";
-import { composeDueReports } from "@aihot/backend/reports/compose";
-import { dailyRetention } from "@aihot/backend/operations/retention";
-import { submitIndexNow } from "@aihot/backend/operations/indexnow";
-import { submitBaiduPush } from "@aihot/backend/operations/baidu-push";
-import { checkAlerts, sendDigest } from "@aihot/backend/operations/alerts";
-import { recoverStaleWork } from "@aihot/backend/operations/recover";
-import { forwardPendingFeedback } from "@aihot/backend/operations/feedback";
-import { backupConfigured, runBackup } from "@aihot/backend/operations/backup";
-import { sourceHealthWeekly } from "@aihot/backend/operations/reports";
+import { ensureQueue, recordRun } from "@techinhot/backend/jobs/queue";
+import { serverModules, type Scheduled } from "@techinhot/backend/modules";
+import { sweepUnprocessed } from "@techinhot/backend/jobs/content";
+import { translatePending } from "@techinhot/backend/editorial/translate";
+import { translateEnglish } from "@techinhot/backend/editorial/english";
+import { ENGLISH } from "@techinhot/contracts/english";
+import { adaptIntervals, scheduleDueSources } from "@techinhot/backend/sources/collect";
+import { scheduleMpReconcile } from "@techinhot/backend/sources/mp";
+import { followXRenames } from "@techinhot/backend/sources/x-renames";
+import { dajialaConfigured } from "@techinhot/backend/providers/dajiala";
+import { refreshSourceIcons } from "@techinhot/backend/sources/icons";
+import { computeHotRanking, snapshotHeat } from "@techinhot/backend/events/hot";
+import { linkRelatedStories } from "@techinhot/backend/events/consolidate";
+import { composeDueReports } from "@techinhot/backend/reports/compose";
+import { dailyRetention } from "@techinhot/backend/operations/retention";
+import { submitIndexNow } from "@techinhot/backend/operations/indexnow";
+import { submitBaiduPush } from "@techinhot/backend/operations/baidu-push";
+import { checkAlerts, sendDigest } from "@techinhot/backend/operations/alerts";
+import { recoverStaleWork } from "@techinhot/backend/operations/recover";
+import { forwardPendingFeedback } from "@techinhot/backend/operations/feedback";
+import { backupConfigured, runBackup } from "@techinhot/backend/operations/backup";
+import { sourceHealthWeekly } from "@techinhot/backend/operations/reports";
 
 const collecting = process.env.COLLECT_ENABLED === "true";
 

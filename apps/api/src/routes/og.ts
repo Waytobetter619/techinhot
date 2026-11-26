@@ -3,19 +3,19 @@
 // drawn in English under /og/en/…, for the English pages: the language is in the path, as a CDN may
 // keep one copy of an image whatever its query.
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import { ENGLISH, READER_LANGUAGES, WAITING_ENGLISH_SECONDS, needsEnglish } from "@aihot/contracts/english";
-import { namesEn, type Locale } from "@aihot/contracts/i18n";
-import { REPORT_NAMES_EN, reportDateLabel, reportDateLabelEn } from "@aihot/contracts/site";
-import { topicDefinition, topicName } from "@aihot/contracts/taxonomy";
-import { TOPIC_GROUP_EN } from "@aihot/industry/english";
-import * as english from "@aihot/backend/publication/english";
-import { loadItemOgCard, loadItemPoster } from "@aihot/backend/publication/og";
-import { loadReport, type ReportKind } from "@aihot/backend/publication/reports";
-import { findTopic, TOPIC_GROUPS, TOPICS } from "@aihot/backend/publication/topics";
-import { loadStoryShare, resolveStory } from "@aihot/backend/publication/stories";
-import { ogEtag, renderOg, type OgCard } from "@aihot/backend/media/og";
-import { posterEtag, renderPoster } from "@aihot/backend/media/poster";
-import { CARDS, REPORTS, SITE, subjectAfter, withSubject } from "@aihot/site";
+import { ENGLISH, READER_LANGUAGES, WAITING_ENGLISH_SECONDS, needsEnglish } from "@techinhot/contracts/english";
+import { namesEn, type Locale } from "@techinhot/contracts/i18n";
+import { REPORT_NAMES_EN, reportDateLabel, reportDateLabelEn } from "@techinhot/contracts/site";
+import { topicDefinition, topicName } from "@techinhot/contracts/taxonomy";
+import { TOPIC_GROUP_EN } from "@techinhot/industry/english";
+import * as english from "@techinhot/backend/publication/english";
+import { loadItemOgCard, loadItemPoster } from "@techinhot/backend/publication/og";
+import { loadReport, type ReportKind } from "@techinhot/backend/publication/reports";
+import { findTopic, TOPIC_GROUPS, TOPICS } from "@techinhot/backend/publication/topics";
+import { loadStoryShare, resolveStory } from "@techinhot/backend/publication/stories";
+import { ogEtag, renderOg, type OgCard } from "@techinhot/backend/media/og";
+import { posterEtag, renderPoster } from "@techinhot/backend/media/poster";
+import { CARDS, REPORTS, SITE, subjectAfter, withSubject } from "@techinhot/site";
 
 /** The pages' share cards: the site's texts, and the topic count of the topic list. */
 const PAGES: Record<Locale, Record<string, OgCard>> = {

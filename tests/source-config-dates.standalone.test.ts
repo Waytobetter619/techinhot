@@ -2,7 +2,7 @@
 // dates must be refused before a source could accidentally collect and analyse its whole archive.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { unsupportedConfig } from "@aihot/backend/sources/config-keys";
+import { unsupportedConfig } from "@techinhot/backend/sources/config-keys";
 
 test("ordinary listing sources accept an exact UTC publication boundary", () => {
   for (const kind of ["rss", "web_list", "json_list"] as const) {

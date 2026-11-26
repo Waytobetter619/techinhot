@@ -1,9 +1,9 @@
 // Public read layer, item level. Every exit (site API, v1, RSS, MCP, sitemap) reads
 // items through these columns and views; which rows are public is decided by scope.ts.
-import { CATEGORY_KEYS, toPublicApiCategory, type CategoryKey, type ChannelKey, type PublicApiCategoryKey } from "@aihot/contracts/taxonomy";
-import { STORY_INDEX_MIN_SOURCES, type FeedItemSummary, type ItemSummary, type MediaView, type XPostView } from "@aihot/contracts/site";
+import { CATEGORY_KEYS, toPublicApiCategory, type CategoryKey, type ChannelKey, type PublicApiCategoryKey } from "@techinhot/contracts/taxonomy";
+import { STORY_INDEX_MIN_SOURCES, type FeedItemSummary, type ItemSummary, type MediaView, type XPostView } from "@techinhot/contracts/site";
 import { itemUrl } from "./links.ts";
-import { POLICY, SITE } from "@aihot/site";
+import { POLICY, SITE } from "@techinhot/site";
 import { sql, type Db } from "../db.ts";
 import { isChineseText } from "../lib/text.ts";
 import { isEmptyOrLinkOnly, withXArticle } from "../content/posts.ts";
@@ -79,7 +79,7 @@ export interface V1ItemPayload {
   originalTitle: string | null;
   summary: string | null;
   source: { name: string };
-  links: { aihot: string; original: string };
+  links: { techinhot: string; original: string };
   publishedAt: string | null;
   discoveredAt: string;
   category: string | null;
@@ -90,21 +90,21 @@ export interface V1ItemPayload {
 }
 
 export function rowToV1(p: ApiItemRow): V1ItemPayload {
-  const aihot = itemUrl(p.id);
+  const techinhot = itemUrl(p.id);
   return {
     id: p.id,
     title: p.title,
     originalTitle: p.original_title,
     summary: p.summary,
     source: { name: p.source_name },
-    links: { aihot, original: p.url },
+    links: { techinhot, original: p.url },
     publishedAt: p.published_at ? p.published_at.toISOString() : null,
     discoveredAt: p.discovered_at.toISOString(),
     category: toPublicApiCategory(p.category),
     score: p.score === null ? null : Math.round(Number(p.score)),
     selected: p.selected,
     reason: p.selected ? p.reason : null,
-    attribution: { name: SITE.name, url: aihot },
+    attribution: { name: SITE.name, url: techinhot },
   };
 }
 

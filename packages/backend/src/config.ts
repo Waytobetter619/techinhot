@@ -3,7 +3,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { parseEnv } from "node:util";
-import { DEPLOYMENT, SITE } from "@aihot/site";
+import { DEPLOYMENT, SITE } from "@techinhot/site";
 
 export const REPO_ROOT = path.resolve(import.meta.dirname, "../../..");
 
@@ -33,11 +33,11 @@ function bool(name: string, fallback: boolean): boolean {
 
 export const isProduction = env.NODE_ENV === "production";
 
-/** AIHOT_CREDENTIALS_DIR, else the site's own default (relative to the repository). */
-const credentialsDir = env.AIHOT_CREDENTIALS_DIR || DEPLOYMENT.credentialsDir;
+/** TECHINHOT_CREDENTIALS_DIR, else the site's own default (relative to the repository). */
+const credentialsDir = env.TECHINHOT_CREDENTIALS_DIR || DEPLOYMENT.credentialsDir;
 
 export const config = {
-  databaseUrl: str("DATABASE_URL", "postgres://127.0.0.1:5432/aihot"),
+  databaseUrl: str("DATABASE_URL", "postgres://127.0.0.1:5432/techinhot"),
   apiPort: int("API_PORT", 3001),
   // Every generated absolute link uses this address, whatever Host a request arrives with.
   siteUrl: str("SITE_URL", SITE.defaultUrl).replace(/\/+$/, ""),
@@ -60,9 +60,9 @@ export const config = {
   baiduPushToken: env.BAIDU_PUSH_TOKEN || null,
   /** Optional directory of per-group dotenv files (models.env, collectors.env, …); normally everything is in .env. */
   credentialsDir: credentialsDir ? path.resolve(REPO_ROOT, credentialsDir) : null,
-  dataDir: str("AIHOT_DATA_DIR", path.join(REPO_ROOT, ".data")),
+  dataDir: str("TECHINHOT_DATA_DIR", path.join(REPO_ROOT, ".data")),
   // Name of this deployment in alerts ("production" sends them without a prefix).
-  environmentName: str("AIHOT_ENVIRONMENT", isProduction ? "production" : "development"),
+  environmentName: str("TECHINHOT_ENVIRONMENT", isProduction ? "production" : "development"),
   // External-action valve: off unless the environment turns it on, like COLLECT_ENABLED (read by the
   // worker).
   modelCallsEnabled: bool("MODEL_CALLS_ENABLED", false),
@@ -75,13 +75,13 @@ export type CredentialGroup = "models" | "collectors" | "integrations" | "auth";
 
 const groupCache = new Map<CredentialGroup, Record<string, string>>();
 
-/** The file a group is kept in, under AIHOT_CREDENTIALS_DIR: the site's name for it, else <group>.env. */
+/** The file a group is kept in, under TECHINHOT_CREDENTIALS_DIR: the site's name for it, else <group>.env. */
 function groupFile(group: CredentialGroup): string {
   return DEPLOYMENT.credentialFiles[group] ?? `${group}.env`;
 }
 
 /**
- * Loads one credential group from an optional dotenv file (AIHOT_CREDENTIALS_DIR/<group>.env). Values
+ * Loads one credential group from an optional dotenv file (TECHINHOT_CREDENTIALS_DIR/<group>.env). Values
  * in the environment always win; a normal deployment only uses environment variables (.env).
  */
 export function credentials(group: CredentialGroup): Record<string, string> {

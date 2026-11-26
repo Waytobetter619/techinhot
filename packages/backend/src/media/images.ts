@@ -7,7 +7,7 @@ import path from "node:path";
 import sharp, { type Sharp } from "sharp";
 import { config } from "../config.ts";
 import { guardedFetch, type GuardedResponse } from "../lib/http-fetch.ts";
-import { AVIF_MODE_SUFFIX } from "@aihot/contracts/site";
+import { AVIF_MODE_SUFFIX } from "@techinhot/contracts/site";
 import { IMAGE_WIDTHS } from "./renditions.ts";
 import { X_VIDEO_MODE } from "./imgproxy.ts";
 import { isXVideoUrl } from "../lib/video-url.ts";
