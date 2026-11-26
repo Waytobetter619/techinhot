@@ -48,7 +48,7 @@ const agentWays = () => [...webModules().flatMap((m) => m.agentWays ?? []), "MCP
 const tools = (): Row[] => [
   ...webModules().flatMap((m) => m.tools ?? []),
   ...(topicsInNav ? [{ to: "/topics", label: L("主题", "Topics"), icon: <IconGrid size={20} /> }] : []),
-  { to: "/watch", label: L("按条件订阅", "Subscribe"), icon: <IconRss size={20} />, detail: "主题 · 分类 · 关键词" },
+  { to: "/watch", label: L("按条件订阅", "Subscribe"), icon: <IconRss size={20} /> },
   { to: "/agent", label: L("Agent 接入", "For Agents"), icon: <IconPlug size={20} />, detail: agentWays().slice(0, 3).join(" · ") },
 ];
 
